@@ -121,7 +121,7 @@
     <string name="image_save_failed">Could not save image</string>
     <string name="image_import_instructions">Choose an image size before importing.</string>
     <string name="image_import_instructions_secondary">Smaller sizes save space. Original keeps the best quality.</string>
-    <string name="original_image_size_label">Original</string>
+    <string name="original_image_size_label">Keep Original Size</string>
     <string name="add_text_tool">Add Text</string>
     <string name="add_text_hint">Tap anywhere on the page to add text</string>
     <string name="text_tools_menu_entry">Text Tools</string>

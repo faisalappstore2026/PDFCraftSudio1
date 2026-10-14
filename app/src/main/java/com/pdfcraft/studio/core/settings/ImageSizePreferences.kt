@@ -8,10 +8,25 @@ class ImageSizePreferences(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun getSavedOption(): ImageSizeOption {
+        val mode = prefs.getString(KEY_MODE, null)
+        if (mode == "original") return ImageSizeOption.Default
+        if (mode == "preset") {
+            val kb = prefs.getInt(KEY_KB, 5)
+            if (kb <= 0) return ImageSizeOption.Default
+            return ImageSizeOption.Preset(kb)
+        }
+        if (mode == "custom_kb") {
+            val kb = prefs.getInt(KEY_KB, 1)
+            if (kb <= 0) return ImageSizeOption.Default
+            return ImageSizeOption.Custom(kb)
+        }
+        if (mode == "custom_bytes") {
+            val bytes = prefs.getInt(KEY_BYTES, 1)
+            if (bytes <= 0) return ImageSizeOption.Default
+            return ImageSizeOption.CustomBytes(bytes)
+        }
         val kb = prefs.getInt(KEY_KB, -1)
-        // First install / never saved → default 10 KB preset
-        if (kb <= 0) return ImageSizeOption.Preset(10)
-
+        if (kb <= 0) return ImageSizeOption.Default
         val isCustom = prefs.getBoolean(KEY_IS_CUSTOM, false)
         return if (isCustom) ImageSizeOption.Custom(kb) else ImageSizeOption.Preset(kb)
     }
@@ -19,14 +34,25 @@ class ImageSizePreferences(context: Context) {
     fun saveOption(option: ImageSizeOption) {
         prefs.edit().apply {
             when (option) {
-                is ImageSizeOption.Default -> putInt(KEY_KB, -1)
+                is ImageSizeOption.Default -> {
+                    putInt(KEY_KB, -1)
+                    putBoolean(KEY_IS_CUSTOM, false)
+                    putString(KEY_MODE, "original")
+                }
                 is ImageSizeOption.Preset -> {
                     putInt(KEY_KB, option.kb)
                     putBoolean(KEY_IS_CUSTOM, false)
+                    putString(KEY_MODE, "preset")
                 }
                 is ImageSizeOption.Custom -> {
                     putInt(KEY_KB, option.kb)
                     putBoolean(KEY_IS_CUSTOM, true)
+                    putString(KEY_MODE, "custom_kb")
+                }
+                is ImageSizeOption.CustomBytes -> {
+                    putInt(KEY_BYTES, option.bytes)
+                    putBoolean(KEY_IS_CUSTOM, true)
+                    putString(KEY_MODE, "custom_bytes")
                 }
             }
         }.apply()
@@ -61,6 +87,8 @@ class ImageSizePreferences(context: Context) {
         const val PREFS_NAME = "pdfcraft_settings"
         const val KEY_KB = "selected_image_size_kb"
         const val KEY_IS_CUSTOM = "selected_image_size_is_custom"
+        const val KEY_MODE = "selected_image_size_mode"
+        const val KEY_BYTES = "selected_image_size_bytes"
         const val KEY_PAGE_BG_COLOR = "page_background_color"
         const val KEY_NUM_BG = "numbering_bg"
         const val KEY_NUM_FG = "numbering_fg"

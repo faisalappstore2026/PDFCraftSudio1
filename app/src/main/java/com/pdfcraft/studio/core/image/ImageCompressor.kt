@@ -36,7 +36,43 @@ class ImageCompressor {
 
         val fallbackBytes = encode(workingBitmap, minQuality)
         val decoded = BitmapFactory.decodeByteArray(fallbackBytes, 0, fallbackBytes.size) ?: workingBitmap
-        return Result(decoded, fallbackBytes.size)
+        val normal = Result(decoded, fallbackBytes.size)
+        if (normal.approxSizeBytes <= targetBytes) return normal
+        if (targetBytes >= 5 * 1024) return normal
+        return squeezeUnder(decoded, targetBytes)
+    }
+
+    private fun squeezeUnder(start: Bitmap, targetBytes: Int): Result {
+        var working = start
+        var guard = 0
+        while (guard < 12) {
+            var quality = 33
+            while (quality >= 1) {
+                val bytes = encode(working, quality)
+                if (bytes.size <= targetBytes) {
+                    val small = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: working
+                    return Result(small, bytes.size)
+                }
+                quality = quality - 8
+            }
+            val nextW = (working.width * 0.7f).toInt()
+            val nextH = (working.height * 0.7f).toInt()
+            if (nextW < 16) {
+                val tiny = encode(working, 1)
+                val small = BitmapFactory.decodeByteArray(tiny, 0, tiny.size) ?: working
+                return Result(small, tiny.size)
+            }
+            if (nextH < 16) {
+                val tiny = encode(working, 1)
+                val small = BitmapFactory.decodeByteArray(tiny, 0, tiny.size) ?: working
+                return Result(small, tiny.size)
+            }
+            working = Bitmap.createScaledBitmap(working, nextW, nextH, true)
+            guard = guard + 1
+        }
+        val tiny = encode(working, 1)
+        val small = BitmapFactory.decodeByteArray(tiny, 0, tiny.size) ?: working
+        return Result(small, tiny.size)
     }
 
     private fun searchQuality(bitmap: Bitmap, targetBytes: Int): Result? {

@@ -399,6 +399,7 @@ object ProjectStore {
         is ImageSizeOption.Default -> JSONObject().put("type", "original")
         is ImageSizeOption.Preset -> JSONObject().put("type", "preset").put("kb", opt.kb)
         is ImageSizeOption.Custom -> JSONObject().put("type", "custom").put("kb", opt.kb)
+        is ImageSizeOption.CustomBytes -> JSONObject().put("type", "custom_bytes").put("bytes", opt.bytes)
     }
 
     private fun <T> mapToJson(map: Map<Int, T>, value: (T) -> Any): JSONObject {
@@ -723,6 +724,10 @@ object ProjectStore {
         return when (obj.optString("type")) {
             "preset" -> ImageSizeOption.Preset(obj.optInt("kb", 10))
             "custom" -> ImageSizeOption.Custom(obj.optInt("kb", 100))
+            "custom_bytes" -> {
+                val bytes = obj.optInt("bytes", 500)
+                ImageSizeOption.CustomBytes(if (bytes > 0) bytes else 500)
+            }
             else -> ImageSizeOption.Default
         }
     }
