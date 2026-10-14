@@ -2055,7 +2055,7 @@ fun isSelectionStrike(): Boolean {
     fun nudgeNumbering(dx: Float, dy: Float) {
         beginCoalescedEdit("numNudge")
         // Small fractional step so hold-to-repeat feels smooth (same idea as Drag Images).
-        val step = 0.0025f
+        val step = 0.01f
         numberingXFrac = (numberingXFrac + dx * step).coerceIn(0f, 1f)
         numberingYFrac = (numberingYFrac + dy * step).coerceIn(0f, 1f)
         updateNumberingLiveStyle()

@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,7 +52,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.Dialog
@@ -417,11 +422,16 @@ private fun ImageImportSizeRow(
     var customOpen by remember { mutableStateOf(false) }
     var restingKb by remember { mutableStateOf(5) }
     val presetKb = (selectedOption as? ImageSizeOption.Preset)?.kb
-    LaunchedEffect(presetKb) {
+    val customKb = (selectedOption as? ImageSizeOption.Custom)?.kb
+    LaunchedEffect(presetKb, customKb) {
         if (presetKb != null) restingKb = presetKb
+        if (customKb != null) restingKb = customKb
     }
-    val shownKb = if (presetKb != null) presetKb else restingKb
-    val customOn = selectedOption is ImageSizeOption.Custom || selectedOption is ImageSizeOption.CustomBytes
+    val fieldKb = when (selectedOption) {
+        is ImageSizeOption.Preset -> selectedOption.kb
+        is ImageSizeOption.Custom -> selectedOption.kb
+        else -> restingKb
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -436,56 +446,35 @@ private fun ImageImportSizeRow(
                 menuOpen = false
                 onOptionSelected(ImageSizeOption.Default)
             },
-            modifier = Modifier.weight(1.45f)
+            modifier = Modifier.weight(1.35f)
         )
-        Box(modifier = Modifier.weight(0.78f)) {
-            SizeSelectCard(
-                label = if (presetKb != null) "${shownKb}KB" else "${shownKb}KB \u25BE",
-                selected = presetKb != null,
-                onClick = { menuOpen = menuOpen.not() },
-                modifier = Modifier.fillMaxWidth()
-            )
-            if (menuOpen) {
-                val density = LocalDensity.current
-                Popup(
-                    alignment = Alignment.TopStart,
-                    offset = IntOffset(0, with(density) { 52.dp.roundToPx() }),
-                    onDismissRequest = { menuOpen = false },
-                    properties = PopupProperties(focusable = true)
-                ) {
-                    SizeKbMenu(
-                        selectedKb = presetKb,
-                        centerKb = shownKb,
-                        onPick = { kb ->
-                            menuOpen = false
-                            restingKb = kb
-                            onOptionSelected(ImageSizeOption.Preset(kb))
-                        }
-                    )
+        Box(modifier = Modifier.weight(0.85f)) {
+            PsSizeCombo(
+                value = ImageSizeOption.formatKb(fieldKb),
+                open = menuOpen,
+                onToggle = { menuOpen = menuOpen.not() },
+                onDismiss = { menuOpen = false },
+                selectedOption = selectedOption,
+                centerKb = fieldKb,
+                onPreset = { kb ->
+                    menuOpen = false
+                    restingKb = kb
+                    onOptionSelected(ImageSizeOption.Preset(kb))
+                },
+                onCustom = {
+                    menuOpen = false
+                    customOpen = true
                 }
-            }
+            )
         }
-        SizeSelectCard(
-            label = stringResource(R.string.image_size_custom),
-            selected = customOn,
-            prominent = true,
-            onClick = {
-                menuOpen = false
-                customOpen = true
-            },
-            modifier = Modifier.weight(0.72f)
-        )
     }
     if (customOpen) {
-        CustomBytesDialog(
+        CustomKbDialog(
             selectedOption = selectedOption,
-            onApplyKb = { kb ->
+            onApply = { kb ->
                 customOpen = false
+                restingKb = kb
                 onOptionSelected(ImageSizeOption.Custom(kb))
-            },
-            onApplyBytes = { bytes ->
-                customOpen = false
-                onOptionSelected(ImageSizeOption.CustomBytes(bytes))
             },
             onDismiss = { customOpen = false }
         )
@@ -493,78 +482,173 @@ private fun ImageImportSizeRow(
 }
 
 @Composable
-private fun SizeKbMenu(
-    selectedKb: Int?,
+private fun PsSizeCombo(
+    value: String,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onDismiss: () -> Unit,
+    selectedOption: ImageSizeOption,
     centerKb: Int,
-    onPick: (Int) -> Unit
+    onPreset: (Int) -> Unit,
+    onCustom: () -> Unit
 ) {
-    val menu = ImageSizeOption.menuKb
-    val scroll = rememberScrollState()
     val density = LocalDensity.current
-    val itemDp = 44.dp
-    val viewDp = 220.dp
-    val padDp = 88.dp
-    LaunchedEffect(centerKb) {
-        val index = menu.indexOf(centerKb).let { if (it < 0) 0 else it }
-        val itemPx = with(density) { itemDp.toPx() }
-        scroll.scrollTo((index * itemPx).toInt())
-    }
-    Column(
-        modifier = Modifier
-            .width(168.dp)
-            .height(viewDp)
-            .shadow(10.dp, ShapeMd)
-            .clip(ShapeMd)
-            .background(Color.White, ShapeMd)
-            .border(1.dp, CardBorder, ShapeMd)
-            .verticalScroll(scroll)
-    ) {
-        Spacer(modifier = Modifier.height(padDp))
-        menu.forEach { kb ->
-            val selected = kb == selectedKb
-            val rowBg = if (selected) SelectedBg else Color.White
-            val rowFg = if (selected) AccentBlue else Color.Black
-            val line = if (selected) "\u2713  ${kb}KB" else "${kb}KB"
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(itemDp)
-                    .background(rowBg)
-                    .border(2.dp, if (selected) AccentBlue else Color.Transparent)
-                    .clickable { onPick(kb) }
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .background(Color.White)
+                .border(1.dp, Color(0xFF808080))
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = value,
+                color = Color.Black,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Text(text = "\u25BC", color = Color.Black, fontSize = 10.sp)
+        }
+        if (open) {
+            Popup(
+                alignment = Alignment.TopStart,
+                offset = IntOffset(0, with(density) { 40.dp.roundToPx() }),
+                onDismissRequest = onDismiss,
+                properties = PopupProperties(focusable = true, clippingEnabled = false)
             ) {
-                Text(
-                    text = line,
-                    color = rowFg,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                    maxLines = 1
+                PsSizeMenu(
+                    selectedOption = selectedOption,
+                    centerKb = centerKb,
+                    onPreset = onPreset,
+                    onCustom = onCustom
                 )
             }
         }
-        Spacer(modifier = Modifier.height(padDp))
     }
 }
 
 @Composable
-private fun CustomBytesDialog(
+private fun PsSizeMenu(
     selectedOption: ImageSizeOption,
-    onApplyKb: (Int) -> Unit,
-    onApplyBytes: (Int) -> Unit,
+    centerKb: Int,
+    onPreset: (Int) -> Unit,
+    onCustom: () -> Unit
+) {
+    val menu = ImageSizeOption.menuKb
+    val scroll = rememberScrollState()
+    val density = LocalDensity.current
+    val itemDp = 32.dp
+    val viewDp = 256.dp
+    val padDp = 112.dp
+    val highlight = when (selectedOption) {
+        is ImageSizeOption.Custom -> 0
+        is ImageSizeOption.Preset -> {
+            val at = menu.indexOf(selectedOption.kb)
+            if (at < 0) -1 else at + 1
+        }
+        else -> -1
+    }
+    val centerIndex = when (selectedOption) {
+        is ImageSizeOption.Custom -> 0
+        else -> {
+            val at = menu.indexOf(centerKb)
+            if (at < 0) 1 else at + 1
+        }
+    }
+    LaunchedEffect(centerIndex) {
+        val itemPx = with(density) { itemDp.toPx() }
+        scroll.scrollTo((centerIndex * itemPx).toInt())
+    }
+    Row(
+        modifier = Modifier
+            .height(viewDp)
+            .shadow(3.dp)
+            .background(Color.White)
+            .border(1.dp, Color(0xFF808080))
+    ) {
+        Column(
+            modifier = Modifier
+                .width(176.dp)
+                .verticalScroll(scroll)
+        ) {
+            Spacer(modifier = Modifier.height(padDp))
+            val total = menu.size + 1
+            var index = 0
+            while (index < total) {
+                val selected = index == highlight
+                val label = if (index == 0) "Custom" else ImageSizeOption.formatKb(menu[index - 1])
+                val rowBg = if (selected) Color(0xFF316AC5) else Color.White
+                val rowFg = if (selected) Color.White else Color.Black
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(itemDp)
+                        .background(rowBg)
+                        .clickable {
+                            if (index == 0) onCustom() else onPreset(menu[index - 1])
+                        },
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = label,
+                        color = rowFg,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        fontSize = 13.sp
+                    )
+                }
+                index = index + 1
+            }
+            Spacer(modifier = Modifier.height(padDp))
+        }
+        if (scroll.maxValue > 0) {
+            PsMenuBar(scroll)
+        }
+    }
+}
+
+@Composable
+private fun PsMenuBar(scroll: androidx.compose.foundation.ScrollState) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .width(14.dp)
+            .fillMaxHeight()
+            .background(Color(0xFFECE9D8))
+            .border(1.dp, Color(0xFFA0A0A0))
+    ) {
+        val track = constraints.maxHeight.toFloat().coerceAtLeast(1f)
+        val maxv = scroll.maxValue.coerceAtLeast(1)
+        val thumb = (track * track / (track + maxv)).coerceIn(28f, track * 0.55f)
+        val y = ((track - thumb) * scroll.value / maxv.toFloat()).toInt().coerceAtLeast(0)
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(0, y) }
+                .width(14.dp)
+                .height(with(LocalDensity.current) { thumb.toDp() })
+                .background(Color(0xFFD4D0C8))
+                .border(1.dp, Color(0xFF808080))
+        )
+    }
+}
+
+@Composable
+private fun CustomKbDialog(
+    selectedOption: ImageSizeOption,
+    onApply: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
-    var bytesMode by remember {
-        mutableStateOf(selectedOption is ImageSizeOption.CustomBytes)
-    }
     var text by remember {
         mutableStateOf(
             when (selectedOption) {
-                is ImageSizeOption.CustomBytes -> selectedOption.bytes.toString()
                 is ImageSizeOption.Custom -> selectedOption.kb.toString()
+                is ImageSizeOption.Preset -> selectedOption.kb.toString()
                 else -> ""
             }
         )
@@ -592,45 +676,19 @@ private fun CustomBytesDialog(
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Pick a unit, type a number, then tap Apply.",
+                text = "Type a size in KB. Tap outside the box to hide the cursor.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF616161)
             )
             Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SizeSelectCard(
-                    label = "Bytes",
-                    selected = bytesMode,
-                    onClick = {
-                        focusManager.clearFocus()
-                        bytesMode = true
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                SizeSelectCard(
-                    label = "KB",
-                    selected = bytesMode.not(),
-                    onClick = {
-                        focusManager.clearFocus()
-                        bytesMode = false
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
                 value = text,
                 onValueChange = { input ->
-                    text = input.filter(Char::isDigit).take(7)
+                    text = input.filter(Char::isDigit).take(6)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = {
-                    Text(if (bytesMode) "Size in bytes" else "Size in KB")
-                },
+                label = { Text(stringResource(R.string.image_size_custom_dialog_hint)) },
                 textStyle = MaterialTheme.typography.bodyMedium,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 shape = ShapeMd,
@@ -642,31 +700,13 @@ private fun CustomBytesDialog(
                     unfocusedContainerColor = Color.White
                 )
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            val amount = text.toIntOrNull()
-            val helper = if (amount == null) {
-                "Tap outside the box to hide the cursor."
-            } else if (amount <= 0) {
-                "Enter a number greater than zero."
-            } else if (bytesMode) {
-                "Imported images will be about $amount bytes."
-            } else {
-                "Imported images will be about $amount KB."
-            }
-            Text(
-                text = helper,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF616161)
-            )
             Spacer(modifier = Modifier.height(14.dp))
             Button(
                 onClick = {
                     focusManager.clearFocus()
                     val n = text.toIntOrNull()
                     if (n != null) {
-                        if (n > 0) {
-                            if (bytesMode) onApplyBytes(n) else onApplyKb(n)
-                        }
+                        if (n > 0) onApply(n)
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -681,6 +721,7 @@ private fun CustomBytesDialog(
         }
     }
 }
+
 
 @Composable
 private fun ImportRatioButton(

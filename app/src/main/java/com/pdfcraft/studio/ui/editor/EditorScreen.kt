@@ -1471,6 +1471,8 @@ Column(
                     viewModel.numberingSizeFrac = s
                     viewModel.updateNumberingLiveStyle()
                 },
+                numberingXFrac = viewModel.numberingXFrac,
+                numberingYFrac = viewModel.numberingYFrac,
                 onNumberingNudge = { dx, dy -> viewModel.nudgeNumbering(dx, dy) },
                 onNumberingCenter = { viewModel.centerNumbering() },
                 numberingBgArgb = viewModel.numberingBgArgb,

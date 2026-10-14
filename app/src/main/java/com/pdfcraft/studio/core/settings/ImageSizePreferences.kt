@@ -21,9 +21,9 @@ class ImageSizePreferences(context: Context) {
             return ImageSizeOption.Custom(kb)
         }
         if (mode == "custom_bytes") {
-            val bytes = prefs.getInt(KEY_BYTES, 1)
-            if (bytes <= 0) return ImageSizeOption.Default
-            return ImageSizeOption.CustomBytes(bytes)
+            val bytes = prefs.getInt(KEY_BYTES, 1024)
+            val kb = if (bytes <= 0) 1 else (bytes + 1023) / 1024
+            return ImageSizeOption.Custom(kb)
         }
         val kb = prefs.getInt(KEY_KB, -1)
         if (kb <= 0) return ImageSizeOption.Default
@@ -48,11 +48,6 @@ class ImageSizePreferences(context: Context) {
                     putInt(KEY_KB, option.kb)
                     putBoolean(KEY_IS_CUSTOM, true)
                     putString(KEY_MODE, "custom_kb")
-                }
-                is ImageSizeOption.CustomBytes -> {
-                    putInt(KEY_BYTES, option.bytes)
-                    putBoolean(KEY_IS_CUSTOM, true)
-                    putString(KEY_MODE, "custom_bytes")
                 }
             }
         }.apply()
