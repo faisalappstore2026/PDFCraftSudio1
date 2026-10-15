@@ -19,6 +19,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.pdfcraft.studio.ui.editor.ImportedImage
 import com.pdfcraft.studio.ui.editor.packEditorPages
+import com.pdfcraft.studio.ui.editor.packPageSource
 import com.pdfcraft.studio.ui.editor.TextElement
 import com.pdfcraft.studio.core.text.FontCatalog
 import com.pdfcraft.studio.ui.editor.ShadowRange

@@ -65,6 +65,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import com.pdfcraft.studio.ui.common.AppIcons
 import com.pdfcraft.studio.ui.editor.packEditorPages
+import com.pdfcraft.studio.ui.editor.packPageSource
 import com.pdfcraft.studio.ui.common.DocumentScrollBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -750,9 +751,20 @@ private fun PageTextOverlay(
                     }
                 } else if (selectedTextId != null) {
                     Modifier.pointerInput(selectedTextId) {
-                        detectTapGestures {
-                            focusManager.clearFocus(force = true)
-                            onDeselect()
+                        awaitEachGesture {
+                            val down = awaitFirstDown(
+                                requireUnconsumed = true,
+                                pass = PointerEventPass.Final
+                            )
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Final)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) {
+                                    focusManager.clearFocus(force = true)
+                                    onDeselect()
+                                    break
+                                }
+                            }
                         }
                     }
                 } else {
@@ -821,21 +833,21 @@ private fun PageTextOverlay(
                 label = "dash"
             )
 
+            val handlePadPx = with(density) { 16.dp.toPx() }
             Box(
                 modifier = Modifier
                     .offset {
-                        val bw = (if (rowMeasured.width > 0) rowMeasured.width else boxWpx.toInt()).coerceAtLeast(1).toFloat()
-                        val bh = (if (rowMeasured.height > 0) rowMeasured.height else boxHpx.toInt()).coerceAtLeast(1).toFloat()
                         val pw = sizePx.width.toFloat().coerceAtLeast(1f)
                         val ph = sizePx.height.toFloat().coerceAtLeast(1f)
                         IntOffset(
-                            (textElement.xFraction * pw).roundToInt(),
-                            (textElement.yFraction * ph).roundToInt()
+                            (textElement.xFraction * pw - handlePadPx).roundToInt(),
+                            (textElement.yFraction * ph - handlePadPx).roundToInt()
                         )
                     }
                     .onSizeChanged { boxMeasured = it }
                     .graphicsLayer { rotationZ = textElement.rotationDeg }
             ) {
+            Box(Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.Top,
                 modifier = Modifier
@@ -1002,13 +1014,12 @@ private fun PageTextOverlay(
                         }
                 )
             }
+            }
 
             if (selected) {
                 TextHandle(
                     symbol = "\u21bb",
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 10.dp, y = (-12).dp),
+                    modifier = Modifier.align(Alignment.TopEnd),
                     onDragStart = {
                         rotHud = true
                         rawRot = rotState.value
@@ -1016,8 +1027,10 @@ private fun PageTextOverlay(
                     onDragEnd = { rotHud = false }
                 ) { drag ->
                     onTextSelect(textElement.id)
-                    val vx = ((if (rowMeasured.width > 0) rowMeasured.width else boxMeasured.width) / 2f).coerceAtLeast(12f)
-                    val vy = -((if (rowMeasured.height > 0) rowMeasured.height else boxMeasured.height) / 2f).coerceAtLeast(12f)
+                    val halfW = (if (rowMeasured.width > 0) rowMeasured.width else boxMeasured.width) / 2f
+                    val halfH = (if (rowMeasured.height > 0) rowMeasured.height else boxMeasured.height) / 2f
+                    val vx = (halfW + handlePadPx).coerceAtLeast(12f)
+                    val vy = -(halfH + handlePadPx).coerceAtLeast(12f)
                     val r2 = (vx * vx + vy * vy).coerceAtLeast(1f)
                     val dDeg = ((vx * drag.y - vy * drag.x) / r2) * (180f / 3.14159265f)
                     rawRot += dDeg
@@ -1025,9 +1038,7 @@ private fun PageTextOverlay(
                 }
                 TextHandle(
                     symbol = "\u2922",
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .offset(x = 10.dp, y = 12.dp),
+                    modifier = Modifier.align(Alignment.BottomEnd),
                     onDragStart = { sizeHud = true },
                     onDragEnd = { sizeHud = false }
                 ) { drag ->
@@ -2262,13 +2273,28 @@ private fun TextHandle(
             .background(Color.White, CircleShape)
             .border(1.dp, Color(0x33000000), CircleShape)
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { onDragStart() },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() }
-                ) { change, dragAmount ->
-                    change.consume()
-                    onDrag(dragAmount)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    onDragStart()
+                    val slop = viewConfiguration.touchSlop
+                    var moved = false
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                        if (change == null || !change.pressed) {
+                            onDragEnd()
+                            break
+                        }
+                        val delta = change.positionChange()
+                        if (!moved && (change.position - down.position).getDistance() > slop) {
+                            moved = true
+                        }
+                        if (moved) {
+                            change.consume()
+                            onDrag(delta)
+                        }
+                    }
                 }
             },
         contentAlignment = Alignment.Center
