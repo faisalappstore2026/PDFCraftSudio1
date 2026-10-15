@@ -164,8 +164,6 @@ fun EditorToolbar(
     onNumberingAlphaChange: (Float) -> Unit = {},
     numberingSizeFrac: Float = 0.18f,
     onNumberingSizeChange: (Float) -> Unit = {},
-    numberingXFrac: Float = 0.5f,
-    numberingYFrac: Float = 0.5f,
     onNumberingNudge: (Float, Float) -> Unit = { _, _ -> },
     onNumberingCenter: () -> Unit = {},
     numberingBgArgb: Long = 0xFF7C4DFFL,
@@ -304,8 +302,6 @@ fun EditorToolbar(
                 bgArgb = numberingBgArgb,
                 fgArgb = numberingFgArgb,
                 onNudge = onNumberingNudge,
-                xFrac = numberingXFrac,
-                yFrac = numberingYFrac,
                 onCenter = onNumberingCenter,
                 onNext = onNumberingNextStep,
                 onBack = {
@@ -1446,8 +1442,6 @@ private fun ImageNumberingPanel(
     bgArgb: Long,
     fgArgb: Long,
     onNudge: (Float, Float) -> Unit,
-    xFrac: Float = 0.5f,
-    yFrac: Float = 0.5f,
     onCenter: () -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit,
@@ -1545,45 +1539,6 @@ private fun ImageNumberingPanel(
                 }
                 NumberingNudgeButton(label = "↓", onTick = { onNudge(0f, 1f) })
             }
-                val xPct = (xFrac.coerceIn(0f, 1f) * 100f).toInt()
-                val yPct = (yFrac.coerceIn(0f, 1f) * 100f).toInt()
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "Point   X " + xPct.toString() + "%    Y " + yPct.toString() + "%",
-                    color = Color.Black,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .size(width = 64.dp, height = 84.dp)
-                        .border(1.dp, Color(0xFF9E9E9E), RoundedCornerShape(4.dp))
-                        .background(Color(0xFFF5F5F5), RoundedCornerShape(4.dp))
-                ) {
-                    val dot = 14.dp
-                    BoxWithConstraints(modifier = Modifier.matchParentSize().padding(3.dp)) {
-                        val x = (maxWidth - dot) * xFrac.coerceIn(0f, 1f)
-                        val y = (maxHeight - dot) * yFrac.coerceIn(0f, 1f)
-                        Box(
-                            modifier = Modifier
-                                .offset(x = x, y = y)
-                                .size(dot)
-                                .background(Color(0xFF7C4DFF), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "1",
-                                color = Color.White,
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

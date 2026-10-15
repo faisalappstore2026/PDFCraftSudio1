@@ -542,70 +542,67 @@ private fun PsSizeMenu(
     val menu = ImageSizeOption.menuKb
     val scroll = rememberScrollState()
     val density = LocalDensity.current
-    val itemDp = 32.dp
-    val viewDp = 256.dp
-    val padDp = 112.dp
-    val highlight = when (selectedOption) {
-        is ImageSizeOption.Custom -> 0
-        is ImageSizeOption.Preset -> {
-            val at = menu.indexOf(selectedOption.kb)
-            if (at < 0) -1 else at + 1
-        }
-        else -> -1
-    }
-    val centerIndex = when (selectedOption) {
-        is ImageSizeOption.Custom -> 0
-        else -> {
-            val at = menu.indexOf(centerKb)
-            if (at < 0) 1 else at + 1
-        }
-    }
-    LaunchedEffect(centerIndex) {
+    val itemDp = 22.dp
+    val customOn = selectedOption is ImageSizeOption.Custom
+    val presetKb = (selectedOption as? ImageSizeOption.Preset)?.kb
+    val anchorKb = if (presetKb != null) presetKb else centerKb
+    LaunchedEffect(customOn, anchorKb) {
+        val at = menu.indexOf(anchorKb)
+        val index = if (customOn) 0 else if (at < 0) 0 else at + 1
         val itemPx = with(density) { itemDp.toPx() }
-        scroll.scrollTo((centerIndex * itemPx).toInt())
+        scroll.scrollTo((index * itemPx).toInt())
     }
     Row(
         modifier = Modifier
-            .height(viewDp)
+            .heightIn(max = 220.dp)
             .shadow(3.dp)
             .background(Color.White)
             .border(1.dp, Color(0xFF808080))
     ) {
         Column(
             modifier = Modifier
-                .width(176.dp)
+                .width(96.dp)
                 .verticalScroll(scroll)
+                .padding(vertical = 1.dp)
         ) {
-            Spacer(modifier = Modifier.height(padDp))
-            val total = menu.size + 1
-            var index = 0
-            while (index < total) {
-                val selected = index == highlight
-                val label = if (index == 0) "Custom" else ImageSizeOption.formatKb(menu[index - 1])
-                val rowBg = if (selected) Color(0xFF316AC5) else Color.White
-                val rowFg = if (selected) Color.White else Color.Black
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(itemDp)
+                    .background(if (customOn) Color(0xFF316AC5) else Color.White)
+                    .clickable { onCustom() },
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = "Custom",
+                    color = if (customOn) Color.White else Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    fontSize = 12.sp
+                )
+            }
+            menu.forEach { kb ->
+                val picked = kb
+                val sel = if (presetKb == null) false else presetKb == picked
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(itemDp)
-                        .background(rowBg)
-                        .clickable {
-                            if (index == 0) onCustom() else onPreset(menu[index - 1])
-                        },
+                        .background(if (sel) Color(0xFF316AC5) else Color.White)
+                        .clickable { onPreset(picked) },
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Text(
-                        text = label,
-                        color = rowFg,
+                        text = ImageSizeOption.formatKb(picked),
+                        color = if (sel) Color.White else Color.Black,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        fontSize = 13.sp
+                        modifier = Modifier.padding(horizontal = 6.dp),
+                        fontSize = 12.sp
                     )
                 }
-                index = index + 1
             }
-            Spacer(modifier = Modifier.height(padDp))
         }
         if (scroll.maxValue > 0) {
             PsMenuBar(scroll)
