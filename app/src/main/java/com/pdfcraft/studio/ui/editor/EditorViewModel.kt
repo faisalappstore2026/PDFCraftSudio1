@@ -78,6 +78,8 @@ data class ImportedImage(
     val pinnedPerRow: Int = 0
 )
 
+internal var packPageSource: IntArray = IntArray(0)
+
 fun packEditorPages(
     images: List<ImportedImage>,
     imagesPerRow: Int,
@@ -86,25 +88,28 @@ fun packEditorPages(
     gridHeight: Float,
     defaultAspect: Float
 ): List<List<ImportedImage>> {
-    if (images.isEmpty()) return emptyList()
+    if (images.isEmpty()) {
+        packPageSource = IntArray(0)
+        return emptyList()
+    }
     val perRow = imagesPerRow.coerceAtLeast(1)
     val pinned = images.filter { it.rowExempt }
     val flowing = if (pinned.isEmpty()) images else images.filter { !it.rowExempt }
+    fun imgAspect(img: ImportedImage, rowCount: Int): Float {
+        val b = img.bitmap
+        return if (rowCount == 1 && b != null && b.height > 0) {
+            (b.width.toFloat() / b.height).coerceIn(0.2f, 5f)
+        } else {
+            (img.aspectRatioOverride ?: defaultAspect).coerceIn(0.3f, 2.0f)
+        }
+    }
     fun plain(list: List<ImportedImage>): List<MutableList<ImportedImage>> {
         if (list.isEmpty()) return emptyList()
         if (perRow == 1) return list.map { mutableListOf(it) }
         val pages = mutableListOf<MutableList<ImportedImage>>()
         var page = mutableListOf<ImportedImage>()
         var usedH = 0f
-        fun imgH(img: ImportedImage): Float {
-            val b = img.bitmap
-            val aspect = if (b != null && b.height > 0 && perRow == 1) {
-                (b.width.toFloat() / b.height).coerceIn(0.2f, 5f)
-            } else {
-                (img.aspectRatioOverride ?: defaultAspect).coerceIn(0.3f, 2.0f)
-            }
-            return cellWidth / aspect
-        }
+        fun imgH(img: ImportedImage): Float = cellWidth / imgAspect(img, perRow)
         fun rowH(row: List<ImportedImage>): Float = row.maxOf { imgH(it) }
         for (row in list.chunked(perRow)) {
             val h = rowH(row)
@@ -120,25 +125,136 @@ fun packEditorPages(
         if (page.isNotEmpty()) pages.add(page)
         return pages
     }
-    if (pinned.isEmpty()) return plain(images)
-    val flowed = plain(flowing)
-    var maxPage = if (flowed.isEmpty()) 0 else flowed.size - 1
+    if (pinned.isEmpty()) {
+        val plainPages = plain(images)
+        packPageSource = IntArray(plainPages.size) { it }
+        return plainPages
+    }
+    val gridW = if (perRow <= 1) cellWidth else cellWidth * perRow + spacing * (perRow - 1f)
+    fun cwFor(rowCount: Int): Float {
+        val n = if (rowCount < 1) 1 else rowCount
+        return if (n <= 1) gridW else (gridW - spacing * (n - 1)) / n
+    }
+    fun rowH(row: List<ImportedImage>, rowCount: Int, cw: Float): Float {
+        var maxH = 0f
+        for (img in row) {
+            val h = cw / imgAspect(img, rowCount)
+            if (h > maxH) maxH = h
+        }
+        return maxH
+    }
+    var maxPage = 0
     for (img in pinned) {
         val p = img.pinnedPage.coerceAtLeast(0)
         if (p > maxPage) maxPage = p
     }
-    val out = MutableList(maxPage + 1) { mutableListOf<ImportedImage>() }
+    for (img in flowing) {
+        val p = img.pinnedPage.coerceAtLeast(0)
+        if (p > maxPage) maxPage = p
+    }
+    val slots = MutableList(maxPage + 1) { mutableListOf<ImportedImage>() }
+    val used = MutableList(maxPage + 1) { 0f }
+    val exemptBy = HashMap<Int, MutableList<ImportedImage>>()
     for (img in pinned) {
-        out[img.pinnedPage.coerceIn(0, maxPage)].add(img)
+        val p = img.pinnedPage.coerceIn(0, maxPage)
+        val bucket = exemptBy[p]
+        if (bucket == null) exemptBy[p] = mutableListOf(img) else bucket.add(img)
     }
+    for (entry in exemptBy) {
+        val p = entry.key
+        val list = entry.value
+        val first = list.first()
+        val r = if (first.pinnedPerRow > 0) first.pinnedPerRow else perRow
+        val cw = cwFor(r)
+        var i = 0
+        while (i < list.size) {
+            val count = if (list.size - i < r) list.size - i else r
+            val row = ArrayList(list.subList(i, i + count))
+            val h = rowH(row, r, cw)
+            val g = if (used[p] <= 0.5f) 0f else spacing
+            used[p] = used[p] + g + h
+            slots[p].addAll(row)
+            i += count
+        }
+    }
+    val flowBy = HashMap<Int, MutableList<ImportedImage>>()
+    for (img in flowing) {
+        val p = img.pinnedPage.coerceAtLeast(0)
+        val bucket = flowBy[p]
+        if (bucket == null) flowBy[p] = mutableListOf(img) else bucket.add(img)
+    }
+    val selected = flowBy.keys.sorted()
+    val extras = HashMap<Int, MutableList<MutableList<ImportedImage>>>()
+    var carry = mutableListOf<ImportedImage>()
+    val flowCw = cwFor(perRow)
+    var sidx = 0
+    while (sidx < selected.size) {
+        val p = selected[sidx].coerceIn(0, maxPage)
+        val own = flowBy[selected[sidx]] ?: emptyList()
+        val queue = ArrayList<ImportedImage>()
+        queue.addAll(carry)
+        queue.addAll(own)
+        carry = mutableListOf()
+        var q = 0
+        while (q < queue.size) {
+            val count = if (queue.size - q < perRow) queue.size - q else perRow
+            val row = ArrayList(queue.subList(q, q + count))
+            val h = rowH(row, perRow, flowCw)
+            val gap = if (used[p] <= 0.5f) 0f else spacing
+            val room = used[p] <= 0.5f || used[p] + gap + h <= gridHeight + 0.5f
+            if (!room) break
+            used[p] = used[p] + gap + h
+            slots[p].addAll(row)
+            q += count
+        }
+        while (q < queue.size) {
+            carry.add(queue[q])
+            q += 1
+        }
+        val lastSelected = sidx == selected.size - 1
+        if (carry.isNotEmpty() && lastSelected) {
+            val news = mutableListOf<MutableList<ImportedImage>>()
+            var page = mutableListOf<ImportedImage>()
+            var uh = 0f
+            var c = 0
+            while (c < carry.size) {
+                val count = if (carry.size - c < perRow) carry.size - c else perRow
+                val row = ArrayList(carry.subList(c, c + count))
+                val h = rowH(row, perRow, flowCw)
+                if (page.isNotEmpty() && uh + spacing + h > gridHeight + 0.5f) {
+                    news.add(page)
+                    page = mutableListOf()
+                    uh = 0f
+                }
+                val g = if (page.isEmpty()) 0f else spacing
+                page.addAll(row)
+                uh += g + h
+                c += count
+            }
+            if (page.isNotEmpty()) news.add(page)
+            extras[p] = news
+            carry = mutableListOf()
+        }
+        sidx += 1
+    }
+    val out = mutableListOf<List<ImportedImage>>()
+    val src = mutableListOf<Int>()
     var i = 0
-    while (i < flowed.size) {
-        out[i].addAll(flowed[i])
-        i = i + 1
+    while (i < slots.size) {
+        out.add(slots[i].toList())
+        src.add(i)
+        val extra = extras[i]
+        if (extra != null) {
+            for (pg in extra) {
+                out.add(pg.toList())
+                src.add(-1)
+            }
+        }
+        i += 1
     }
+    packPageSource = src.toIntArray()
     return out
 }
-
 
 data class ColorRange(
     val range: IntRange,
@@ -1631,18 +1747,22 @@ fun isSelectionStrike(): Boolean {
             }
             pi = pi + 1
         }
+        val srcNow = packPageSource
         val currentRow = imagesPerRow
         var idx = 0
         while (idx < importedImages.size) {
             val img = importedImages[idx]
             if (img.ownerPageIndex == null && !img.id.startsWith("spacer_")) {
                 val on = selected.contains(img.id)
+                val visual = pageOf[img.id]
+                var page = img.pinnedPage
+                if (visual != null) {
+                    if (srcNow.isEmpty()) page = visual
+                    else if (visual < srcNow.size && srcNow[visual] >= 0) page = srcNow[visual]
+                }
                 if (on) {
-                    if (img.rowExempt) {
-                        importedImages[idx] = img.copy(rowExempt = false, pinnedPage = 0, pinnedPerRow = 0)
-                    }
+                    importedImages[idx] = img.copy(rowExempt = false, pinnedPage = page, pinnedPerRow = 0)
                 } else {
-                    val page = if (pageOf.containsKey(img.id)) pageOf[img.id] ?: 0 else img.pinnedPage
                     val keepRow = if (img.rowExempt && img.pinnedPerRow > 0) img.pinnedPerRow else currentRow
                     importedImages[idx] = img.copy(rowExempt = true, pinnedPage = page, pinnedPerRow = keepRow)
                 }

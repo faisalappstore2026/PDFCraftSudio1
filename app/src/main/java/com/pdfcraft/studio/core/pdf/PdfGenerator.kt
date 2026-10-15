@@ -189,6 +189,7 @@ object PdfGenerator {
             gridHeightPx = gridHeight,
             defaultAspect = cellAspect
         )
+        val pageSrc = packPageSource.copyOf()
 
         // Include every page that has text OR blank pages the user added in the editor.
         // Previously text-only page 2+ were dropped because export only used image chunks.
@@ -213,17 +214,18 @@ object PdfGenerator {
         }
 
         pages.forEachIndexed { pageIndex, pageImages ->
-            val aspect = (pageAspectRatioForPage?.invoke(pageIndex) ?: pageAspectRatio).coerceAtLeast(0.1f)
+            val docPage = if (pageIndex < pageSrc.size) pageSrc[pageIndex] else pageIndex
+            val aspect = (if (docPage < 0) pageAspectRatio else (pageAspectRatioForPage?.invoke(docPage) ?: pageAspectRatio)).coerceAtLeast(0.1f)
             val thisPageHeight = (pageWidth / aspect).roundToInt().coerceAtLeast(1)
             val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, thisPageHeight, pageIndex + 1).create()
             val page = pdf.startPage(pageInfo)
             val canvas = page.canvas
 
-            val kind = pageBackgroundKindForPage?.invoke(pageIndex) ?: "SOLID"
-            val c1 = pageBackgroundColorForPage?.invoke(pageIndex) ?: pageBackgroundColor
-            val c2 = pageBackgroundColor2ForPage?.invoke(pageIndex) ?: 0xFF90CAF9L
-            val dir = pageBackgroundDirForPage?.invoke(pageIndex) ?: "TTB"
-            val bgBmp = pageBackgroundBitmapForPage?.invoke(pageIndex)
+            val kind = pageBackgroundKindForPage?.invoke(docPage) ?: "SOLID"
+            val c1 = pageBackgroundColorForPage?.invoke(docPage) ?: pageBackgroundColor
+            val c2 = pageBackgroundColor2ForPage?.invoke(docPage) ?: 0xFF90CAF9L
+            val dir = pageBackgroundDirForPage?.invoke(docPage) ?: "TTB"
+            val bgBmp = pageBackgroundBitmapForPage?.invoke(docPage)
             when (kind) {
                 "NONE" -> canvas.drawColor(0xFFFFFFFF.toInt())
                 "IMAGE" -> {
@@ -366,7 +368,7 @@ object PdfGenerator {
 
             // Text: only elements for this page index (supports partial color + bg ranges)
             // Newlines are drawn as separate lines (editor multiline must match PDF).
-            textElements.filter { it.pageIndex == pageIndex }.forEach { te ->
+            textElements.filter { docPage >= 0 && it.pageIndex == docPage }.forEach { te ->
                 textPaint.textSize = te.fontSizeSp * (pageWidth / 360f)
                 val baseTf = FontCatalog.resolveTypeface(context, te.fontId)
                 textPaint.typeface = baseTf

@@ -416,6 +416,7 @@ fun PdfPagesPreview(
             gridHeightDp = gridHeightDp,
             defaultAspect = imageCellAspectRatio
         )
+        val pageSrc = packPageSource.copyOf()
         val pages = if (contentPages.size >= minPageCount) contentPages
             else contentPages + List(minPageCount - contentPages.size) { emptyList() }
 
@@ -430,6 +431,7 @@ fun PdfPagesPreview(
                 pages,
                 key = { index, _ -> index }
             ) { pageIndex, pageImages ->
+                val docPage = if (pageIndex < pageSrc.size) pageSrc[pageIndex] else pageIndex
 
                 Column(Modifier.fillMaxWidth()) {
                     Text(
@@ -443,20 +445,20 @@ fun PdfPagesPreview(
                     )
 
                     PageCard(
-                        aspectRatio = pageAspectRatioForPage?.invoke(pageIndex) ?: pageAspectRatio,
+                        aspectRatio = pageAspectRatioForPage?.invoke(docPage) ?: pageAspectRatio,
                         backgroundColor = run {
-                            val kind = pageBackgroundKindForPage?.invoke(pageIndex) ?: "SOLID"
-                            if (kind == "NONE" || kind == "IMAGE") 0xFFFFFFFFL else (pageBackgroundColorForPage?.invoke(pageIndex) ?: pageBackgroundColor)
+                            val kind = pageBackgroundKindForPage?.invoke(docPage) ?: "SOLID"
+                            if (kind == "NONE" || kind == "IMAGE") 0xFFFFFFFFL else (pageBackgroundColorForPage?.invoke(docPage) ?: pageBackgroundColor)
                         },
-                        backgroundBitmap = pageBackgroundBitmapForPage?.invoke(pageIndex) ?: pageBackgroundBitmap,
+                        backgroundBitmap = pageBackgroundBitmapForPage?.invoke(docPage) ?: pageBackgroundBitmap,
                         backgroundBrush = run {
-                            val kind = pageBackgroundKindForPage?.invoke(pageIndex) ?: "SOLID"
+                            val kind = pageBackgroundKindForPage?.invoke(docPage) ?: "SOLID"
                             if (kind != "GRADIENT") null
                             else {
                                 gradientBrush(
-                                    pageBackgroundColorForPage?.invoke(pageIndex) ?: pageBackgroundColor,
-                                    pageBackgroundColor2ForPage?.invoke(pageIndex) ?: 0xFF90CAF9L,
-                                    pageBackgroundDirForPage?.invoke(pageIndex) ?: "TTB"
+                                    pageBackgroundColorForPage?.invoke(docPage) ?: pageBackgroundColor,
+                                    pageBackgroundColor2ForPage?.invoke(docPage) ?: 0xFF90CAF9L,
+                                    pageBackgroundDirForPage?.invoke(docPage) ?: "TTB"
                                 )
                             }
                         },
@@ -476,7 +478,7 @@ fun PdfPagesPreview(
                                 imagesPerRow = imagesPerRow,
                                 spacingDp = imageSpacingDp,
                                 pageWidthDp = pageWidthDp,
-                                pageHeightDp = pageWidthDp / (pageAspectRatioForPage?.invoke(pageIndex) ?: pageAspectRatio).coerceAtLeast(0.1f),
+                                pageHeightDp = pageWidthDp / (pageAspectRatioForPage?.invoke(docPage) ?: pageAspectRatio).coerceAtLeast(0.1f),
                                 pageMarginDp = pageMarginDp,
                                 pageOrigin = pageOriginSt.value,
                                 pageSizePx = pageSizeSt.value,
@@ -514,7 +516,7 @@ fun PdfPagesPreview(
                             )
 
                             AbsolutePdfImagesLayer(
-                                images = images.filter { it.ownerPageIndex == pageIndex },
+                                images = images.filter { docPage >= 0 && it.ownerPageIndex == docPage },
                                 cellAspectRatio = imageCellAspectRatio,
                                 selectedImageIds = selectedImageIds,
                                 singleMenuImageId = singleMenuImageId,
@@ -543,12 +545,12 @@ fun PdfPagesPreview(
                         }
 
                             PageTextOverlay(
-                                texts = textElements.filter { it.pageIndex == pageIndex },
+                                texts = textElements.filter { docPage >= 0 && it.pageIndex == docPage },
                                 addTextMode = addTextMode,
                                 selectedTextId = selectedTextId,
                                 pendingFocusTextId = pendingFocusTextId,
                                 customFonts = customFonts,
-                                onPageTap = { xFrac, yFrac -> onAddTextAt(pageIndex, xFrac, yFrac) },
+                                onPageTap = { xFrac, yFrac -> onAddTextAt(if (docPage < 0) pageIndex else docPage, xFrac, yFrac) },
                                 onTextSelect = onSelectText,
                                 onTextDrag = onMoveText,
                                 onTextValueChange = onTextValueChange,
@@ -1211,14 +1213,19 @@ private fun ImageGrid(
     val exemptImgs = images.filter { it.rowExempt }
     if (fillPage && exemptImgs.isNotEmpty() && exemptImgs.size < images.size) {
         val oldRow = exemptImgs.first().pinnedPerRow.let { if (it > 0) it else imagesPerRow }
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(if (imagesPerRow == 1) 0.dp else pageMarginDp.dp),
+            verticalArrangement = Arrangement.spacedBy(spacingDp.dp)
+        ) {
             ImageGrid(
                 images = exemptImgs,
                 imagesPerRow = oldRow,
                 spacingDp = spacingDp,
                 pageWidthDp = pageWidthDp,
                 pageHeightDp = pageHeightDp,
-                pageMarginDp = pageMarginDp,
+                pageMarginDp = 0,
                 pageOrigin = pageOrigin,
                 pageSizePx = pageSizePx,
                 dragModeActive = dragModeActive,
@@ -1260,7 +1267,7 @@ private fun ImageGrid(
                 spacingDp = spacingDp,
                 pageWidthDp = pageWidthDp,
                 pageHeightDp = pageHeightDp,
-                pageMarginDp = pageMarginDp,
+                pageMarginDp = 0,
                 pageOrigin = pageOrigin,
                 pageSizePx = pageSizePx,
                 dragModeActive = dragModeActive,
