@@ -1065,7 +1065,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
 
         // ---- Drag Images: Step 1 multi-page picker ----
         if (showDragPagePicker) {
-            val pageCount = viewModel.documentPageCount().coerceAtLeast(1)
+            val pageCount = if (imagePagePickerKind == "perrow") viewModel.layoutPageCount() else viewModel.documentPageCount().coerceAtLeast(1)
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showDragPagePicker = false },
                 title = {
@@ -1073,6 +1073,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         when (imagePagePickerKind) {
                             "corners" -> R.string.round_corners_title
                             "resize" -> R.string.image_shape_title
+                            "perrow" -> R.string.resize_images_title
                             else -> R.string.image_drag_title
                         }
                     ))
@@ -1084,6 +1085,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                 when (imagePagePickerKind) {
                                     "corners" -> R.string.round_corners_select_page_instruction
                                     "resize" -> R.string.resize_select_page_instruction
+                                    "perrow" -> R.string.per_row_select_page_instruction
                                     else -> R.string.image_drag_select_page_instruction
                                 }
                             ),
@@ -1136,11 +1138,19 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                 confirmButton = {
                     TextButton(onClick = {
                         if (dragPagesSelected.isNotEmpty()) {
-                            dragPageForPicker = dragPagesSelected.minOrNull() ?: 0
-                            viewModel.startDragImagesOnPage(dragPageForPicker)
-                            dragImagePickSelected = emptyList()
-                            showDragPagePicker = false
-                            showDragImagePicker = true
+                            if (imagePagePickerKind == "perrow") {
+                                dragImagePickSelected = dragPagesSelected.sorted().flatMap { p ->
+                                    viewModel.layoutImagesOnPage(p).map { it.id }
+                                }
+                                showDragPagePicker = false
+                                showDragImagePicker = true
+                            } else {
+                                dragPageForPicker = dragPagesSelected.minOrNull() ?: 0
+                                viewModel.startDragImagesOnPage(dragPageForPicker)
+                                dragImagePickSelected = emptyList()
+                                showDragPagePicker = false
+                                showDragImagePicker = true
+                            }
                         }
                     }) { Text(stringResource(R.string.image_drag_next)) }
                 },
@@ -1164,7 +1174,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         TopAppBar(
                             title = {
                                 Text(
-                                    stringResource(when (imagePagePickerKind) { "corners" -> R.string.round_corners_title; "resize" -> R.string.image_shape_title; else -> R.string.image_drag_title }),
+                                    stringResource(when (imagePagePickerKind) { "corners" -> R.string.round_corners_title; "resize" -> R.string.image_shape_title; "perrow" -> R.string.resize_images_title; else -> R.string.image_drag_title }),
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color.Black
                                 )
@@ -1181,7 +1191,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                             actions = {
                                 TextButton(onClick = {
                                     val allIds = dragPagesSelected.sorted().flatMap { p ->
-                                        viewModel.imagesOnPage(p).map { it.id }
+                                        if (imagePagePickerKind == "perrow") viewModel.layoutImagesOnPage(p).map { it.id }
+                                        else viewModel.imagesOnPage(p).map { it.id }
                                     }
                                     dragImagePickSelected =
                                         if (allIds.isNotEmpty() && dragImagePickSelected == allIds)
@@ -1200,6 +1211,10 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                             }
                                             "resize" -> {
                                                 viewModel.beginResizeEdit(dragImagePickSelected)
+                                                showDragImagePicker = false
+                                            }
+                                            "perrow" -> {
+                                                viewModel.beginPerRowEdit(dragImagePickSelected)
                                                 showDragImagePicker = false
                                             }
                                             else -> {
@@ -1230,6 +1245,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                 when (imagePagePickerKind) {
                                     "corners" -> R.string.round_corners_select_images_instruction
                                     "resize" -> R.string.resize_select_images_instruction
+                                    "perrow" -> R.string.per_row_select_images_instruction
                                     else -> R.string.image_drag_select_images_instruction
                                 }
                             ),
@@ -1245,7 +1261,10 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         Spacer(Modifier.height(12.dp))
                         PageGroupedImageGrid(
                             pages = dragPagesSelected.sorted(),
-                            imagesForPage = { viewModel.imagesOnPage(it) },
+                            imagesForPage = { p ->
+                                if (imagePagePickerKind == "perrow") viewModel.layoutImagesOnPage(p)
+                                else viewModel.imagesOnPage(p)
+                            },
                             selectedIds = dragImagePickSelected,
                             onToggle = { id ->
                                 dragImagePickSelected =
@@ -1505,6 +1524,14 @@ Column(
                     dragPagesSelected = (0 until n).toSet()
                     showDragPagePicker = true
                 },
+                onImagesPerRowMenuClick = {
+                    imagePagePickerKind = "perrow"
+                    val n = viewModel.layoutPageCount()
+                    dragPagesSelected = (0 until n).toSet()
+                    showDragPagePicker = true
+                },
+                perRowEditActive = viewModel.perRowEditActive,
+                onPerRowDone = { viewModel.exitPerRowEdit() },
                 resizeEditActive = viewModel.resizeEditActive,
                 onResizeDone = { viewModel.exitResizeEdit() },
                 cornersEditActive = viewModel.cornersEditActive,

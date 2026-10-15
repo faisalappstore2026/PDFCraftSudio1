@@ -18,6 +18,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.pdfcraft.studio.ui.editor.ImportedImage
+import com.pdfcraft.studio.ui.editor.packEditorPages
 import com.pdfcraft.studio.ui.editor.TextElement
 import com.pdfcraft.studio.core.text.FontCatalog
 import com.pdfcraft.studio.ui.editor.ShadowRange
@@ -55,39 +56,79 @@ object PdfGenerator {
         gridHeightPx: Float,
         defaultAspect: Float
     ): List<List<com.pdfcraft.studio.ui.editor.ImportedImage>> {
-        if (images.isEmpty()) return emptyList()
-        val perRow = imagesPerRow.coerceAtLeast(1)
-        if (perRow == 1) {
-            return images.map { mutableListOf(it) }
+        return packEditorPages(images, imagesPerRow, spacingPx, cellWidthPx, gridHeightPx, defaultAspect)
+    }
+
+    private fun mixedImageSlots(
+        pageImages: List<ImportedImage>,
+        perRow: Int,
+        pageWidth: Int,
+        spacing: Float,
+        cellWidth: Float,
+        cellAspect: Float,
+        pageMarginDp: Int
+    ): List<FloatArray>? {
+        var any = false
+        for (img in pageImages) {
+            if (img.rowExempt) any = true
         }
-        val pages = mutableListOf<MutableList<com.pdfcraft.studio.ui.editor.ImportedImage>>()
-        var page = mutableListOf<com.pdfcraft.studio.ui.editor.ImportedImage>()
-        var usedH = 0f
-        fun imgH(img: com.pdfcraft.studio.ui.editor.ImportedImage): Float {
-            val b = img.bitmap
-            val aspect = if (perRow == 1 && b != null && b.height > 0) {
-                (b.width.toFloat() / b.height).coerceIn(0.2f, 5f)
-            } else {
-                (img.aspectRatioOverride ?: defaultAspect).coerceIn(0.3f, 2.0f)
+        if (!any) return null
+        val out = ArrayList<FloatArray>(pageImages.size)
+        var n = 0
+        while (n < pageImages.size) {
+            out.add(floatArrayOf(0f, 0f, cellWidth, cellWidth))
+            n = n + 1
+        }
+        val exempt = ArrayList<Int>()
+        val flow = ArrayList<Int>()
+        var k = 0
+        while (k < pageImages.size) {
+            if (pageImages[k].rowExempt) exempt.add(k) else flow.add(k)
+            k = k + 1
+        }
+        fun place(idxs: List<Int>, rowCount: Int, startY: Float): Float {
+            if (idxs.isEmpty()) return startY
+            val r = rowCount.coerceAtLeast(1)
+            val marginR = if (r == 1) 0f else pageMarginDp.toFloat() * (pageWidth / 360f)
+            val gridW = (pageWidth.toFloat() - marginR * 2f).coerceAtLeast(1f)
+            val cw = if (r <= 1) gridW else (gridW - spacing * (r - 1)) / r
+            var yy = startY
+            var c = 0
+            while (c < idxs.size) {
+                val count = if (idxs.size - c < r) idxs.size - c else r
+                var maxH = 0f
+                var col = 0
+                while (col < count) {
+                    val idx = idxs[c + col]
+                    val img = pageImages[idx]
+                    val b = img.bitmap
+                    val aspect = if (r == 1 && b != null && b.height > 0) {
+                        (b.width.toFloat() / b.height).coerceIn(0.2f, 5f)
+                    } else {
+                        (img.aspectRatioOverride ?: cellAspect).coerceIn(0.3f, 2.0f)
+                    }
+                    val h = cw / aspect
+                    if (h > maxH) maxH = h
+                    val left = if (r == 1) 0f else marginR + col * (cw + spacing)
+                    out[idx] = floatArrayOf(left, yy, cw, h)
+                    col = col + 1
+                }
+                yy += maxH + spacing
+                c += count
             }
-            return cellWidthPx / aspect
+            return yy
         }
-        fun rowH(row: List<com.pdfcraft.studio.ui.editor.ImportedImage>): Float =
-            row.maxOf { imgH(it) }
-        for (row in images.chunked(perRow)) {
-            val h = rowH(row)
-            val gap = if (page.isEmpty()) 0f else spacingPx
-            if (page.isNotEmpty() && usedH + gap + h > gridHeightPx + 0.5f) {
-                pages.add(page)
-                page = mutableListOf()
-                usedH = 0f
+        var rowEx = perRow
+        for (img in pageImages) {
+            if (img.rowExempt && img.pinnedPerRow > 0) {
+                rowEx = img.pinnedPerRow
+                break
             }
-            val g = if (page.isEmpty()) 0f else spacingPx
-            page.addAll(row)
-            usedH += g + h
         }
-        if (page.isNotEmpty()) pages.add(page)
-        return pages
+        val startEx = if (rowEx == 1) 0f else pageMarginDp.toFloat() * (pageWidth / 360f)
+        val y2 = place(exempt, rowEx, startEx)
+        place(flow, perRow, y2)
+        return out
     }
 
     fun export(
@@ -231,7 +272,17 @@ object PdfGenerator {
             }
 
 
+            val placed = mixedImageSlots(
+                pageImages = pageImages,
+                perRow = perRow,
+                pageWidth = pageWidth,
+                spacing = spacing,
+                cellWidth = cellWidth,
+                cellAspect = cellAspect,
+                pageMarginDp = pageMarginDp
+            )
             pageImages.forEachIndexed { idx, img ->
+                val hit = if (placed == null) null else placed[idx]
                 val row = idx / perRow
                 val col = idx % perRow
                 val bmpEarly = img.bitmap
@@ -240,10 +291,14 @@ object PdfGenerator {
                 } else {
                     (img.aspectRatioOverride ?: cellAspect).coerceIn(0.3f, 2.0f)
                 }
-                val thisH = cellWidth / thisAspect
+                val drawWidth = if (hit != null) hit[2] else cellWidth
+                val thisH = if (hit != null) hit[3] else cellWidth / thisAspect
                 val left0: Float
                 val top0: Float
-                if (perRow == 1) {
+                if (hit != null) {
+                    left0 = hit[0]
+                    top0 = hit[1]
+                } else if (perRow == 1) {
                     var y = 0f
                     for (i in 0 until idx) {
                         val prev = pageImages[i]
@@ -264,7 +319,7 @@ object PdfGenerator {
                 val oy = img.dragOffsetYFrac * thisPageHeight
                 var left = left0 + ox
                 var top = top0 + oy
-                left = left.coerceIn(0f, (pageWidth - cellWidth).coerceAtLeast(0f))
+                left = left.coerceIn(0f, (pageWidth - drawWidth).coerceAtLeast(0f))
                 top = top.coerceIn(0f, (thisPageHeight - thisH).coerceAtLeast(0f))
                 val bmp = img.bitmap
                 if (bmp != null && !bmp.isRecycled) {
@@ -273,7 +328,7 @@ object PdfGenerator {
                         bitmap = bmp,
                         dstLeft = left,
                         dstTop = top,
-                        dstWidth = cellWidth,
+                        dstWidth = drawWidth,
                         dstHeight = thisH,
                         paint = paint,
                         cornerPercent = img.cornerRadiusPercent

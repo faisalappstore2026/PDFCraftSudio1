@@ -182,6 +182,9 @@ fun EditorToolbar(
     onDragImagesMenuClick: () -> Unit = {},
     onRoundCornersMenuClick: () -> Unit = {},
     onResizeImagesMenuClick: () -> Unit = {},
+    onImagesPerRowMenuClick: () -> Unit = {},
+    perRowEditActive: Boolean = false,
+    onPerRowDone: () -> Unit = {},
     resizeEditActive: Boolean = false,
     onResizeDone: () -> Unit = {},
     cornersEditActive: Boolean = false,
@@ -234,7 +237,7 @@ fun EditorToolbar(
     androidx.compose.runtime.LaunchedEffect(
         openToolMenu, showPageSizePicker, showImageNumberingPicker, showDragPagePicker,
         showDragImagePicker, showPageBgColorPicker, showPageDeletePicker,
-        showPageDuplicatePicker, showArrangePagesDialog, resizeModeActive, spacingModeActive,
+        showPageDuplicatePicker, showArrangePagesDialog, resizeModeActive, perRowEditActive, spacingModeActive,
         shapeModeActive, cornersModeActive, pageSizeModeActive, pageBgColorModeActive,
         pageMarginModeActive, textSizeModeActive
     ) {
@@ -252,7 +255,7 @@ fun EditorToolbar(
         }
         SessionStore.setToolbarDialog(sessionCtx, dialog)
         val mode = when {
-            resizeModeActive -> "resize"
+            resizeModeActive || perRowEditActive -> "resize"
             spacingModeActive -> "spacing"
             shapeModeActive -> "shape"
             cornersModeActive -> "corners"
@@ -279,10 +282,13 @@ fun EditorToolbar(
             .background(Color.White)
     ) {
         when {
-            resizeModeActive -> ImagesPerRowSlider(
+            perRowEditActive || resizeModeActive -> ImagesPerRowSlider(
                 imagesPerRow = imagesPerRow,
                 onImagesPerRowChange = onImagesPerRowSelected,
-                onDone = { resizeModeActive = false }
+                onDone = {
+                    resizeModeActive = false
+                    onPerRowDone()
+                }
             )
             dragModeActive -> ImageDragPanel(
                 xPercent = dragXPercent,
@@ -421,7 +427,7 @@ fun EditorToolbar(
                         onImportImagesClick = onImportImagesClick,
                         onDragImagesClick = onDragImagesMenuClick,
                         onDeleteImagesClick = onDeleteImagesMenuClick,
-                        onResizeImagesClick = { resizeModeActive = true },
+                        onResizeImagesClick = onImagesPerRowMenuClick,
                         onAdjustSpacingClick = { spacingModeActive = true },
                         onAdjustImageShapeClick = onResizeImagesMenuClick,
                         onAdjustCornersClick = onRoundCornersMenuClick,

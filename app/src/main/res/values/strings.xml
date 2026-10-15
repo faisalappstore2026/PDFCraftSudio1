@@ -70,6 +70,8 @@
     <string name="resize_images_tool">🔲 Images Per Row</string>
     <string name="resize_images_title">Images in Row</string>
     <string name="resize_images_done">Done</string>
+    <string name="per_row_select_page_instruction">All current pages are selected. Uncheck a page if you do not want it, then tap Next.</string>
+    <string name="per_row_select_images_instruction">Images are grouped by the current page. All are selected. Tap an image to leave it out of Images Per Row.</string>
     <string name="image_shape_tool">📐 Image Size</string>
     <string name="image_shape_title">Resize Images</string>
     <string name="resize_select_page_instruction">Select the pages that contain the images you want to resize.</string>

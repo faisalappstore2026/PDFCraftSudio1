@@ -71,8 +71,74 @@ data class ImportedImage(
     val absXFrac: Float = 0f,
     val absYFrac: Float = 0f,
     val absWFrac: Float = 0f,
-    val absHFrac: Float = 0f
+    val absHFrac: Float = 0f,
+    /** True = this image stays on its page and ignores Images Per Row changes. */
+    val rowExempt: Boolean = false,
+    val pinnedPage: Int = 0,
+    val pinnedPerRow: Int = 0
 )
+
+fun packEditorPages(
+    images: List<ImportedImage>,
+    imagesPerRow: Int,
+    spacing: Float,
+    cellWidth: Float,
+    gridHeight: Float,
+    defaultAspect: Float
+): List<List<ImportedImage>> {
+    if (images.isEmpty()) return emptyList()
+    val perRow = imagesPerRow.coerceAtLeast(1)
+    val pinned = images.filter { it.rowExempt }
+    val flowing = if (pinned.isEmpty()) images else images.filter { !it.rowExempt }
+    fun plain(list: List<ImportedImage>): List<MutableList<ImportedImage>> {
+        if (list.isEmpty()) return emptyList()
+        if (perRow == 1) return list.map { mutableListOf(it) }
+        val pages = mutableListOf<MutableList<ImportedImage>>()
+        var page = mutableListOf<ImportedImage>()
+        var usedH = 0f
+        fun imgH(img: ImportedImage): Float {
+            val b = img.bitmap
+            val aspect = if (b != null && b.height > 0 && perRow == 1) {
+                (b.width.toFloat() / b.height).coerceIn(0.2f, 5f)
+            } else {
+                (img.aspectRatioOverride ?: defaultAspect).coerceIn(0.3f, 2.0f)
+            }
+            return cellWidth / aspect
+        }
+        fun rowH(row: List<ImportedImage>): Float = row.maxOf { imgH(it) }
+        for (row in list.chunked(perRow)) {
+            val h = rowH(row)
+            if (page.isNotEmpty() && usedH + spacing + h > gridHeight + 0.5f) {
+                pages.add(page)
+                page = mutableListOf()
+                usedH = 0f
+            }
+            val g = if (page.isEmpty()) 0f else spacing
+            page.addAll(row)
+            usedH += g + h
+        }
+        if (page.isNotEmpty()) pages.add(page)
+        return pages
+    }
+    if (pinned.isEmpty()) return plain(images)
+    val flowed = plain(flowing)
+    var maxPage = if (flowed.isEmpty()) 0 else flowed.size - 1
+    for (img in pinned) {
+        val p = img.pinnedPage.coerceAtLeast(0)
+        if (p > maxPage) maxPage = p
+    }
+    val out = MutableList(maxPage + 1) { mutableListOf<ImportedImage>() }
+    for (img in pinned) {
+        out[img.pinnedPage.coerceIn(0, maxPage)].add(img)
+    }
+    var i = 0
+    while (i < flowed.size) {
+        out[i].addAll(flowed[i])
+        i = i + 1
+    }
+    return out
+}
+
 
 data class ColorRange(
     val range: IntRange,
@@ -767,6 +833,8 @@ private fun beginCoalescedEdit(key: String = "edit") {
             h = h * 31 + img.dragOffsetXFrac.toRawBits().toLong()
             h = h * 31 + img.dragOffsetYFrac.toRawBits().toLong()
             h = h * 31 + img.cornerRadiusPercent
+            h = h * 31 + if (img.rowExempt) 1 else 0
+            h = h * 31 + img.pinnedPage + img.pinnedPerRow
             h = h * 31 + (img.aspectRatioOverride?.toRawBits()?.toLong() ?: 0L)
             h = h * 31 + (img.numberLabel ?: 0)
             h = h * 31 + (img.linkUrl?.hashCode() ?: 0)
@@ -1518,6 +1586,75 @@ fun isSelectionStrike(): Boolean {
         endCoalescedEdit()
         dragModeActive = false
         dragSelectedIds.clear()
+    }
+
+    fun layoutPages(): List<List<ImportedImage>> {
+        val grid = importedImages.filter { it.ownerPageIndex == null }
+        val per = imagesPerRow.coerceAtLeast(1)
+        val pageWidth = 360f
+        val aspect = pageAspectRatio.coerceAtLeast(0.1f)
+        val pageHeight = pageWidth / aspect
+        val pad = if (per == 1) 0f else 10f
+        val spacing = imageSpacingDp.toFloat()
+        val gridW = (pageWidth - pad * 2f).coerceAtLeast(1f)
+        val gridH = (pageHeight - pad * 2f).coerceAtLeast(1f)
+        val cellW = if (per <= 1) gridW else (gridW - spacing * (per - 1)) / per
+        return packEditorPages(grid, per, spacing, cellW, gridH, imageCellAspectRatio)
+    }
+
+    fun layoutPageCount(): Int {
+        val imagePages = layoutPages().size
+        val textPages = (textElements.maxOfOrNull { it.pageIndex } ?: -1) + 1
+        return maxOf(imagePages, textPages, minPageCount, 1)
+    }
+
+    fun layoutImagesOnPage(pageIndex: Int): List<ImportedImage> {
+        val pages = layoutPages()
+        if (pageIndex < 0 || pageIndex >= pages.size) return emptyList()
+        return pages[pageIndex].filter { !it.id.startsWith("spacer_") }
+    }
+
+    var perRowEditActive: Boolean by mutableStateOf(false)
+
+    fun beginPerRowEdit(selectedIds: Collection<String>) {
+        recordEdit()
+        val selected = selectedIds.toHashSet()
+        val pagesNow = layoutPages()
+        val pageOf = HashMap<String, Int>()
+        var pi = 0
+        while (pi < pagesNow.size) {
+            val list = pagesNow[pi]
+            var j = 0
+            while (j < list.size) {
+                pageOf[list[j].id] = pi
+                j = j + 1
+            }
+            pi = pi + 1
+        }
+        val currentRow = imagesPerRow
+        var idx = 0
+        while (idx < importedImages.size) {
+            val img = importedImages[idx]
+            if (img.ownerPageIndex == null && !img.id.startsWith("spacer_")) {
+                val on = selected.contains(img.id)
+                if (on) {
+                    if (img.rowExempt) {
+                        importedImages[idx] = img.copy(rowExempt = false, pinnedPage = 0, pinnedPerRow = 0)
+                    }
+                } else {
+                    val page = if (pageOf.containsKey(img.id)) pageOf[img.id] ?: 0 else img.pinnedPage
+                    val keepRow = if (img.rowExempt && img.pinnedPerRow > 0) img.pinnedPerRow else currentRow
+                    importedImages[idx] = img.copy(rowExempt = true, pinnedPage = page, pinnedPerRow = keepRow)
+                }
+            }
+            idx = idx + 1
+        }
+        perRowEditActive = true
+    }
+
+    fun exitPerRowEdit() {
+        endCoalescedEdit()
+        perRowEditActive = false
     }
 
     /** Images currently laid out on [pageIndex] (skips spacers). */

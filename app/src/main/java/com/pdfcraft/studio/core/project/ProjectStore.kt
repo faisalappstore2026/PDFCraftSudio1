@@ -192,6 +192,9 @@ object ProjectStore {
                     obj.put("dragOffsetXFrac", img.dragOffsetXFrac.toDouble())
                     obj.put("dragOffsetYFrac", img.dragOffsetYFrac.toDouble())
                     obj.put("cornerRadiusPercent", img.cornerRadiusPercent)
+                    obj.put("rowExempt", img.rowExempt)
+                    obj.put("pinnedPage", img.pinnedPage)
+                    obj.put("pinnedPerRow", img.pinnedPerRow)
                     if (img.ownerPageIndex != null) obj.put("ownerPageIndex", img.ownerPageIndex)
                     obj.put("absXFrac", img.absXFrac.toDouble())
                     obj.put("absYFrac", img.absYFrac.toDouble())
@@ -582,6 +585,9 @@ object ProjectStore {
                                 dragOffsetXFrac = o.optDouble("dragOffsetXFrac", 0.0).toFloat(),
                                 dragOffsetYFrac = o.optDouble("dragOffsetYFrac", 0.0).toFloat(),
                                 cornerRadiusPercent = o.optInt("cornerRadiusPercent", 0),
+                                rowExempt = o.optBoolean("rowExempt", false),
+                                pinnedPage = o.optInt("pinnedPage", 0),
+                                pinnedPerRow = o.optInt("pinnedPerRow", 0),
                                 aspectRatioOverride = if (o.has("aspectRatioOverride") && !o.isNull("aspectRatioOverride"))
                                     o.optDouble("aspectRatioOverride").toFloat() else null,
                                 ownerPageIndex = if (o.has("ownerPageIndex") && !o.isNull("ownerPageIndex")) o.optInt("ownerPageIndex") else null,

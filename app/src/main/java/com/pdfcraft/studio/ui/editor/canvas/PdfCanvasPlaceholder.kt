@@ -64,6 +64,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import com.pdfcraft.studio.ui.common.AppIcons
+import com.pdfcraft.studio.ui.editor.packEditorPages
 import com.pdfcraft.studio.ui.common.DocumentScrollBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -154,39 +155,7 @@ private fun packImagesForPages(
     gridHeightDp: Float,
     defaultAspect: Float
 ): List<List<com.pdfcraft.studio.ui.editor.ImportedImage>> {
-    if (images.isEmpty()) return emptyList()
-    val perRow = imagesPerRow.coerceAtLeast(1)
-    if (perRow == 1) {
-        return images.map { mutableListOf(it) }
-    }
-    val pages = mutableListOf<MutableList<com.pdfcraft.studio.ui.editor.ImportedImage>>()
-    var page = mutableListOf<com.pdfcraft.studio.ui.editor.ImportedImage>()
-    var usedH = 0f
-    fun imgH(img: com.pdfcraft.studio.ui.editor.ImportedImage): Float {
-        val b = img.bitmap
-        val aspect = if (perRow == 1 && b != null && b.height > 0) {
-            (b.width.toFloat() / b.height).coerceIn(0.2f, 5f)
-        } else {
-            (img.aspectRatioOverride ?: defaultAspect).coerceIn(0.3f, 2.0f)
-        }
-        return cellWidthDp / aspect
-    }
-    fun rowH(row: List<com.pdfcraft.studio.ui.editor.ImportedImage>): Float =
-        row.maxOf { imgH(it) }
-    for (row in images.chunked(perRow)) {
-        val h = rowH(row)
-        val gap = if (page.isEmpty()) 0f else spacingDp
-        if (page.isNotEmpty() && usedH + gap + h > gridHeightDp + 0.5f) {
-            pages.add(page)
-            page = mutableListOf()
-            usedH = 0f
-        }
-        val g = if (page.isEmpty()) 0f else spacingDp
-        page.addAll(row)
-        usedH += g + h
-    }
-    if (page.isNotEmpty()) pages.add(page)
-    return pages
+    return packEditorPages(images, imagesPerRow, spacingDp, cellWidthDp, gridHeightDp, defaultAspect)
 }
 
 @Composable
@@ -1236,11 +1205,103 @@ private fun ImageGrid(
     onDeleteSingleFillSpace: (String) -> Unit,
     onMoveSingle: (String, String) -> Unit,
     onMoveMultiple: (String) -> Unit,
-    onFinishReorder: () -> Unit
+    onFinishReorder: () -> Unit,
+    fillPage: Boolean = true
 ) {
+    val exemptImgs = images.filter { it.rowExempt }
+    if (fillPage && exemptImgs.isNotEmpty() && exemptImgs.size < images.size) {
+        val oldRow = exemptImgs.first().pinnedPerRow.let { if (it > 0) it else imagesPerRow }
+        Column(modifier = Modifier.fillMaxSize()) {
+            ImageGrid(
+                images = exemptImgs,
+                imagesPerRow = oldRow,
+                spacingDp = spacingDp,
+                pageWidthDp = pageWidthDp,
+                pageHeightDp = pageHeightDp,
+                pageMarginDp = pageMarginDp,
+                pageOrigin = pageOrigin,
+                pageSizePx = pageSizePx,
+                dragModeActive = dragModeActive,
+                onDragImagesByFrac = onDragImagesByFrac,
+                onSyncDragOffset = onSyncDragOffset,
+                onEnsureDragSelection = onEnsureDragSelection,
+                cellAspectRatio = cellAspectRatio,
+                cellCornerRadiusPercent = cellCornerRadiusPercent,
+                selectedImageIds = selectedImageIds,
+                selectionMode = selectionMode,
+                singleMenuImageId = singleMenuImageId,
+                reorderMode = reorderMode,
+                hasClipboardImages = hasClipboardImages,
+                cellBounds = cellBounds,
+                onImageClick = onImageClick,
+                onImageLongPress = onImageLongPress,
+                onChangePosition = onChangePosition,
+                onCut = onCut,
+                onCopy = onCopy,
+                onPaste = onPaste,
+                onSaveSingle = onSaveSingle,
+                onShareSingle = onShareSingle,
+                onCropImage = onCropImage,
+                onRotateImage = onRotateImage,
+                onReplaceImage = onReplaceImage,
+                onImagePosition = onImagePosition,
+                onAddImageLink = onAddImageLink,
+                onDeleteSingle = onDeleteSingle,
+                onDeleteSingleKeepSpace = onDeleteSingleKeepSpace,
+                onDeleteSingleFillSpace = onDeleteSingleFillSpace,
+                onMoveSingle = onMoveSingle,
+                onMoveMultiple = onMoveMultiple,
+                onFinishReorder = onFinishReorder,
+                fillPage = false
+            )
+            ImageGrid(
+                images = images.filter { !it.rowExempt },
+                imagesPerRow = imagesPerRow,
+                spacingDp = spacingDp,
+                pageWidthDp = pageWidthDp,
+                pageHeightDp = pageHeightDp,
+                pageMarginDp = pageMarginDp,
+                pageOrigin = pageOrigin,
+                pageSizePx = pageSizePx,
+                dragModeActive = dragModeActive,
+                onDragImagesByFrac = onDragImagesByFrac,
+                onSyncDragOffset = onSyncDragOffset,
+                onEnsureDragSelection = onEnsureDragSelection,
+                cellAspectRatio = cellAspectRatio,
+                cellCornerRadiusPercent = cellCornerRadiusPercent,
+                selectedImageIds = selectedImageIds,
+                selectionMode = selectionMode,
+                singleMenuImageId = singleMenuImageId,
+                reorderMode = reorderMode,
+                hasClipboardImages = hasClipboardImages,
+                cellBounds = cellBounds,
+                onImageClick = onImageClick,
+                onImageLongPress = onImageLongPress,
+                onChangePosition = onChangePosition,
+                onCut = onCut,
+                onCopy = onCopy,
+                onPaste = onPaste,
+                onSaveSingle = onSaveSingle,
+                onShareSingle = onShareSingle,
+                onCropImage = onCropImage,
+                onRotateImage = onRotateImage,
+                onReplaceImage = onReplaceImage,
+                onImagePosition = onImagePosition,
+                onAddImageLink = onAddImageLink,
+                onDeleteSingle = onDeleteSingle,
+                onDeleteSingleKeepSpace = onDeleteSingleKeepSpace,
+                onDeleteSingleFillSpace = onDeleteSingleFillSpace,
+                onMoveSingle = onMoveSingle,
+                onMoveMultiple = onMoveMultiple,
+                onFinishReorder = onFinishReorder,
+                fillPage = false
+            )
+        }
+        return
+    }
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .then(if (fillPage) Modifier.fillMaxSize() else Modifier)
             .clipToBounds()
             .padding(if (imagesPerRow == 1) 0.dp else pageMarginDp.dp),
         verticalArrangement = Arrangement.spacedBy(spacingDp.dp)
