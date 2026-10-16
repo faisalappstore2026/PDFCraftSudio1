@@ -558,7 +558,9 @@ fun PdfPagesPreview(
                                 onTextFocused = onTextFocused,
                                 onTextUnfocused = onTextUnfocused,
                                 onConsumePendingFocus = onConsumePendingFocus,
-                                onDeselect = onDeselectText
+                                onDeselect = onDeselectText,
+                                onTextRotate = onTextRotate,
+                                onTextScale = onTextScale
                             )
                         }
                     }
@@ -2274,13 +2276,16 @@ private fun TextHandle(
             .border(1.dp, Color(0x33000000), CircleShape)
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(
+                        requireUnconsumed = false,
+                        pass = PointerEventPass.Initial
+                    )
                     down.consume()
                     onDragStart()
                     val slop = viewConfiguration.touchSlop
                     var moved = false
                     while (true) {
-                        val event = awaitPointerEvent()
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == down.id }
                         if (change == null || !change.pressed) {
                             onDragEnd()
@@ -2292,7 +2297,7 @@ private fun TextHandle(
                         }
                         if (moved) {
                             change.consume()
-                            onDrag(delta)
+                            if (delta.x != 0f || delta.y != 0f) onDrag(delta)
                         }
                     }
                 }

@@ -177,28 +177,26 @@ fun packEditorPages(
             i += count
         }
     }
-    val flowBy = HashMap<Int, MutableList<ImportedImage>>()
-    for (img in flowing) {
-        val p = img.pinnedPage.coerceAtLeast(0)
-        val bucket = flowBy[p]
-        if (bucket == null) flowBy[p] = mutableListOf(img) else bucket.add(img)
+    // FLOW_PULL_UP: selected images fill earlier selected pages before later ones.
+    val flowOrder = ArrayList<ImportedImage>(flowing.size)
+    flowOrder.addAll(flowing)
+    flowOrder.sortBy { it.pinnedPage }
+    val selected = ArrayList<Int>()
+    val seenSel = HashSet<Int>()
+    for (img in flowOrder) {
+        val p = img.pinnedPage.coerceIn(0, maxPage)
+        if (seenSel.add(p)) selected.add(p)
     }
-    val selected = flowBy.keys.sorted()
+    selected.sort()
     val extras = HashMap<Int, MutableList<MutableList<ImportedImage>>>()
-    var carry = mutableListOf<ImportedImage>()
     val flowCw = cwFor(perRow)
+    var q = 0
     var sidx = 0
     while (sidx < selected.size) {
-        val p = selected[sidx].coerceIn(0, maxPage)
-        val own = flowBy[selected[sidx]] ?: emptyList()
-        val queue = ArrayList<ImportedImage>()
-        queue.addAll(carry)
-        queue.addAll(own)
-        carry = mutableListOf()
-        var q = 0
-        while (q < queue.size) {
-            val count = if (queue.size - q < perRow) queue.size - q else perRow
-            val row = ArrayList(queue.subList(q, q + count))
+        val p = selected[sidx]
+        while (q < flowOrder.size) {
+            val count = if (flowOrder.size - q < perRow) flowOrder.size - q else perRow
+            val row = ArrayList(flowOrder.subList(q, q + count))
             val h = rowH(row, perRow, flowCw)
             val gap = if (used[p] <= 0.5f) 0f else spacing
             val room = used[p] <= 0.5f || used[p] + gap + h <= gridHeight + 0.5f
@@ -207,19 +205,14 @@ fun packEditorPages(
             slots[p].addAll(row)
             q += count
         }
-        while (q < queue.size) {
-            carry.add(queue[q])
-            q += 1
-        }
         val lastSelected = sidx == selected.size - 1
-        if (carry.isNotEmpty() && lastSelected) {
+        if (lastSelected && q < flowOrder.size) {
             val news = mutableListOf<MutableList<ImportedImage>>()
             var page = mutableListOf<ImportedImage>()
             var uh = 0f
-            var c = 0
-            while (c < carry.size) {
-                val count = if (carry.size - c < perRow) carry.size - c else perRow
-                val row = ArrayList(carry.subList(c, c + count))
+            while (q < flowOrder.size) {
+                val count = if (flowOrder.size - q < perRow) flowOrder.size - q else perRow
+                val row = ArrayList(flowOrder.subList(q, q + count))
                 val h = rowH(row, perRow, flowCw)
                 if (page.isNotEmpty() && uh + spacing + h > gridHeight + 0.5f) {
                     news.add(page)
@@ -229,11 +222,10 @@ fun packEditorPages(
                 val g = if (page.isEmpty()) 0f else spacing
                 page.addAll(row)
                 uh += g + h
-                c += count
+                q += count
             }
             if (page.isNotEmpty()) news.add(page)
             extras[p] = news
-            carry = mutableListOf()
         }
         sidx += 1
     }
