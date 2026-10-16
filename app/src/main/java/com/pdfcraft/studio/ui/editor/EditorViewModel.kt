@@ -768,6 +768,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
     val pageAspectOverrides = mutableStateMapOf<Int, Float>()
     /** Page indices selected in Set Page Size tool. */
     val pageSizeSelection = mutableStateListOf<Int>()
+    private var pageSizeSnap: PageSizeSnap? = null
 
     var isPageLandscape: Boolean by mutableStateOf(false)
         private set
@@ -2884,10 +2885,13 @@ fun isSelectionStrike(): Boolean {
 
     fun deleteSelectedPages(imagesPerPage: Int) {
         recordEdit()
-        val total = documentPageCount()
+        pageSizeSnap = null
+        // DELETE_VISUAL_PAGE: remove the page the user sees, not a different image slice.
+        val packed = layoutPages()
+        val src = packPageSource.copyOf()
+        val total = layoutPageCount()
         val toDelete = pageDeleteSelection.filter { it in 0 until total }.toSortedSet()
         if (toDelete.isEmpty()) return
-
         if (toDelete.size >= total) {
             importedImages.clear()
             textElements.clear()
@@ -2895,62 +2899,88 @@ fun isSelectionStrike(): Boolean {
             pageAspectOverrides.clear()
             pageBackgroundColorOverrides.clear()
             pageBackgroundBitmapOverrides.clear()
+            pageBackgroundKindOverrides.clear()
+            pageBackgroundColor2Overrides.clear()
+            pageBackgroundGradientDirOverrides.clear()
             pageDeleteSelection.clear()
             return
         }
-
-        // Remove images that sit on deleted document pages
-        val keptImages = (0 until total)
-            .filter { it !in toDelete }
-            .flatMap { p ->
-                val range = imageRangeForPage(p, total)
-                if (range.isEmpty()) emptyList()
-                else importedImages.subList(range.first, range.last + 1).toList()
+        val deleteIds = HashSet<String>()
+        val deleteDoc = HashSet<Int>()
+        for (v in toDelete) {
+            if (v < packed.size) {
+                for (img in packed[v]) deleteIds.add(img.id)
             }
+            val doc = if (v < src.size) src[v] else v
+            if (doc >= 0) deleteDoc.add(doc)
+        }
+        for (img in importedImages) {
+            val owner = img.ownerPageIndex
+            if (owner != null && owner in deleteDoc) deleteIds.add(img.id)
+        }
+        val keptImages = ArrayList<ImportedImage>()
+        for (img in importedImages) {
+            if (img.id in deleteIds) continue
+            val owner = img.ownerPageIndex
+            val newOwner = if (owner == null) null else owner - deleteDoc.count { it < owner }
+            val newPin = (img.pinnedPage - deleteDoc.count { it < img.pinnedPage }).coerceAtLeast(0)
+            if (newOwner != owner || newPin != img.pinnedPage) {
+                keptImages.add(img.copy(ownerPageIndex = newOwner, pinnedPage = newPin))
+            } else {
+                keptImages.add(img)
+            }
+        }
         importedImages.clear()
         importedImages.addAll(keptImages)
-
-        // Text: drop deleted pages, shift later indices down
-        val keptText = textElements
-            .filter { it.pageIndex !in toDelete }
-            .map { te ->
-                val shift = toDelete.count { it < te.pageIndex }
-                if (shift > 0) te.copy(pageIndex = te.pageIndex - shift) else te
-            }
+        val keptText = ArrayList<com.pdfcraft.studio.ui.editor.TextElement>()
+        for (te in textElements) {
+            if (te.pageIndex in deleteDoc) continue
+            val shift = deleteDoc.count { it < te.pageIndex }
+            keptText.add(if (shift > 0) te.copy(pageIndex = te.pageIndex - shift) else te)
+        }
         textElements.clear()
         textElements.addAll(keptText)
-
-        // Reindex float overrides
-        run {
-            val old = pageAspectOverrides.toMap()
-            pageAspectOverrides.clear()
-            old.forEach { (k, v) ->
-                if (k in toDelete) return@forEach
-                pageAspectOverrides[k - toDelete.count { it < k }] = v
+        fun shiftLong(map: androidx.compose.runtime.snapshots.SnapshotStateMap<Int, Long>) {
+            val old = map.toMap()
+            map.clear()
+            for ((k, v) in old) {
+                if (k in deleteDoc) continue
+                map[k - deleteDoc.count { it < k }] = v
             }
         }
-        run {
-            val old = pageBackgroundColorOverrides.toMap()
-            pageBackgroundColorOverrides.clear()
-            old.forEach { (k, v) ->
-                if (k in toDelete) return@forEach
-                pageBackgroundColorOverrides[k - toDelete.count { it < k }] = v
+        fun shiftFloat(map: androidx.compose.runtime.snapshots.SnapshotStateMap<Int, Float>) {
+            val old = map.toMap()
+            map.clear()
+            for ((k, v) in old) {
+                if (k in deleteDoc) continue
+                map[k - deleteDoc.count { it < k }] = v
             }
         }
-        run {
-            val old = pageBackgroundBitmapOverrides.toMap()
-            pageBackgroundBitmapOverrides.clear()
-            old.forEach { (k, v) ->
-                if (k !in toDelete) {
-                    pageBackgroundBitmapOverrides[k - toDelete.count { it < k }] = v
-                }
+        fun shiftStr(map: androidx.compose.runtime.snapshots.SnapshotStateMap<Int, String>) {
+            val old = map.toMap()
+            map.clear()
+            for ((k, v) in old) {
+                if (k in deleteDoc) continue
+                map[k - deleteDoc.count { it < k }] = v
             }
         }
-
+        fun shiftBmp(map: androidx.compose.runtime.snapshots.SnapshotStateMap<Int, android.graphics.Bitmap>) {
+            val old = map.toMap()
+            map.clear()
+            for ((k, v) in old) {
+                if (k in deleteDoc) continue
+                map[k - deleteDoc.count { it < k }] = v
+            }
+        }
+        shiftFloat(pageAspectOverrides)
+        shiftLong(pageBackgroundColorOverrides)
+        shiftBmp(pageBackgroundBitmapOverrides)
+        shiftStr(pageBackgroundKindOverrides)
+        shiftLong(pageBackgroundColor2Overrides)
+        shiftStr(pageBackgroundGradientDirOverrides)
         minPageCount = maxOf(1, minPageCount - toDelete.size)
         pageDeleteSelection.clear()
     }
-
 
     fun aspectRatioForPage(pageIndex: Int): Float {
         if (imagesPerRow == 1) {
@@ -3065,18 +3095,227 @@ fun isSelectionStrike(): Boolean {
     fun isPageSizeSelected(pageIndex: Int): Boolean =
         pageSizeSelection.contains(pageIndex)
 
+    fun beginPageSizeEdit() {
+        pageSizeSnap = null
+    }
+
+    private data class PageSizeSnap(
+        val pageIds: List<List<String>>,
+        val aspects: Map<Int, Float>,
+        val colors: Map<Int, Long>,
+        val bitmaps: Map<Int, Bitmap>,
+        val kinds: Map<Int, String>,
+        val color2: Map<Int, Long>,
+        val dirs: Map<Int, String>,
+        val textPages: Map<String, Int>,
+        val owners: Map<String, Int>
+    )
+
+    private fun pageGridHeight(aspect: Float): Float {
+        val pageWidth = 360f
+        val pageHeight = pageWidth / aspect.coerceAtLeast(0.1f)
+        val pad = if (imagesPerRow.coerceAtLeast(1) == 1) 0f else pageMarginDp.toFloat()
+        return (pageHeight - pad * 2f).coerceAtLeast(1f)
+    }
+
+    private fun pageCellWidth(): Float {
+        val pageWidth = 360f
+        val pad = if (imagesPerRow.coerceAtLeast(1) == 1) 0f else pageMarginDp.toFloat()
+        val gridW = (pageWidth - pad * 2f).coerceAtLeast(1f)
+        val per = imagesPerRow.coerceAtLeast(1)
+        val spacing = imageSpacingDp.toFloat()
+        return if (per <= 1) gridW else (gridW - spacing * (per - 1)) / per
+    }
+
+    private fun rowPixelHeight(row: List<ImportedImage>, per: Int, cw: Float): Float {
+        var maxH = 1f
+        for (img in row) {
+            val b = img.bitmap
+            val aspect = if (per == 1 && b != null && b.height > 0) {
+                (b.width.toFloat() / b.height.toFloat()).coerceIn(0.2f, 5f)
+            } else {
+                (img.aspectRatioOverride ?: imageCellAspectRatio).coerceIn(0.3f, 2f)
+            }
+            val h = cw / aspect
+            if (h > maxH) maxH = h
+        }
+        return maxH
+    }
+
+    private fun imagesThatFit(images: List<ImportedImage>, height: Float): Int {
+        if (images.isEmpty()) return 0
+        val per = imagesPerRow.coerceAtLeast(1)
+        if (per == 1) return 1
+        val cw = pageCellWidth()
+        val spacing = imageSpacingDp.toFloat()
+        var used = 0f
+        var count = 0
+        var i = 0
+        while (i < images.size) {
+            val n = if (images.size - i < per) images.size - i else per
+            val row = images.subList(i, i + n)
+            val h = rowPixelHeight(row, per, cw)
+            val gap = if (count == 0) 0f else spacing
+            if (count > 0 && used + gap + h > height + 0.5f) break
+            used += gap + h
+            count += n
+            i += n
+        }
+        if (count <= 0) {
+            val n = if (images.size < per) images.size else per
+            return n
+        }
+        return count
+    }
+
     fun applyPageSizeToSelection(ratio: Float) {
-        recordEdit()
+        beginCoalescedEdit("pageSize")
         val r = ratio.coerceIn(0.4f, 2.5f)
         if (pageSizeSelection.isEmpty()) {
-            // No selection → treat as global default for all pages
+            pageSizeSnap = null
             pageAspectRatio = r
             pageAspectOverrides.clear()
-        } else {
-            pageSizeSelection.forEach { idx ->
-                pageAspectOverrides[idx] = r
+            return
+        }
+        if (pageSizeSnap == null) {
+            val packed = layoutPages()
+            val textPages = HashMap<String, Int>()
+            for (te in textElements) textPages[te.id] = te.pageIndex
+            val owners = HashMap<String, Int>()
+            for (img in importedImages) {
+                val owner = img.ownerPageIndex
+                if (owner != null) owners[img.id] = owner
+            }
+            pageSizeSnap = PageSizeSnap(
+                pageIds = packed.map { page -> page.map { it.id } },
+                aspects = pageAspectOverrides.toMap(),
+                colors = pageBackgroundColorOverrides.toMap(),
+                bitmaps = pageBackgroundBitmapOverrides.toMap(),
+                kinds = pageBackgroundKindOverrides.toMap(),
+                color2 = pageBackgroundColor2Overrides.toMap(),
+                dirs = pageBackgroundGradientDirOverrides.toMap(),
+                textPages = textPages,
+                owners = owners
+            )
+        }
+        val snap = pageSizeSnap ?: return
+        // PAGE_SIZE_FLOW: shrink keeps earlier rows, overflow becomes new pages after that page.
+        val byId = HashMap<String, ImportedImage>()
+        for (img in importedImages) byId[img.id] = img
+        val selected = pageSizeSelection.toSet()
+        val outPages = ArrayList<ArrayList<ImportedImage>>()
+        val oldToNew = HashMap<Int, Int>()
+        val smallH = pageGridHeight(r)
+        val defH = pageGridHeight(pageAspectRatio)
+        for (old in snap.pageIds.indices) {
+            val imgs = ArrayList<ImportedImage>()
+            for (id in snap.pageIds[old]) {
+                val img = byId[id]
+                if (img != null) imgs.add(img)
+            }
+            if (old !in selected) {
+                oldToNew[old] = outPages.size
+                outPages.add(imgs)
+                continue
+            }
+            var rest = imgs
+            val keepN = imagesThatFit(rest, smallH)
+            oldToNew[old] = outPages.size
+            outPages.add(ArrayList(rest.take(keepN)))
+            rest = ArrayList(rest.drop(keepN))
+            while (rest.isNotEmpty()) {
+                var take = imagesThatFit(rest, defH)
+                if (take <= 0) take = 1
+                if (take > rest.size) take = rest.size
+                outPages.add(ArrayList(rest.take(take)))
+                rest = ArrayList(rest.drop(take))
             }
         }
+        val exemptMode = importedImages.any { it.rowExempt }
+        val used = HashSet<String>()
+        val rebuilt = ArrayList<ImportedImage>()
+        for (pi in outPages.indices) {
+            val page = outPages[pi]
+            for (j in page.indices) {
+                val img = page[j]
+                if (!used.add(img.id)) continue
+                val breakHere = !exemptMode && pi > 0 && j == 0
+                rebuilt.add(
+                    img.copy(
+                        forceNewPage = breakHere,
+                        rowExempt = if (exemptMode) true else img.rowExempt,
+                        pinnedPage = if (exemptMode) pi else img.pinnedPage,
+                        pinnedPerRow = if (exemptMode && img.pinnedPerRow <= 0) imagesPerRow else img.pinnedPerRow
+                    )
+                )
+            }
+        }
+        for (img in importedImages) {
+            if (img.id in used) continue
+            val oldOwner = snap.owners[img.id]
+            val newOwner = if (oldOwner == null) img.ownerPageIndex else oldToNew[oldOwner] ?: img.ownerPageIndex
+            val newPin = if (img.rowExempt) oldToNew[img.pinnedPage] ?: img.pinnedPage else img.pinnedPage
+            if (newOwner != img.ownerPageIndex || newPin != img.pinnedPage) {
+                rebuilt.add(img.copy(ownerPageIndex = newOwner, pinnedPage = newPin, forceNewPage = false))
+            } else {
+                rebuilt.add(img.copy(forceNewPage = false))
+            }
+        }
+        importedImages.clear()
+        importedImages.addAll(rebuilt)
+        for (i in textElements.indices) {
+            val te = textElements[i]
+            val old = snap.textPages[te.id] ?: continue
+            val ni = oldToNew[old] ?: continue
+            if (ni != te.pageIndex) textElements[i] = te.copy(pageIndex = ni)
+        }
+        fun putFloat(src: Map<Int, Float>, selectedValue: Float?) {
+            pageAspectOverrides.clear()
+            for ((k, v) in src) {
+                val ni = oldToNew[k] ?: continue
+                pageAspectOverrides[ni] = v
+            }
+            if (selectedValue != null) {
+                for (old in selected) {
+                    val ni = oldToNew[old] ?: continue
+                    pageAspectOverrides[ni] = selectedValue
+                }
+            }
+        }
+        putFloat(snap.aspects, r)
+        pageBackgroundColorOverrides.clear()
+        for ((k, v) in snap.colors) {
+            val ni = oldToNew[k] ?: continue
+            pageBackgroundColorOverrides[ni] = v
+        }
+        pageBackgroundBitmapOverrides.clear()
+        for ((k, v) in snap.bitmaps) {
+            val ni = oldToNew[k] ?: continue
+            pageBackgroundBitmapOverrides[ni] = v
+        }
+        pageBackgroundKindOverrides.clear()
+        for ((k, v) in snap.kinds) {
+            val ni = oldToNew[k] ?: continue
+            pageBackgroundKindOverrides[ni] = v
+        }
+        pageBackgroundColor2Overrides.clear()
+        for ((k, v) in snap.color2) {
+            val ni = oldToNew[k] ?: continue
+            pageBackgroundColor2Overrides[ni] = v
+        }
+        pageBackgroundGradientDirOverrides.clear()
+        for ((k, v) in snap.dirs) {
+            val ni = oldToNew[k] ?: continue
+            pageBackgroundGradientDirOverrides[ni] = v
+        }
+        val inserted = (outPages.size - snap.pageIds.size).coerceAtLeast(0)
+        for (old in selected) {
+            if (old in oldToNew) continue
+            if (old >= snap.pageIds.size) {
+                pageAspectOverrides[old + inserted] = r
+            }
+        }
+        minPageCount = maxOf(minPageCount, outPages.size, 1)
     }
 
     fun updatePageAspectRatio(ratio: Float) {

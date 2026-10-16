@@ -107,6 +107,7 @@ fun EditorToolbar(
     onTogglePageSizeSelection: (Int) -> Unit = {},
     onToggleSelectAllPagesForSize: () -> Unit = {},
     onClearPageSizeSelection: () -> Unit = {},
+    onBeginPageSizeEdit: () -> Unit = {},
     sliderAspectForSelection: Float = pageAspectRatio,
     isPageLandscape: Boolean,
     onPageOrientationChange: (EditorViewModel.PageOrientation) -> Unit,
@@ -391,6 +392,8 @@ fun EditorToolbar(
                         },
                         onSetPageSize = {
                             onClearPageSizeSelection()
+                            onToggleSelectAllPagesForSize()
+                            onBeginPageSizeEdit()
                             showPageSizePicker = true
                         },
                         onSetBackgroundColor = {

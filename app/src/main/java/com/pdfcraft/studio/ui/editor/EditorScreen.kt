@@ -1637,22 +1637,19 @@ Column(
                 onPageAspectRatioChange =
                     viewModel::applyPageSizeToSelection,
                 pageCountForSize =
-                    viewModel.currentPageCountEstimate(
-                        viewModel.imagesPerPageCapacity()
-                    ),
+                    viewModel.layoutPageCount(),
                 pageSizeSelected =
                     viewModel.pageSizeSelection.toSet(),
                 onTogglePageSizeSelection =
                     viewModel::togglePageSizeSelection,
                 onToggleSelectAllPagesForSize = {
                     viewModel.toggleSelectAllPagesForSize(
-                        viewModel.currentPageCountEstimate(
-                            viewModel.imagesPerPageCapacity()
-                        )
+                        viewModel.layoutPageCount()
                     )
                 },
                 onClearPageSizeSelection =
                     viewModel::clearPageSizeSelection,
+                onBeginPageSizeEdit = { viewModel.beginPageSizeEdit() },
                 sliderAspectForSelection =
                     viewModel.pageSizeSelection.firstOrNull()?.let {
                         viewModel.aspectRatioForPage(it)
@@ -1714,18 +1711,14 @@ Column(
                 onDeletePage =
                     viewModel::deleteLastPage,
                 pageCountForDelete =
-                    viewModel.currentPageCountEstimate(
-                        viewModel.imagesPerPageCapacity()
-                    ),
+                    viewModel.layoutPageCount(),
                 pageDeleteSelected =
                     viewModel.pageDeleteSelection.toSet(),
                 onTogglePageDeleteSelection =
                     viewModel::togglePageDeleteSelection,
                 onToggleSelectAllPagesForDelete = {
                     viewModel.toggleSelectAllPagesForDelete(
-                        viewModel.currentPageCountEstimate(
-                            viewModel.imagesPerPageCapacity()
-                        )
+                        viewModel.layoutPageCount()
                     )
                 },
                 onClearPageDeleteSelection =
