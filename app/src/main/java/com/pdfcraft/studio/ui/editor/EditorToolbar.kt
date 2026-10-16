@@ -183,6 +183,8 @@ fun EditorToolbar(
     onRoundCornersMenuClick: () -> Unit = {},
     onResizeImagesMenuClick: () -> Unit = {},
     onImagesPerRowMenuClick: () -> Unit = {},
+    onImageNumberingMenuClick: () -> Unit = {},
+    onNumberingStyleBack: (() -> Unit)? = null,
     perRowEditActive: Boolean = false,
     onPerRowDone: () -> Unit = {},
     resizeEditActive: Boolean = false,
@@ -432,8 +434,7 @@ fun EditorToolbar(
                         onAdjustImageShapeClick = onResizeImagesMenuClick,
                         onAdjustCornersClick = onRoundCornersMenuClick,
                         onImageNumberingClick = {
-                            onClearPageNumberingSelection()
-                            showImageNumberingPicker = true
+                            onImageNumberingMenuClick()
                         }
                     )
                     }
@@ -570,7 +571,12 @@ fun EditorToolbar(
             onNext = onConfirmNumberingStyle,
             onDismiss = {
                 onCancelNumberingStyle()
-                showImageNumberingPicker = true
+                val back = onNumberingStyleBack
+                if (back != null) {
+                    back()
+                } else {
+                    showImageNumberingPicker = true
+                }
             }
         )
     }

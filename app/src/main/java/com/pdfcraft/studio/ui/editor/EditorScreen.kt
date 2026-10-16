@@ -1065,7 +1065,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
 
         // ---- Drag Images: Step 1 multi-page picker ----
         if (showDragPagePicker) {
-            val pageCount = if (imagePagePickerKind == "perrow") viewModel.layoutPageCount() else viewModel.documentPageCount().coerceAtLeast(1)
+            val pageCount = if (imagePagePickerKind == "perrow" || imagePagePickerKind == "number") viewModel.layoutPageCount() else viewModel.documentPageCount().coerceAtLeast(1)
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showDragPagePicker = false },
                 title = {
@@ -1074,6 +1074,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                             "corners" -> R.string.round_corners_title
                             "resize" -> R.string.image_shape_title
                             "perrow" -> R.string.resize_images_title
+                            "number" -> R.string.image_numbering_title
                             else -> R.string.image_drag_title
                         }
                     ))
@@ -1086,6 +1087,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                     "corners" -> R.string.round_corners_select_page_instruction
                                     "resize" -> R.string.resize_select_page_instruction
                                     "perrow" -> R.string.per_row_select_page_instruction
+                                    "number" -> R.string.image_numbering_select_page_instruction
                                     else -> R.string.image_drag_select_page_instruction
                                 }
                             ),
@@ -1138,7 +1140,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                 confirmButton = {
                     TextButton(onClick = {
                         if (dragPagesSelected.isNotEmpty()) {
-                            if (imagePagePickerKind == "perrow") {
+                            if (imagePagePickerKind == "perrow" || imagePagePickerKind == "number") {
                                 dragImagePickSelected = dragPagesSelected.sorted().flatMap { p ->
                                     viewModel.layoutImagesOnPage(p).map { it.id }
                                 }
@@ -1174,7 +1176,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         TopAppBar(
                             title = {
                                 Text(
-                                    stringResource(when (imagePagePickerKind) { "corners" -> R.string.round_corners_title; "resize" -> R.string.image_shape_title; "perrow" -> R.string.resize_images_title; else -> R.string.image_drag_title }),
+                                    stringResource(when (imagePagePickerKind) { "corners" -> R.string.round_corners_title; "resize" -> R.string.image_shape_title; "perrow" -> R.string.resize_images_title; "number" -> R.string.image_numbering_title; else -> R.string.image_drag_title }),
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color.Black
                                 )
@@ -1191,7 +1193,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                             actions = {
                                 TextButton(onClick = {
                                     val allIds = dragPagesSelected.sorted().flatMap { p ->
-                                        if (imagePagePickerKind == "perrow") viewModel.layoutImagesOnPage(p).map { it.id }
+                                        if (imagePagePickerKind == "perrow" || imagePagePickerKind == "number") viewModel.layoutImagesOnPage(p).map { it.id }
                                         else viewModel.imagesOnPage(p).map { it.id }
                                     }
                                     dragImagePickSelected =
@@ -1215,6 +1217,10 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                             }
                                             "perrow" -> {
                                                 viewModel.beginPerRowEdit(dragImagePickSelected)
+                                                showDragImagePicker = false
+                                            }
+                                            "number" -> {
+                                                viewModel.beginNumberingSelection(dragPagesSelected, dragImagePickSelected)
                                                 showDragImagePicker = false
                                             }
                                             else -> {
@@ -1246,6 +1252,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                     "corners" -> R.string.round_corners_select_images_instruction
                                     "resize" -> R.string.resize_select_images_instruction
                                     "perrow" -> R.string.per_row_select_images_instruction
+                                    "number" -> R.string.image_numbering_select_images_instruction
                                     else -> R.string.image_drag_select_images_instruction
                                 }
                             ),
@@ -1262,7 +1269,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         PageGroupedImageGrid(
                             pages = dragPagesSelected.sorted(),
                             imagesForPage = { p ->
-                                if (imagePagePickerKind == "perrow") viewModel.layoutImagesOnPage(p)
+                                if (imagePagePickerKind == "perrow" || imagePagePickerKind == "number") viewModel.layoutImagesOnPage(p)
                                 else viewModel.imagesOnPage(p)
                             },
                             selectedIds = dragImagePickSelected,
@@ -1529,6 +1536,16 @@ Column(
                     val n = viewModel.layoutPageCount()
                     dragPagesSelected = (0 until n).toSet()
                     showDragPagePicker = true
+                },
+                onImageNumberingMenuClick = {
+                    imagePagePickerKind = "number"
+                    val n = viewModel.layoutPageCount().coerceAtLeast(1)
+                    dragPagesSelected = (0 until n).toSet()
+                    showDragPagePicker = true
+                },
+                onNumberingStyleBack = {
+                    imagePagePickerKind = "number"
+                    showDragImagePicker = true
                 },
                 perRowEditActive = viewModel.perRowEditActive,
                 onPerRowDone = { viewModel.exitPerRowEdit() },

@@ -2222,6 +2222,7 @@ fun isSelectionStrike(): Boolean {
 
     
     val pageNumberingSelection = mutableStateListOf<Int>()
+    val numberingTargetIds = mutableStateListOf<String>()
     var numberingEditMode: Boolean by mutableStateOf(false)
     var numberingAlpha: Float by mutableStateOf(0.9f)
     var numberingSizeFrac: Float by mutableStateOf(0.18f)
@@ -2258,7 +2259,52 @@ fun isSelectionStrike(): Boolean {
         if (!all) pageNumberingSelection.addAll(0 until count)
     }
 
+    fun beginNumberingSelection(pages: Collection<Int>, ids: Collection<String>) {
+        val clean = ids.filter { it.isNotBlank() && !it.startsWith("spacer_") }
+        if (clean.isEmpty()) return
+        pageNumberingSelection.clear()
+        pageNumberingSelection.addAll(pages.filter { it >= 0 })
+        numberingTargetIds.clear()
+        numberingTargetIds.addAll(clean)
+        numberingStyleScreen = true
+    }
+
     fun startNumberingEdit(imagesPerPage: Int) {
+        if (numberingTargetIds.isNotEmpty()) {
+            val wanted = numberingTargetIds.toHashSet()
+            val onChosenPages = HashSet<String>()
+            for (p in pageNumberingSelection) {
+                for (img in layoutImagesOnPage(p)) {
+                    if (!img.id.startsWith("spacer_")) onChosenPages.add(img.id)
+                }
+            }
+            for (i in importedImages.indices) {
+                val img = importedImages[i]
+                if (img.id in onChosenPages && img.id !in wanted && img.numberLabel != null) {
+                    importedImages[i] = img.copy(numberLabel = null)
+                }
+            }
+            var n = 1
+            for (i in importedImages.indices) {
+                val img = importedImages[i]
+                if (img.id in wanted && !img.id.startsWith("spacer_")) {
+                    importedImages[i] = img.copy(
+                        numberLabel = n,
+                        numberXFrac = numberingXFrac,
+                        numberYFrac = numberingYFrac,
+                        numberSizeFrac = numberingSizeFrac,
+                        numberAlpha = numberingAlpha,
+                        numberBgArgb = numberingBgArgb,
+                        numberFgArgb = numberingFgArgb,
+                        numberWeight = numberingWeight
+                    )
+                    n += 1
+                }
+            }
+            numberingEditMode = true
+            numberingEditStep = 0
+            return
+        }
         val selected = pageNumberingSelection.filter { it >= 0 }.toSortedSet()
         if (selected.isEmpty()) return
         var n = 1
@@ -2330,6 +2376,7 @@ fun isSelectionStrike(): Boolean {
 
     fun cancelNumberingStyleScreen() {
         numberingStyleScreen = false
+        numberingTargetIds.clear()
     }
 
     fun finishNumberingEdit() {
@@ -2342,6 +2389,7 @@ fun isSelectionStrike(): Boolean {
         numberingStyleScreen = false
         numberingEditStep = 0
         pageNumberingSelection.clear()
+        numberingTargetIds.clear()
     }
 
     fun backNumberingEditToStyle() {

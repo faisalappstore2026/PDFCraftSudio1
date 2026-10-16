@@ -331,6 +331,8 @@
     <string name="image_numbering_tool">🔢 Image Numbering</string>
     <string name="image_numbering_title">Image Numbering</string>
     <string name="image_numbering_instruction">Select the pages where you want to add image numbers.</string>
+    <string name="image_numbering_select_page_instruction">All current pages are selected. Uncheck a page if you do not want numbering, then tap Next.</string>
+    <string name="image_numbering_select_images_instruction">Images are grouped by page. All are selected. Tap an image to leave it out of numbering.</string>
     <string name="image_numbering_next">Next</string>
     <string name="image_numbering_transparency">Icon Transparency</string>
     <string name="image_numbering_size">Icon Size</string>
