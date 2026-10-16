@@ -2417,13 +2417,24 @@ fun isSelectionStrike(): Boolean {
             return
         }
         if (keepSpace) {
+            // KEEP_SPACE_SLOT: same list slot, same page and same per-row lock.
             for (i in importedImages.indices) {
                 val img = importedImages[i]
                 if (img.id in idSet) {
-                    importedImages[i] = ImportedImage(
+                    val rowUsed = if (img.rowExempt && img.pinnedPerRow > 0) img.pinnedPerRow else imagesPerRow
+                    val keepAspect = img.aspectRatioOverride ?: if (rowUsed <= 1) {
+                        val b = img.bitmap
+                        if (b != null && b.height > 0) (b.width.toFloat() / b.height.toFloat()).coerceIn(0.2f, 5f) else null
+                    } else {
+                        null
+                    }
+                    importedImages[i] = img.copy(
                         id = "spacer_" + System.nanoTime() + "_" + i,
                         imageUri = null,
-                        bitmap = null
+                        bitmap = null,
+                        linkUrl = null,
+                        numberLabel = null,
+                        aspectRatioOverride = keepAspect
                     )
                 }
             }

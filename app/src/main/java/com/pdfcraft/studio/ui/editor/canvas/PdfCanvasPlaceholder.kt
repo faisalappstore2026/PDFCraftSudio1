@@ -1319,14 +1319,18 @@ private fun ImageGrid(
         }
         return
     }
+    val layoutPerRow = run {
+        val pinnedRow = images.firstOrNull { it.rowExempt && it.pinnedPerRow > 0 }?.pinnedPerRow ?: 0
+        if (images.isNotEmpty() && images.all { it.rowExempt } && pinnedRow > 0) pinnedRow else imagesPerRow
+    }
     Column(
         modifier = Modifier
             .then(if (fillPage) Modifier.fillMaxSize() else Modifier)
             .clipToBounds()
-            .padding(if (imagesPerRow == 1) 0.dp else pageMarginDp.dp),
+            .padding(if (layoutPerRow == 1) 0.dp else pageMarginDp.dp),
         verticalArrangement = Arrangement.spacedBy(spacingDp.dp)
     ) {
-        images.chunked(imagesPerRow).forEach { rowImages ->
+        images.chunked(layoutPerRow).forEach { rowImages ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(spacingDp.dp)
@@ -1343,7 +1347,7 @@ private fun ImageGrid(
                         onDragImagesByFrac = onDragImagesByFrac,
                         onSyncDragOffset = onSyncDragOffset,
                         onEnsureDragSelection = onEnsureDragSelection,
-                        aspectRatio = if (imagesPerRow == 1) {
+                        aspectRatio = if (layoutPerRow == 1) {
                             val b = image.bitmap
                             if (b != null && b.height > 0)
                                 (b.width.toFloat() / b.height).coerceIn(0.2f, 5f)
@@ -1352,13 +1356,13 @@ private fun ImageGrid(
                             (image.aspectRatioOverride ?: cellAspectRatio).coerceIn(0.3f, 2.0f)
                         },
                         cornerRadiusPercent = image.cornerRadiusPercent.coerceIn(0, 100),
-                        selected = selectedImageIds.contains(image.id),
+                        selected = selectedImageIds.contains(image.id) && !image.id.startsWith("spacer_"),
                         reorderMode = reorderMode,
-                        showMenu = singleMenuImageId == image.id,
+                        showMenu = singleMenuImageId == image.id && !image.id.startsWith("spacer_"),
                         hasClipboardImages = hasClipboardImages,
                         cellBounds = cellBounds,
                         onClick = {
-                            onImageClick(image.id)
+                            if (!image.id.startsWith("spacer_")) onImageClick(image.id)
                         },
                         onLongPress = {
                             // long-press multi-select removed
@@ -1411,7 +1415,7 @@ private fun ImageGrid(
                     )
                 }
 
-                repeat(imagesPerRow - rowImages.size) {
+                repeat(layoutPerRow - rowImages.size) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
