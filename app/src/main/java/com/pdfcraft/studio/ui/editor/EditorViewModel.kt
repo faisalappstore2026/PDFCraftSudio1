@@ -75,7 +75,9 @@ data class ImportedImage(
     /** True = this image stays on its page and ignores Images Per Row changes. */
     val rowExempt: Boolean = false,
     val pinnedPage: Int = 0,
-    val pinnedPerRow: Int = 0
+    val pinnedPerRow: Int = 0,
+    /** True = start a new page before this image. Used by Duplicate Pages. */
+    val forceNewPage: Boolean = false
 )
 
 internal var packPageSource: IntArray = IntArray(0)
@@ -111,7 +113,9 @@ fun packEditorPages(
         var usedH = 0f
         fun imgH(img: ImportedImage): Float = cellWidth / imgAspect(img, perRow)
         fun rowH(row: List<ImportedImage>): Float = row.maxOf { imgH(it) }
-        for (row in list.chunked(perRow)) {
+        val row = mutableListOf<ImportedImage>()
+        fun flushRow() {
+            if (row.isEmpty()) return
             val h = rowH(row)
             if (page.isNotEmpty() && usedH + spacing + h > gridHeight + 0.5f) {
                 pages.add(page)
@@ -121,7 +125,21 @@ fun packEditorPages(
             val g = if (page.isEmpty()) 0f else spacing
             page.addAll(row)
             usedH += g + h
+            row.clear()
         }
+        for (img in list) {
+            if (img.forceNewPage && (page.isNotEmpty() || row.isNotEmpty())) {
+                flushRow()
+                if (page.isNotEmpty()) {
+                    pages.add(page)
+                    page = mutableListOf()
+                    usedH = 0f
+                }
+            }
+            row.add(img)
+            if (row.size == perRow) flushRow()
+        }
+        flushRow()
         if (page.isNotEmpty()) pages.add(page)
         return pages
     }
@@ -942,6 +960,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
             h = h * 31 + img.dragOffsetYFrac.toRawBits().toLong()
             h = h * 31 + img.cornerRadiusPercent
             h = h * 31 + if (img.rowExempt) 1 else 0
+            h = h * 31 + if (img.forceNewPage) 1 else 0
             h = h * 31 + img.pinnedPage + img.pinnedPerRow
             h = h * 31 + (img.aspectRatioOverride?.toRawBits()?.toLong() ?: 0L)
             h = h * 31 + (img.numberLabel ?: 0)
@@ -2673,91 +2692,93 @@ fun isSelectionStrike(): Boolean {
 
     fun duplicateSelectedPages(imagesPerPage: Int) {
         recordEdit()
-        val total = documentPageCount()
-        val selected = pageDuplicateSelection.filter { it in 0 until total }.sortedDescending()
+        // DUP_PAGE_END: copy selected pages onto new pages after the last page.
+        val startTotal = documentPageCount()
+        val selected = pageDuplicateSelection.filter { it in 0 until startTotal }.sorted()
         if (selected.isEmpty()) return
-
-        for (pageIdx in selected) {
-            val range = imageRangeForPage(pageIdx, total)
-            val slice = if (!range.isEmpty()) {
-                importedImages.subList(range.first, range.last + 1).toList()
+        val per = imagesPerPage.coerceAtLeast(1)
+        val exemptMode = importedImages.any { it.rowExempt }
+        val layoutNow = if (!exemptMode) layoutPages() else emptyList()
+        val useLayout = !exemptMode && layoutNow.size == startTotal
+        var nextIndex = startTotal
+        var maxPin = importedImages.maxOfOrNull { it.pinnedPage.coerceAtLeast(0) } ?: 0
+        val jobs = ArrayList<Triple<Int, Int, List<ImportedImage>>>()
+        for (src in selected) {
+            val newIndex = if (exemptMode) {
+                val idx = maxOf(nextIndex, maxPin + 1)
+                maxPin = idx
+                idx
             } else {
-                emptyList()
+                nextIndex
             }
-            val start = if (!range.isEmpty()) range.first else 0
-            val end = if (!range.isEmpty()) range.last + 1 else 0
-            val copies = slice.map { img ->
-                img.copy(id = java.util.UUID.randomUUID().toString())
+            val slice = if (useLayout) {
+                layoutNow[src].toList()
+            } else {
+                val range = imageRangeForPage(src, startTotal, per)
+                if (range.isEmpty()) emptyList() else importedImages.subList(range.first, range.last + 1).toList()
             }
-            importedImages.addAll(end, copies)
-
-            // Shift text on pages after this page, then copy texts on this page
-            val textsOnPage = textElements.filter { it.pageIndex == pageIdx }
-            for (i in textElements.indices.reversed()) {
-                val te = textElements[i]
-                if (te.pageIndex > pageIdx) {
-                    textElements[i] = te.copy(pageIndex = te.pageIndex + 1)
-                }
+            jobs.add(Triple(src, newIndex, slice))
+            nextIndex = newIndex + 1
+        }
+        for (job in jobs) {
+            val src = job.first
+            val newIndex = job.second
+            val slice = job.third
+            val seen = HashSet<String>()
+            val copies = ArrayList<ImportedImage>()
+            for (img in slice) {
+                seen.add(img.id)
+                copies.add(duplicateImageForPage(img, newIndex, exemptMode))
             }
-            textsOnPage.forEach { te ->
+            val extras = importedImages.filter { it.ownerPageIndex == src && it.id !in seen }
+            for (img in extras) {
+                copies.add(duplicateImageForPage(img, newIndex, exemptMode))
+            }
+            val gridAt = copies.indexOfFirst { it.ownerPageIndex == null }
+            if (!exemptMode && gridAt >= 0) {
+                copies[gridAt] = copies[gridAt].copy(forceNewPage = true)
+            }
+            if (copies.isNotEmpty()) importedImages.addAll(copies)
+            val textsOnPage = textElements.filter { it.pageIndex == src }
+            for (te in textsOnPage) {
                 textElements.add(
                     te.copy(
                         id = java.util.UUID.randomUUID().toString(),
-                        pageIndex = pageIdx + 1
+                        pageIndex = newIndex
                     )
                 )
             }
-
-            // Shift overrides for indices > pageIdx, then copy override at pageIdx to pageIdx+1
-            fun shiftFloat(map: MutableMap<Int, Float>) {
-                val entries = map.toList().sortedByDescending { it.first }
-                map.clear()
-                entries.forEach { (k, v) ->
-                    when {
-                        k > pageIdx -> map[k + 1] = v
-                        k == pageIdx -> {
-                            map[k] = v
-                            map[k + 1] = v
-                        }
-                        else -> map[k] = v
-                    }
-                }
-            }
-            fun shiftLong(map: MutableMap<Int, Long>) {
-                val entries = map.toList().sortedByDescending { it.first }
-                map.clear()
-                entries.forEach { (k, v) ->
-                    when {
-                        k > pageIdx -> map[k + 1] = v
-                        k == pageIdx -> {
-                            map[k] = v
-                            map[k + 1] = v
-                        }
-                        else -> map[k] = v
-                    }
-                }
-            }
-            fun shiftBmp(map: MutableMap<Int, android.graphics.Bitmap>) {
-                val entries = map.toList().sortedByDescending { it.first }
-                map.clear()
-                entries.forEach { (k, v) ->
-                    when {
-                        k > pageIdx -> map[k + 1] = v
-                        k == pageIdx -> {
-                            map[k] = v
-                            map[k + 1] = v
-                        }
-                        else -> map[k] = v
-                    }
-                }
-            }
-            shiftFloat(pageAspectOverrides)
-            shiftLong(pageBackgroundColorOverrides)
-            shiftBmp(pageBackgroundBitmapOverrides)
-
-            minPageCount = minPageCount + 1
+            pageAspectOverrides[src]?.let { pageAspectOverrides[newIndex] = it }
+            pageBackgroundColorOverrides[src]?.let { pageBackgroundColorOverrides[newIndex] = it }
+            pageBackgroundBitmapOverrides[src]?.let { pageBackgroundBitmapOverrides[newIndex] = it }
+            pageBackgroundKindOverrides[src]?.let { pageBackgroundKindOverrides[newIndex] = it }
+            pageBackgroundColor2Overrides[src]?.let { pageBackgroundColor2Overrides[newIndex] = it }
+            pageBackgroundGradientDirOverrides[src]?.let { pageBackgroundGradientDirOverrides[newIndex] = it }
+            minPageCount = maxOf(minPageCount, newIndex + 1)
         }
         pageDuplicateSelection.clear()
+    }
+
+    private fun duplicateImageForPage(img: ImportedImage, newIndex: Int, exemptMode: Boolean): ImportedImage {
+        val absolute = img.ownerPageIndex != null
+        val grid = !absolute
+        val newId = if (img.id.startsWith("spacer_")) {
+            "spacer_" + java.util.UUID.randomUUID().toString()
+        } else {
+            java.util.UUID.randomUUID().toString()
+        }
+        return img.copy(
+            id = newId,
+            ownerPageIndex = if (absolute) newIndex else img.ownerPageIndex,
+            forceNewPage = false,
+            rowExempt = if (exemptMode && grid) true else img.rowExempt,
+            pinnedPage = if (exemptMode && grid) newIndex else img.pinnedPage,
+            pinnedPerRow = if (exemptMode && grid) {
+                if (img.pinnedPerRow > 0) img.pinnedPerRow else imagesPerRow
+            } else {
+                img.pinnedPerRow
+            }
+        )
     }
 
     

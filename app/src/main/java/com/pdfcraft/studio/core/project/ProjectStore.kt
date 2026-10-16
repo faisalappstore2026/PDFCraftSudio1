@@ -195,6 +195,7 @@ object ProjectStore {
                     obj.put("rowExempt", img.rowExempt)
                     obj.put("pinnedPage", img.pinnedPage)
                     obj.put("pinnedPerRow", img.pinnedPerRow)
+                    obj.put("forceNewPage", img.forceNewPage)
                     if (img.ownerPageIndex != null) obj.put("ownerPageIndex", img.ownerPageIndex)
                     obj.put("absXFrac", img.absXFrac.toDouble())
                     obj.put("absYFrac", img.absYFrac.toDouble())
@@ -588,6 +589,7 @@ object ProjectStore {
                                 rowExempt = o.optBoolean("rowExempt", false),
                                 pinnedPage = o.optInt("pinnedPage", 0),
                                 pinnedPerRow = o.optInt("pinnedPerRow", 0),
+                                forceNewPage = o.optBoolean("forceNewPage", false),
                                 aspectRatioOverride = if (o.has("aspectRatioOverride") && !o.isNull("aspectRatioOverride"))
                                     o.optDouble("aspectRatioOverride").toFloat() else null,
                                 ownerPageIndex = if (o.has("ownerPageIndex") && !o.isNull("ownerPageIndex")) o.optInt("ownerPageIndex") else null,
