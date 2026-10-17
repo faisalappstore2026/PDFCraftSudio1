@@ -1,0 +1,9 @@
+<resources>
+    <!-- Brand palette: dark/black base with red + white accents -->
+    <color name="brand_black">#111214</color>
+    <color name="brand_surface">#1A1B1F</color>
+    <color name="brand_red">#E4293B</color>
+    <color name="brand_red_dark">#B31D2C</color>
+    <color name="brand_white">#F5F5F7</color>
+    <color name="brand_grey">#9AA0A6</color>
+</resources>

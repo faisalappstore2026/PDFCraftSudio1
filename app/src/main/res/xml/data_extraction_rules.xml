@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Configure once user PDFs / settings are persisted. -->
+    </cloud-backup>
+</data-extraction-rules>

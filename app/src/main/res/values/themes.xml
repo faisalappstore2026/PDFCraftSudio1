@@ -1,0 +1,7 @@
+<resources>
+    <!-- Base manifest/launch theme. Compose supplies the real theming in ui/theme. -->
+    <style name="Theme.PDFCraftStudio" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/brand_black</item>
+        <item name="android:windowBackground">@color/brand_black</item>
+    </style>
+</resources>
