@@ -142,8 +142,26 @@ fun PdfCraftNavGraph(
                 initialOffset = if (same) snap.viewerOffset else 0,
                 onScrollChanged = { i, o -> SessionStore.setViewerScroll(context, i, o) },
                 onBackClick = {
-                    SessionStore.setHome(context)
-                    navController.popBackStack()
+                    try {
+                        if (!navController.popBackStack()) {
+                            SessionStore.setHome(context)
+                        } else {
+                            val entry = navController.currentBackStackEntry
+                            val route = entry?.destination?.route.orEmpty()
+                            if (route.startsWith("editor")) {
+                                val enc = entry?.arguments?.getString("project").orEmpty()
+                                SessionStore.setEditor(context, Screen.Editor.decodeProject(enc).orEmpty())
+                            } else if (route.startsWith("pdf_library")) {
+                                SessionStore.setScreen(context, SessionStore.LIBRARY)
+                            } else if (route.startsWith("my_projects")) {
+                                SessionStore.setScreen(context, SessionStore.PROJECTS)
+                            } else {
+                                SessionStore.setHome(context)
+                            }
+                        }
+                    } catch (_: Exception) {
+                        try { SessionStore.setHome(context) } catch (_: Exception) {}
+                    }
                 }
             )
         }

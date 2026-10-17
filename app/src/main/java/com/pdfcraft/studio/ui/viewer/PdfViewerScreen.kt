@@ -42,6 +42,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,13 +78,31 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.distinctUntilChanged
 
-private data class PdfSession(
+private class PdfSession(
     val pfd: ParcelFileDescriptor,
     val renderer: PdfRenderer,
     val mutex: Mutex = Mutex()
-)
+) {
+    @Volatile var closed: Boolean = false
+    private var released: Boolean = false
+
+    fun closeSafely() {
+        closed = true
+        try {
+            runBlocking(Dispatchers.IO) {
+                mutex.withLock {
+                    if (released) return@withLock
+                    released = true
+                    try { renderer.close() } catch (_: Exception) {}
+                    try { pfd.close() } catch (_: Exception) {}
+                }
+            }
+        } catch (_: Exception) {}
+    }
+}
 
 /** Process-wide page bitmaps. Not cleared when a LazyColumn item leaves the viewport. */
 private object PdfPageBitmapCache {
@@ -141,6 +160,7 @@ fun PdfViewerScreen(
     onScrollChanged: (Int, Int) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
+    BackHandler(onBack = onBackClick)
     val density = LocalDensity.current
     val uri = remember(pdfUriString) { Uri.parse(pdfUriString) }
     val fileName = remember(pdfUriString) { queryDisplayName(context, uri) }
@@ -211,8 +231,7 @@ fun PdfViewerScreen(
         onDispose {
             val s = session
             session = null
-            try { s?.renderer?.close() } catch (_: Exception) {}
-            try { s?.pfd?.close() } catch (_: Exception) {}
+            try { s?.closeSafely() } catch (_: Exception) {}
         }
     }
 
@@ -392,18 +411,25 @@ private fun PdfPageLazy(
             }
             val bmp = withContext(Dispatchers.IO) {
                 s.mutex.withLock {
-                    s.renderer.openPage(pageIndex).use { page ->
-                        val scale = targetWidthPx.toFloat() / page.width.toFloat().coerceAtLeast(1f)
-                        val h = (page.height * scale).toInt().coerceAtLeast(1)
-                        val b = Bitmap.createBitmap(targetWidthPx, h, Bitmap.Config.ARGB_8888)
-                        b.eraseColor(Color.WHITE)
-                        page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        b
+                    if (s.closed) return@withLock null
+                    try {
+                        s.renderer.openPage(pageIndex).use { page ->
+                            val scale = targetWidthPx.toFloat() / page.width.toFloat().coerceAtLeast(1f)
+                            val h = (page.height * scale).toInt().coerceAtLeast(1)
+                            val b = Bitmap.createBitmap(targetWidthPx, h, Bitmap.Config.ARGB_8888)
+                            b.eraseColor(Color.WHITE)
+                            page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            b
+                        }
+                    } catch (_: Exception) {
+                        null
                     }
                 }
             }
-            PdfPageBitmapCache.put(cacheKey, bmp)
-            bitmap = bmp
+            if (bmp != null) {
+                PdfPageBitmapCache.put(cacheKey, bmp)
+                bitmap = bmp
+            }
         } finally {
             PdfPageBitmapCache.end(cacheKey)
         }

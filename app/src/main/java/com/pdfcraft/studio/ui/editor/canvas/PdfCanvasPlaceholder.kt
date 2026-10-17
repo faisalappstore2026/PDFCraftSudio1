@@ -3,6 +3,7 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.material3.LocalTextStyle
 
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.wrapContentHeight
 
 
 import androidx.compose.animation.core.LinearEasing
@@ -980,6 +981,18 @@ private fun PageTextOverlay(
                     textElement.fontId,
                     customFonts
                 )
+                Box(
+                    contentAlignment = Alignment.TopStart,
+                    modifier = Modifier
+                        .width(boxWidthDp)
+                        .then(
+                            if (textElement.boxHeightFrac > 0.01f) {
+                                Modifier.height(boxHeightDp).clipToBounds()
+                            } else {
+                                Modifier
+                            }
+                        )
+                ) {
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { newValue ->
@@ -1006,6 +1019,7 @@ private fun PageTextOverlay(
                         color = Color(textElement.textColorArgb),
                         fontSize = textElement.fontSizeSp.sp,
                         fontFamily = fontFamily,
+                        platformStyle = PlatformTextStyle(includeFontPadding = true),
                         textAlign = when (textElement.textAlign.uppercase()) {
                             "CENTER" -> TextAlign.Center
                             "RIGHT" -> TextAlign.Right
@@ -1028,14 +1042,8 @@ private fun PageTextOverlay(
                     ),
                     cursorBrush = SolidColor(Color.Black),
                     modifier = Modifier
-                        .width(boxWidthDp)
-                        .then(
-                            if (textElement.boxHeightFrac > 0.01f) {
-                                Modifier.height(boxHeightDp).clipToBounds()
-                            } else {
-                                Modifier
-                            }
-                        )
+                        .fillMaxWidth()
+                        .wrapContentHeight(Alignment.Top, unbounded = true)
                         .focusRequester(focusRequester)
                         .onFocusChanged { state ->
                             if (state.isFocused) {
@@ -1045,6 +1053,7 @@ private fun PageTextOverlay(
                             }
                         }
                 )
+                }
             }
             }
 

@@ -299,7 +299,12 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     var textLinkHint by remember { mutableStateOf(false) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    BackHandler {
+    var editorBackReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(450)
+        editorBackReady = true
+    }
+    BackHandler(enabled = editorBackReady) {
         if (toolMenuOpen) {
             closeMenusSignal++
             toolMenuOpen = false

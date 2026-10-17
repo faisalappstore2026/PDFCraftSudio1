@@ -163,6 +163,10 @@ object PdfGenerator {
         // Use a fixed logical width; height follows editor page aspect ratio
         val pageWidth = 1080
         val pageHeight = (pageWidth / pageAspectRatio.coerceAtLeast(0.1f)).roundToInt().coerceAtLeast(1)
+        val cfg = context.resources.configuration
+        val rawDp = cfg.screenWidthDp.toFloat()
+        val pageDp = if (rawDp < 200f) 360f else rawDp.coerceAtMost(560f)
+        val wrapScale = (pageDp / 360f) / cfg.fontScale.coerceIn(0.85f, 1.8f)
 
         // Same margin model as editor (pageMarginDp / PAGE_INNER_PADDING)
         val perRow = imagesPerRow.coerceAtLeast(1)
@@ -433,20 +437,16 @@ object PdfGenerator {
                     )
                 }
 
-                val lines = mutableListOf<IntRange>()
-                var ls = 0
-                var ci = 0
-                while (true) {
-                    var le = ci
-                    while (le < fullText.length && fullText[le] != '\n' && fullText[le] != '\r') le++
-                    lines.add(ls until le)
-                    if (le >= fullText.length) break
-                    if (fullText[le] == '\r' && le + 1 < fullText.length && fullText[le + 1] == '\n') {
-                        ci = le + 2
-                    } else {
-                        ci = le + 1
-                    }
-                    ls = ci
+                val wrapW = if (te.boxWidthFrac > 0.01f) {
+                    (te.boxWidthFrac * pageWidth * wrapScale * 0.98f).coerceAtLeast(textPaint.textSize)
+                } else {
+                    1e20f
+                }
+                val lines = wrapTextLines(fullText, textPaint, wrapW)
+                val boxBottom = if (te.boxHeightFrac > 0.01f) {
+                    te.yFraction * thisPageHeight + te.boxHeightFrac * thisPageHeight + lineH * 0.45f
+                } else {
+                    1e20f
                 }
 
                 val bgPaint = Paint(textPaint).apply { style = Paint.Style.FILL }
@@ -465,6 +465,7 @@ object PdfGenerator {
                 }
                 lines.forEachIndexed { lineNo, range ->
                     val y = firstBaseline + lineNo * lineH
+                    if (y > boxBottom) return@forEachIndexed
                     var x = baseX
                     var i = range.first
                     val lineEnd = range.last + 1
@@ -554,6 +555,7 @@ object PdfGenerator {
                         val left = baseX + textPaint.measureText(before)
                         val width = textPaint.measureText(linked)
                         val y = firstBaseline + lineNo * lineH
+                        if (y > boxBottom) return@forEachIndexed
                         val top = y - textPaint.textSize * 0.85f
                         val bottom = y + textPaint.textSize * 0.25f
                         linkRects.add(
@@ -645,6 +647,70 @@ object PdfGenerator {
     /** Draw bitmap centered inside dst rect using Fit (no crop). Returns drawn bounds. */
     
     
+    private fun wrapTextLines(text: String, paint: Paint, maxWidth: Float): List<IntRange> {
+        val out = ArrayList<IntRange>()
+        var i = 0
+        val n = text.length
+        while (i <= n) {
+            var e = i
+            while (e < n && text[e] != '\n' && text[e] != '\r') e++
+            wrapParagraph(text, i, e, paint, maxWidth, out)
+            if (e >= n) break
+            i = if (text[e] == '\r' && e + 1 < n && text[e + 1] == '\n') e + 2 else e + 1
+        }
+        if (out.isEmpty()) out.add(IntRange(0, -1))
+        return out
+    }
+
+    private fun wrapParagraph(
+        text: String,
+        start: Int,
+        end: Int,
+        paint: Paint,
+        maxWidth: Float,
+        out: MutableList<IntRange>
+    ) {
+        if (start >= end) {
+            out.add(IntRange(start, start - 1))
+            return
+        }
+        if (maxWidth > 1e19f) {
+            out.add(start until end)
+            return
+        }
+        var i = start
+        while (i < end) {
+            if (paint.measureText(text, i, end) <= maxWidth) {
+                out.add(i until end)
+                return
+            }
+            var lo = i + 1
+            var hi = end
+            var fit = i + 1
+            while (lo <= hi) {
+                val mid = (lo + hi) ushr 1
+                if (paint.measureText(text, i, mid) <= maxWidth) {
+                    fit = mid
+                    lo = mid + 1
+                } else {
+                    hi = mid - 1
+                }
+            }
+            var br = fit
+            var s = fit - 1
+            while (s > i) {
+                if (text[s] == ' ') {
+                    br = s + 1
+                    break
+                }
+                s--
+            }
+            if (br <= i) br = (i + 1).coerceAtMost(end)
+            out.add(i until br)
+            i = br
+        }
+    }
+
     private fun drawNumberBadge(
         canvas: Canvas,
         label: Int,
