@@ -8,6 +8,7 @@ import android.util.Base64
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object MyProjects : Screen("my_projects")
+    data object VideoDownload : Screen("video_download")
     data object PdfLibrary : Screen("pdf_library")
     data object Editor : Screen("editor?project={project}") {
         fun routeNew(): String = "editor?project="

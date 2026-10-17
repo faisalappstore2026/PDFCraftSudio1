@@ -84,23 +84,86 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 private class PdfSession(
     val pfd: ParcelFileDescriptor,
     val renderer: PdfRenderer,
-    val mutex: Mutex = Mutex()
+    val pageCount: Int,
+    private val exec: java.util.concurrent.ExecutorService
 ) {
-    @Volatile var closed: Boolean = false
-    private var released: Boolean = false
+    @kotlin.jvm.Volatile var closed: Boolean = false
+    private val closeLock = Any()
 
-    fun closeSafely() {
-        closed = true
-        try {
-            runBlocking(Dispatchers.IO) {
-                mutex.withLock {
-                    if (released) return@withLock
-                    released = true
-                    try { renderer.close() } catch (_: Exception) {}
-                    try { pfd.close() } catch (_: Exception) {}
+    private fun <T> onThread(block: () -> T?): T? {
+        if (closed) return null
+        val fut = try {
+            exec.submit<T?> {
+                if (closed) return@submit null
+                try {
+                    block()
+                } catch (_: Throwable) {
+                    null
                 }
             }
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {
+            return null
+        }
+        return try {
+            fut.get(25, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (_: Throwable) {
+            try { fut.cancel(true) } catch (_: Throwable) {}
+            null
+        }
+    }
+
+    fun readHeights(): List<Float>? = onThread {
+        val heights = ArrayList<Float>(renderer.pageCount)
+        for (i in 0 until renderer.pageCount) {
+            renderer.openPage(i).use { heights.add(it.height.toFloat()) }
+        }
+        heights
+    }
+
+    fun renderPage(pageIndex: Int, targetWidthPx: Int): android.graphics.Bitmap? = onThread {
+        if (pageIndex < 0 || pageIndex >= renderer.pageCount) return@onThread null
+        renderer.openPage(pageIndex).use { page ->
+            val scale = targetWidthPx.toFloat() / page.width.toFloat().coerceAtLeast(1f)
+            val h = (page.height * scale).toInt().coerceAtLeast(1)
+            val b = android.graphics.Bitmap.createBitmap(targetWidthPx, h, android.graphics.Bitmap.Config.ARGB_8888)
+            b.eraseColor(android.graphics.Color.WHITE)
+            page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            b
+        }
+    }
+
+    fun closeSafely() {
+        synchronized(closeLock) {
+            if (closed) return
+            closed = true
+        }
+        val task = Runnable {
+            try { renderer.close() } catch (_: Throwable) {}
+            try { pfd.close() } catch (_: Throwable) {}
+            try { exec.shutdown() } catch (_: Throwable) {}
+        }
+        try {
+            exec.execute(task)
+        } catch (_: Throwable) {
+            Thread(task).start()
+        }
+    }
+
+    companion object {
+        fun start(pfd: ParcelFileDescriptor): PdfSession? {
+            val exec = java.util.concurrent.Executors.newSingleThreadExecutor()
+            return try {
+                val opened = exec.submit<Pair<PdfRenderer, Int>> {
+                    val renderer = PdfRenderer(pfd)
+                    renderer to renderer.pageCount
+                }.get(20, java.util.concurrent.TimeUnit.SECONDS)
+                PdfSession(pfd, opened.first, opened.second, exec)
+            } catch (_: Throwable) {
+                try { pfd.close() } catch (_: Throwable) {}
+                try { exec.shutdownNow() } catch (_: Throwable) {}
+                null
+            }
+        }
     }
 }
 
@@ -160,12 +223,24 @@ fun PdfViewerScreen(
     onScrollChanged: (Int, Int) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
-    BackHandler(onBack = onBackClick)
     val density = LocalDensity.current
     val uri = remember(pdfUriString) { Uri.parse(pdfUriString) }
     val fileName = remember(pdfUriString) { queryDisplayName(context, uri) }
 
     var session by remember { mutableStateOf<PdfSession?>(null) }
+    val sessionHolder = remember { arrayOfNulls<PdfSession>(1) }
+    val backOnce = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    BackHandler {
+        if (backOnce.compareAndSet(false, true)) {
+            try {
+                val s = sessionHolder[0]
+                sessionHolder[0] = null
+                session = null
+                s?.closeSafely()
+            } catch (_: Throwable) {}
+            try { onBackClick() } catch (_: Throwable) {}
+        }
+    }
     var pageCount by remember { mutableStateOf(0) }
     var pageHeights by remember { mutableStateOf<List<Float>>(emptyList()) }
     var linkRegions by remember { mutableStateOf<List<PdfLinkRegion>>(emptyList()) }
@@ -181,34 +256,35 @@ fun PdfViewerScreen(
         session = null
         val failed = context.getString(R.string.open_pdf_failed)
         val opened: Result<Pair<PdfSession, List<Float>>> = withContext(Dispatchers.IO) {
-            try {
-                val pfd = openPdfDescriptor(context, uri)
-                    ?: return@withContext Result.failure(IllegalStateException("pfd"))
-                val renderer = try {
-                    PdfRenderer(pfd)
+                var openedSession: PdfSession? = null
+                try {
+                    val pfd = openPdfDescriptor(context, uri)
+                        ?: return@withContext Result.failure(IllegalStateException("pfd"))
+                    val started = PdfSession.start(pfd)
+                        ?: return@withContext Result.failure(IllegalStateException("renderer"))
+                    openedSession = started
+                    val heights = started.readHeights()
+                    if (heights == null || heights.isEmpty()) {
+                        started.closeSafely()
+                        return@withContext Result.failure(IllegalStateException("empty"))
+                    }
+                    Result.success(openedSession to heights)
                 } catch (e: Exception) {
-                    try { pfd.close() } catch (_: Exception) {}
-                    return@withContext Result.failure(e)
+                    try { openedSession?.closeSafely() } catch (_: Throwable) {}
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    Result.failure(e)
                 }
-                if (renderer.pageCount <= 0) {
-                    try { renderer.close() } catch (_: Exception) {}
-                    try { pfd.close() } catch (_: Exception) {}
-                    return@withContext Result.failure(IllegalStateException("empty"))
-                }
-                val heights = mutableListOf<Float>()
-                for (i in 0 until renderer.pageCount) {
-                    renderer.openPage(i).use { heights.add(it.height.toFloat()) }
-                }
-                Result.success(PdfSession(pfd, renderer) to heights.toList())
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
+        }
+        if (!isActive) {
+            opened.getOrNull()?.first?.closeSafely()
+            return@LaunchedEffect
         }
         opened.fold(
             onSuccess = { pair ->
+                sessionHolder[0] = pair.first
                 session = pair.first
                 pageHeights = pair.second
-                pageCount = pair.first.renderer.pageCount
+                pageCount = pair.first.pageCount
                 isLoading = false
                 linkRegions = try {
                     withContext(Dispatchers.IO) {
@@ -229,14 +305,19 @@ fun PdfViewerScreen(
 
     DisposableEffect(pdfUriString) {
         onDispose {
-            val s = session
+            val s = sessionHolder[0]
+            sessionHolder[0] = null
             session = null
-            try { s?.closeSafely() } catch (_: Exception) {}
+            try { s?.closeSafely() } catch (_: Throwable) {}
         }
     }
 
     if (errorMessage != null) {
-        LaunchedEffect(errorMessage) { onBackClick() }
+        LaunchedEffect(errorMessage) {
+            if (backOnce.compareAndSet(false, true)) {
+                try { onBackClick() } catch (_: Throwable) {}
+            }
+        }
     }
 
     val targetWidthPx = with(density) { 720.dp.roundToPx() }
@@ -410,21 +491,7 @@ private fun PdfPageLazy(
                 return@LaunchedEffect
             }
             val bmp = withContext(Dispatchers.IO) {
-                s.mutex.withLock {
-                    if (s.closed) return@withLock null
-                    try {
-                        s.renderer.openPage(pageIndex).use { page ->
-                            val scale = targetWidthPx.toFloat() / page.width.toFloat().coerceAtLeast(1f)
-                            val h = (page.height * scale).toInt().coerceAtLeast(1)
-                            val b = Bitmap.createBitmap(targetWidthPx, h, Bitmap.Config.ARGB_8888)
-                            b.eraseColor(Color.WHITE)
-                            page.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                            b
-                        }
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
+                if (s.closed) null else s.renderPage(pageIndex, targetWidthPx)
             }
             if (bmp != null) {
                 PdfPageBitmapCache.put(cacheKey, bmp)

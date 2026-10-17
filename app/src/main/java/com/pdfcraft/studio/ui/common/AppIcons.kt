@@ -186,4 +186,33 @@ object AppIcons {
             close()
         }.build()
     }
+
+    val Download: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Download",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).path(
+            fill = SolidColor(Color.Black),
+            pathFillType = PathFillType.NonZero
+        ) {
+            moveTo(5f, 20f)
+            horizontalLineToRelative(14f)
+            verticalLineToRelative(-2f)
+            horizontalLineTo(5f)
+            verticalLineToRelative(2f)
+            close()
+            moveTo(19f, 9f)
+            horizontalLineToRelative(-4f)
+            verticalLineTo(3f)
+            horizontalLineTo(9f)
+            verticalLineToRelative(6f)
+            horizontalLineTo(5f)
+            lineToRelative(7f, 7f)
+            lineToRelative(7f, -7f)
+            close()
+        }.build()
+    }
 }

@@ -165,7 +165,7 @@ object PdfGenerator {
         val pageHeight = (pageWidth / pageAspectRatio.coerceAtLeast(0.1f)).roundToInt().coerceAtLeast(1)
         val cfg = context.resources.configuration
         val rawDp = cfg.screenWidthDp.toFloat()
-        val pageDp = if (rawDp < 200f) 360f else rawDp.coerceAtMost(560f)
+        val pageDp = (rawDp - 40f).coerceIn(220f, 1400f)
         val wrapScale = (pageDp / 360f) / cfg.fontScale.coerceIn(0.85f, 1.8f)
 
         // Same margin model as editor (pageMarginDp / PAGE_INNER_PADDING)
@@ -438,7 +438,7 @@ object PdfGenerator {
                 }
 
                 val wrapW = if (te.boxWidthFrac > 0.01f) {
-                    (te.boxWidthFrac * pageWidth * wrapScale * 0.98f).coerceAtLeast(textPaint.textSize)
+                    (te.boxWidthFrac * pageWidth * wrapScale * 0.90f).coerceAtLeast(textPaint.textSize)
                 } else {
                     1e20f
                 }
@@ -529,7 +529,6 @@ object PdfGenerator {
                             )
                         } else {
                             textPaint.clearShadowLayer()
-                if (kotlin.math.abs(te.rotationDeg) > 0.05f) canvas.restore()
                         }
                         canvas.drawText(segment, x, y, textPaint)
                         x += w
@@ -537,6 +536,8 @@ object PdfGenerator {
                         i = j
                     }
                 }
+
+                if (kotlin.math.abs(rotDeg) > 0.05f) canvas.restore()
 
                 textPaint.clearShadowLayer()
 
