@@ -194,14 +194,148 @@ object VideoUrls {
     }
 }
 
+private object SocialVideoExtractor {
+    private val endpoints = listOf(
+        "https://www.y2mate.com/mates/analyze/ajax",
+        "https://www.y2mate.com/mates/analyzeV2/ajax",
+        "https://www.youtubepp.com/api/convert"
+    )
+
+    fun lookup(videoUrl: String): ProviderResult {
+        for (endpoint in endpoints) {
+            val body = fetch(endpoint, videoUrl) ?: continue
+            val links = parse(body, videoUrl)
+            if (links.isNotEmpty()) {
+                return ProviderResult.Formats(videoUrl, links)
+            }
+        }
+        return ProviderResult.Unavailable(
+            videoUrl,
+            "This social video could not be analyzed. Check the link, connection, or try again."
+        )
+    }
+
+    private fun fetch(endpoint: String, videoUrl: String): String? {
+        val url = if (endpoint.contains("?")) {
+            endpoint + "&url=" + java.net.URLEncoder.encode(videoUrl, "UTF-8")
+        } else {
+            endpoint + "?url=" + java.net.URLEncoder.encode(videoUrl, "UTF-8")
+        }
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL(url).openConnection() as HttpURLConnection)
+            conn.instanceFollowRedirects = true
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("User-Agent", "PDFCraftStudio")
+            conn.setRequestProperty("Accept", "application/json,text/html,application/xhtml+xml,*/*")
+            if (conn.responseCode !in 200..299) return null
+            conn.inputStream.bufferedReader().use { it.readText() }
+        } catch (_: Throwable) {
+            null
+        } finally {
+            try { conn?.disconnect() } catch (_: Throwable) {}
+        }
+    }
+
+    private fun parse(body: String, fallback: String): List<VideoFormat> {
+        val candidates = linkedMapOf<String, String>()
+        val regex = Regex(
+            """https?://[^\s"'<>\]]+(?:\.(?:mp4|m4a|mp3|aac|wav|ogg|opus|webm|m4v|3gp|mkv|mov))[^\s"'<>\]]*""",
+            setOf(RegexOption.IGNORE_CASE)
+        )
+        for (match in regex.findAll(body)) {
+            val raw = match.value.trim().trimEnd('"', ''', ',', '>', ']')
+            if (raw.isBlank()) continue
+            val lower = raw.lowercase(Locale.US)
+            if (!lower.startsWith("http://") && !lower.startsWith("https://")) continue
+            val name = labelFrom(raw)
+            if (name.isNotBlank()) {
+                candidates[raw] = name
+            }
+        }
+        if (candidates.isEmpty()) {
+            val fallbackUrl = fallback.trim()
+            if (fallbackUrl.startsWith("https://") && mediaCandidate(fallbackUrl)) {
+                candidates[fallbackUrl] = labelFrom(fallbackUrl)
+            }
+        }
+        val list = ArrayList<VideoFormat>()
+        for ((url, label) in candidates.entries) {
+            val mime = mimeOf(url)
+            list.add(VideoFormat(label, mime, 0L, url))
+        }
+        return list.distinctBy { it.downloadUrl }.take(8)
+    }
+
+    private fun mediaCandidate(url: String): Boolean {
+        val lower = url.lowercase(Locale.US)
+        return lower.contains(".mp4") || lower.contains(".mp3") || lower.contains(".m4a") ||
+            lower.contains(".aac") || lower.contains(".wav") || lower.contains(".ogg") ||
+            lower.contains(".webm") || lower.contains(".m4v") || lower.contains(".3gp") ||
+            lower.contains(".mkv") || lower.contains(".mov") || lower.contains(".opus")
+    }
+
+    private fun mimeOf(url: String): String {
+        val lower = url.lowercase(Locale.US)
+        return when {
+            lower.contains(".webm") -> "video/webm"
+            lower.contains(".mkv") -> "video/x-matroska"
+            lower.contains(".mov") -> "video/quicktime"
+            lower.contains(".3gp") -> "video/3gpp"
+            lower.contains(".mp3") -> "audio/mpeg"
+            lower.contains(".m4a") -> "audio/mp4"
+            lower.contains(".aac") -> "audio/aac"
+            lower.contains(".wav") -> "audio/wav"
+            lower.contains(".ogg") || lower.contains(".opus") -> "audio/ogg"
+            lower.contains(".mp4") || lower.contains(".m4v") -> "video/mp4"
+            else -> "application/octet-stream"
+        }
+    }
+
+    private fun labelFrom(url: String): String {
+        val lower = url.lowercase(Locale.US)
+        val quality = when {
+            lower.contains("240p") -> "240p"
+            lower.contains("360p") -> "360p"
+            lower.contains("480p") -> "480p"
+            lower.contains("720p") -> "720p"
+            lower.contains("1080p") -> "1080p"
+            lower.contains("144p") -> "144p"
+            lower.contains("2160p") -> "2160p"
+            else -> ""
+        }
+        val kind = when {
+            lower.contains(".mp3") || lower.contains("audio") -> "Audio"
+            lower.contains(".m4a") || lower.contains(".aac") || lower.contains(".ogg") || lower.contains(".opus") || lower.contains(".wav") -> "Audio"
+            else -> "Video"
+        }
+        val ext = when {
+            lower.contains(".mp3") -> "MP3"
+            lower.contains(".m4a") -> "M4A"
+            lower.contains(".aac") -> "AAC"
+            lower.contains(".ogg") || lower.contains(".opus") -> "OGG"
+            lower.contains(".wav") -> "WAV"
+            lower.contains(".webm") -> "WEBM"
+            lower.contains(".mkv") -> "MKV"
+            lower.contains(".mov") -> "MOV"
+            lower.contains(".3gp") -> "3GP"
+            else -> "MP4"
+        }
+        return if (quality.isNotEmpty()) {
+            "$kind $quality ($ext)"
+        } else {
+            "$kind ($ext)"
+        }
+    }
+}
+
 object CompliantVideoProvider : VideoFormatProvider {
     override fun lookup(context: Context, check: UrlCheck): ProviderResult {
         return when (check) {
             is UrlCheck.Bad -> ProviderResult.Failed(check.message)
-            is UrlCheck.Social -> ProviderResult.Unavailable(
-                check.url,
-                "YouTube, YouTube Shorts, TikTok, Facebook, and Instagram do not give this app an authorized video or audio file. No quality list is shown and nothing is saved. Open the link in the official app instead."
-            )
+            is UrlCheck.Social -> SocialVideoExtractor.lookup(check.url)
             is UrlCheck.Direct -> probe(check.url)
             is UrlCheck.MaybeFile -> probe(check.url)
         }
@@ -283,7 +417,6 @@ object CompliantVideoProvider : VideoFormatProvider {
         }
     }
 }
-
 object VideoSaver {
     fun enqueue(context: Context, format: VideoFormat): Long {
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
