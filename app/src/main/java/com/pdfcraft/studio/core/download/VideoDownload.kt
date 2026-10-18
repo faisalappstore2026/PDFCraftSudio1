@@ -61,7 +61,13 @@ object VideoUrls {
         "vm.tiktok.com",
         "vt.tiktok.com"
     )
+    private val instagramHosts = setOf(
+        "instagram.com",
+        "www.instagram.com",
+        "m.instagram.com"
+    )
     private val videoExt = setOf("mp4", "webm", "mkv", "mov", "m4v", "3gp")
+    private val audioExt = setOf("mp3", "m4a", "aac", "wav", "ogg", "opus")
 
     fun validate(raw: String): UrlCheck {
         val text = raw.trim()
@@ -105,7 +111,9 @@ object VideoUrls {
         if (youtubeHosts.contains(host)) return checkYoutube(uri, normalized, host)
         if (facebookHosts.contains(host)) return checkFacebook(uri, normalized, host)
         if (tiktokHosts.contains(host)) return checkTikTok(uri, normalized, host)
-        if (extensionOf(uri) in videoExt) return UrlCheck.Direct(normalized)
+        if (instagramHosts.contains(host)) return checkInstagram(uri, normalized, host)
+        val ext = extensionOf(uri)
+        if (ext in videoExt || ext in audioExt) return UrlCheck.Direct(normalized)
         return UrlCheck.MaybeFile(normalized)
     }
 
@@ -172,6 +180,12 @@ object VideoUrls {
         return if (ok) UrlCheck.Social(url, host) else UrlCheck.Bad("This TikTok link is not a video.")
     }
 
+    private fun checkInstagram(uri: Uri, url: String, host: String): UrlCheck {
+        val path = uri.path.orEmpty().lowercase(Locale.US)
+        val ok = path.contains("/reel/") || path.contains("/reels/") || path.contains("/p/") || path.contains("/tv/")
+        return if (ok) UrlCheck.Social(url, host) else UrlCheck.Bad("This Instagram link is not a video page.")
+    }
+
     private fun extensionOf(uri: Uri): String {
         val last = uri.lastPathSegment.orEmpty().lowercase(Locale.US)
         val dot = last.lastIndexOf('.')
@@ -186,7 +200,7 @@ object CompliantVideoProvider : VideoFormatProvider {
             is UrlCheck.Bad -> ProviderResult.Failed(check.message)
             is UrlCheck.Social -> ProviderResult.Unavailable(
                 check.url,
-                "This is a valid " + check.host + " link. No authorized provider returned a video file, so nothing was downloaded. Checking the link does not mean the video can be saved."
+                "YouTube, YouTube Shorts, TikTok, Facebook, and Instagram do not give this app an authorized video or audio file. No quality list is shown and nothing is saved. Open the link in the official app instead."
             )
             is UrlCheck.Direct -> probe(check.url)
             is UrlCheck.MaybeFile -> probe(check.url)
@@ -202,15 +216,36 @@ object CompliantVideoProvider : VideoFormatProvider {
         if (info.scheme != "https") return ProviderResult.Failed("The link redirected away from HTTPS.")
         if (info.code >= 400) return ProviderResult.Failed("The server rejected this link (" + info.code + ").")
         val type = info.mime.lowercase(Locale.US).substringBefore(';').trim()
-        val video = type.startsWith("video/") ||
-            ((type == "application/octet-stream" || type.isEmpty()) && info.ext in setOf("mp4", "webm", "mkv", "mov", "m4v", "3gp"))
-        if (!video) {
-            return ProviderResult.Failed("This link is not a direct video file, and it is not a supported YouTube, Facebook, or TikTok video URL.")
+        val videoExts = setOf("mp4", "webm", "mkv", "mov", "m4v", "3gp")
+        val audioExts = setOf("mp3", "m4a", "aac", "wav", "ogg", "opus")
+        val kind = when {
+            type.startsWith("video/") -> "video"
+            type.startsWith("audio/") -> "audio"
+            (type == "application/octet-stream" || type.isEmpty()) && info.ext in videoExts -> "video"
+            (type == "application/octet-stream" || type.isEmpty()) && info.ext in audioExts -> "audio"
+            else -> ""
         }
-        val label = if (info.ext.isEmpty()) "Original video" else "Original ." + info.ext
+        if (kind.isEmpty()) {
+            return ProviderResult.Failed("This link is not a direct video or audio file. YouTube, Shorts, TikTok, Facebook, and Instagram cannot be saved from here, so no format buttons are shown.")
+        }
+        val label = when {
+            type.contains("webm") || info.ext == "webm" -> if (kind == "audio") "WEBM audio" else "WEBM video"
+            type.contains("mpeg") || info.ext == "mp3" -> "MP3 audio"
+            type.contains("aac") || info.ext == "aac" -> "AAC audio"
+            info.ext == "m4a" || (kind == "audio" && (type.contains("mp4") || info.ext == "mp4")) -> "M4A audio"
+            type.contains("ogg") || info.ext == "ogg" || info.ext == "opus" -> "OGG audio"
+            type.contains("wav") || info.ext == "wav" -> "WAV audio"
+            type.contains("matroska") || info.ext == "mkv" -> "MKV video"
+            type.contains("quicktime") || info.ext == "mov" -> "MOV video"
+            type.contains("3gpp") || info.ext == "3gp" -> "3GP video"
+            kind == "audio" -> "Audio file"
+            else -> "MP4 video"
+        }
+        val size = if (info.bytes > 0L) " (" + (info.bytes / 1024L) + " KB)" else ""
+        val mimeOut = if (type.isNotEmpty()) type else if (kind == "audio") "audio/mpeg" else "video/mp4"
         return ProviderResult.Formats(
             info.finalUrl,
-            listOf(VideoFormat(label, if (type.isEmpty()) "video/mp4" else type, info.bytes, info.finalUrl))
+            listOf(VideoFormat(label + size, mimeOut, info.bytes, info.finalUrl))
         )
     }
 
@@ -228,7 +263,13 @@ object CompliantVideoProvider : VideoFormatProvider {
             if (method == "GET") conn.setRequestProperty("Range", "bytes=0-0")
             val code = conn.responseCode
             val mime = conn.contentType ?: ""
-            val bytes = conn.contentLengthLong
+            var bytes = conn.contentLengthLong
+            val range = conn.getHeaderField("Content-Range")
+            if (range != null && range.contains("/")) {
+                val totalText = range.substring(range.lastIndexOf('/') + 1).trim()
+                val total = totalText.toLongOrNull()
+                if (total != null && total > 0L) bytes = total
+            }
             val finalUri = Uri.parse(conn.url.toString())
             val scheme = finalUri.scheme?.lowercase(Locale.US) ?: ""
             val last = finalUri.lastPathSegment.orEmpty().lowercase(Locale.US)
@@ -251,6 +292,7 @@ object VideoSaver {
         req.setTitle(name)
         req.setDescription("PDFCraft Studio")
         req.setMimeType(format.mime)
+        req.addRequestHeader("User-Agent", "PDFCraftStudio")
         req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         req.setAllowedOverMetered(true)
         req.setAllowedOverRoaming(true)
@@ -297,13 +339,20 @@ object VideoSaver {
         if (name.isBlank() || name == "_" || name == ".") name = "video"
         val lower = name.lowercase(Locale.US)
         val hasExt = lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mkv") ||
-            lower.endsWith(".mov") || lower.endsWith(".m4v") || lower.endsWith(".3gp")
+            lower.endsWith(".mov") || lower.endsWith(".m4v") || lower.endsWith(".3gp") ||
+            lower.endsWith(".mp3") || lower.endsWith(".m4a") || lower.endsWith(".aac") ||
+            lower.endsWith(".wav") || lower.endsWith(".ogg") || lower.endsWith(".opus")
         if (!hasExt) {
             val ext = when {
                 mime.contains("webm") -> ".webm"
                 mime.contains("matroska") || mime.contains("mkv") -> ".mkv"
                 mime.contains("quicktime") -> ".mov"
                 mime.contains("3gpp") -> ".3gp"
+                mime.contains("mpeg") || mime.contains("mp3") -> ".mp3"
+                mime.contains("aac") -> ".aac"
+                mime.contains("ogg") || mime.contains("opus") -> ".ogg"
+                mime.contains("wav") -> ".wav"
+                mime.startsWith("audio/") -> ".m4a"
                 else -> ".mp4"
             }
             name = name + ext

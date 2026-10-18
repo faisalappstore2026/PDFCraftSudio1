@@ -67,6 +67,7 @@ private sealed class UrlUi {
     class Working(val done: Long, val total: Long) : UrlUi()
     class Saved(val name: String) : UrlUi()
     class Failed(val message: String) : UrlUi()
+    class Ready(val formats: List<com.pdfcraft.studio.core.download.VideoFormat>) : UrlUi()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,6 +80,8 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
     var ui by remember { mutableStateOf<UrlUi>(UrlUi.Idle) }
     var job by remember { mutableStateOf<Job?>(null) }
     var downloadId by remember { mutableStateOf(-1L) }
+    var preview by remember { mutableStateOf("") }
+    var previewMime by remember { mutableStateOf("") }
     val busy = ui is UrlUi.Checking || ui is UrlUi.Working
     val permLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -116,31 +119,41 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                 is ProviderResult.Failed -> ui = UrlUi.Failed(result.message)
                 is ProviderResult.Unavailable -> ui = UrlUi.Unavailable(result.url, result.message)
                 is ProviderResult.Formats -> {
-                    val format = result.formats.firstOrNull()
-                    if (format == null) {
+                    val list = result.formats
+                    if (list.isEmpty()) {
                         ui = UrlUi.Failed(context.getString(R.string.video_url_err_format))
                     } else {
-                        val id = try {
-                            withContext(Dispatchers.IO) {
-                                VideoSaver.enqueue(context.applicationContext, format)
-                            }
-                        } catch (_: Throwable) {
-                            -1L
-                        }
-                        if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == false) {
-                            if (id >= 0L) VideoSaver.remove(context.applicationContext, id)
-                            return@launch
-                        }
-                        if (id < 0L) {
-                            ui = UrlUi.Failed(context.getString(R.string.video_url_err_start))
-                        } else {
-                            downloadId = id
-                            ui = UrlUi.Working(0L, format.bytes)
-                            watchDownload(context.applicationContext, id) { next ->
-                                ui = next
-                            }
-                        }
+                        preview = list[0].downloadUrl
+                        previewMime = list[0].mime
+                        ui = UrlUi.Ready(list)
                     }
+                }
+            }
+        }
+    }
+
+    fun save(format: com.pdfcraft.studio.core.download.VideoFormat) {
+        if (job?.isActive == true) return
+        ui = UrlUi.Checking
+        job = scope.launch {
+            val id = try {
+                withContext(Dispatchers.IO) {
+                    VideoSaver.enqueue(context.applicationContext, format)
+                }
+            } catch (_: Throwable) {
+                -1L
+            }
+            if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == false) {
+                if (id >= 0L) VideoSaver.remove(context.applicationContext, id)
+                return@launch
+            }
+            if (id < 0L) {
+                ui = UrlUi.Failed(context.getString(R.string.video_url_err_start))
+            } else {
+                downloadId = id
+                ui = UrlUi.Working(0L, format.bytes)
+                watchDownload(context.applicationContext, id) { next ->
+                    ui = next
                 }
             }
         }
@@ -221,6 +234,8 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                     enabled = !busy,
                     onClick = {
                         url = ""
+                        preview = ""
+                        previewMime = ""
                         ui = UrlUi.Idle
                         focus.clearFocus()
                     }
@@ -236,6 +251,20 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(R.string.video_url_ok)) }
             Spacer(modifier = Modifier.height(20.dp))
+            if (preview.isNotBlank() && previewMime.startsWith("video/")) {
+                androidx.compose.runtime.key(preview) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { ctx ->
+                            android.widget.VideoView(ctx).apply {
+                                setVideoURI(Uri.parse(preview))
+                                setOnPreparedListener { player -> player.start() }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(220.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             when (val state = ui) {
                 is UrlUi.Idle -> {}
                 is UrlUi.Checking -> {
@@ -258,7 +287,8 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                             progress = (state.done.toFloat() / total.toFloat()).coerceIn(0f, 1f),
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Text(state.done.toString() + " / " + total.toString() + " bytes", modifier = Modifier.padding(top = 8.dp))
+                        val pct = ((state.done * 100L) / total).coerceIn(0L, 100L)
+                        Text("Download " + pct.toString() + "%  " + state.done.toString() + " / " + total.toString() + " bytes", modifier = Modifier.padding(top = 8.dp))
                     } else {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         Text(stringResource(R.string.video_url_downloading), modifier = Modifier.padding(top = 8.dp))
@@ -273,6 +303,17 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                 is UrlUi.Saved -> {
                     Text(stringResource(R.string.video_url_saved_to))
                     Text(state.name, modifier = Modifier.padding(top = 6.dp))
+                }
+                is UrlUi.Ready -> {
+                    Text("Real format returned by the file. Tap one to save it.")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    state.formats.forEach { format ->
+                        Button(
+                            onClick = { save(format) },
+                            enabled = !busy,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        ) { Text(format.label) }
+                    }
                 }
                 is UrlUi.Failed -> {
                     Text(state.message, color = MaterialTheme.colorScheme.error)
