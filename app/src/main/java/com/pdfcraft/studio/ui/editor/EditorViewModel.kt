@@ -1056,7 +1056,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
         val ctx = appContext.applicationContext
         if (currentProjectFile != null && !ProjectStore.isDraftFile(currentProjectFile)) {
             val name = currentProjectName?.ifBlank { null }
-                ?: currentProjectFile!!.nameWithoutExtension
+                ?: (currentProjectFile?.nameWithoutExtension ?: "Untitled")
             ProjectStore.save(ctx, this, name, overwriteFile = currentProjectFile)
             currentDraftFile?.let { f ->
                 if (f.exists() && ProjectStore.isDraftFile(f)) runCatching { f.delete() }
@@ -2147,7 +2147,7 @@ fun isSelectionStrike(): Boolean {
         // Ignore empty spacer slots (used only to offset import start page)
         if (id.startsWith("spacer_")) return
         if (imagePositionMode != 0 && imagePositionSourceId != null) {
-            val src = imagePositionSourceId!!
+            val src = imagePositionSourceId ?: return
             if (id != src) {
                 when (imagePositionMode) {
                     1 -> moveSingleImageTo(src, id)

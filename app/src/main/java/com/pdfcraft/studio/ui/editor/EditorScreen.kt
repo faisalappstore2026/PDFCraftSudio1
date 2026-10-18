@@ -236,7 +236,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     }
 
     if (showImagePositionDialog && imagePositionTargetId != null) {
-        val srcId = imagePositionTargetId!!
+        val srcId = imagePositionTargetId ?: ""
         androidx.compose.material3.AlertDialog(
             onDismissRequest = {
                 showImagePositionDialog = false

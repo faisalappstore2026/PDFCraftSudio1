@@ -248,7 +248,7 @@ fun PdfLibraryScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (tab == LibraryTab.Folders && selectedFolder != null) selectedFolder!!
+                        if (tab == LibraryTab.Folders && selectedFolder != null) selectedFolder.orEmpty()
                         else stringResource(R.string.view_pdf),
                         fontWeight = FontWeight.SemiBold,
                         color = Color.Black,

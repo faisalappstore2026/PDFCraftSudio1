@@ -57,6 +57,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.app.DownloadManager
+import androidx.compose.ui.res.stringResource
+import com.pdfcraft.studio.R
 
 private sealed class UrlUi {
     object Idle : UrlUi()
@@ -86,7 +88,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link)))
         } catch (_: Throwable) {
-            ui = UrlUi.Failed("Could not open this link.")
+            ui = UrlUi.Failed(context.getString(R.string.video_url_err_open))
         }
     }
 
@@ -101,7 +103,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
             context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
             permLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            ui = UrlUi.Failed("Allow storage permission, then tap OK again.")
+            ui = UrlUi.Failed(context.getString(R.string.video_url_err_permission))
             return
         }
         ui = UrlUi.Checking
@@ -116,7 +118,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                 is ProviderResult.Formats -> {
                     val format = result.formats.firstOrNull()
                     if (format == null) {
-                        ui = UrlUi.Failed("No download format was returned.")
+                        ui = UrlUi.Failed(context.getString(R.string.video_url_err_format))
                     } else {
                         val id = try {
                             withContext(Dispatchers.IO) {
@@ -130,7 +132,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                             return@launch
                         }
                         if (id < 0L) {
-                            ui = UrlUi.Failed("Could not start the download.")
+                            ui = UrlUi.Failed(context.getString(R.string.video_url_err_start))
                         } else {
                             downloadId = id
                             ui = UrlUi.Working(0L, format.bytes)
@@ -153,14 +155,14 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Download Videos Through URL") },
+                title = { Text(stringResource(R.string.download_videos_url)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         job?.cancel()
                         // Back keeps download B
                         onBackClick()
                     }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.video_url_back))
                     }
                 }
             )
@@ -179,7 +181,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
             verticalArrangement = Arrangement.Top
         ) {
             Text(
-                text = "Paste an HTTPS link. YouTube, Facebook, and TikTok video links are checked. A direct video file can be saved. A valid link does not prove the video is available.",
+                text = stringResource(R.string.video_url_intro),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
@@ -188,7 +190,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                 value = url,
                 onValueChange = { url = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Video URL") },
+                label = { Text(stringResource(R.string.video_url_label)) },
                 minLines = 3,
                 maxLines = 6,
                 enabled = !busy,
@@ -211,10 +213,10 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                         val text = if (clip != null && clip.itemCount > 0) {
                             clip.getItemAt(0).coerceToText(context)?.toString().orEmpty()
                         } else ""
-                        if (text.isBlank()) ui = UrlUi.Failed("Clipboard is empty.")
+                        if (text.isBlank()) ui = UrlUi.Failed(context.getString(R.string.video_url_clipboard_empty))
                         else url = text
                     }
-                ) { Text("Paste") }
+                ) { Text(stringResource(R.string.video_url_paste)) }
                 TextButton(
                     enabled = !busy,
                     onClick = {
@@ -222,7 +224,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                         ui = UrlUi.Idle
                         focus.clearFocus()
                     }
-                ) { Text("Clear") }
+                ) { Text(stringResource(R.string.video_url_clear)) }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -232,21 +234,21 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                 },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("OK") }
+            ) { Text(stringResource(R.string.video_url_ok)) }
             Spacer(modifier = Modifier.height(20.dp))
             when (val state = ui) {
                 is UrlUi.Idle -> {}
                 is UrlUi.Checking -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator()
-                        Text("Checking link...", modifier = Modifier.padding(start = 12.dp))
+                        Text(stringResource(R.string.video_url_checking), modifier = Modifier.padding(start = 12.dp))
                     }
                 }
                 is UrlUi.Unavailable -> {
                     Text(state.message)
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(onClick = { openExternal(state.url) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Open link")
+                        Text(stringResource(R.string.video_url_open_link))
                     }
                 }
                 is UrlUi.Working -> {
@@ -259,26 +261,31 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                         Text(state.done.toString() + " / " + total.toString() + " bytes", modifier = Modifier.padding(top = 8.dp))
                     } else {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        Text("Downloading...", modifier = Modifier.padding(top = 8.dp))
+                        Text(stringResource(R.string.video_url_downloading), modifier = Modifier.padding(top = 8.dp))
                     }
                     TextButton(onClick = {
                         job?.cancel()
                         VideoSaver.remove(context, downloadId)
                         downloadId = -1L
-                        ui = UrlUi.Failed("Download cancelled.")
-                    }) { Text("Cancel") }
+                        ui = UrlUi.Failed(context.getString(R.string.video_url_cancelled))
+                    }) { Text(stringResource(R.string.video_url_cancel)) }
                 }
                 is UrlUi.Saved -> {
-                    Text("Saved to Downloads / PDFCraftStudio")
+                    Text(stringResource(R.string.video_url_saved_to))
                     Text(state.name, modifier = Modifier.padding(top = 6.dp))
                 }
                 is UrlUi.Failed -> {
                     Text(state.message, color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = { start(url) }) { Text("Retry") }
+                    TextButton(onClick = { start(url) }) { Text(stringResource(R.string.video_url_retry)) }
                 }
             }
         }
     }
+}
+
+private fun savedFileName(localUri: String?, fallback: String): String {
+    val n = try { Uri.parse(localUri ?: "").lastPathSegment } catch (_: Throwable) { null }
+    return if (n.isNullOrBlank()) fallback else n
 }
 
 private suspend fun watchDownload(context: Context, id: Long, onUpdate: (UrlUi) -> Unit) {
@@ -292,7 +299,7 @@ private suspend fun watchDownload(context: Context, id: Long, onUpdate: (UrlUi) 
         }
         when (p.status) {
             DownloadManager.STATUS_SUCCESSFUL -> {
-                onUpdate(UrlUi.Saved("Video file"))
+                onUpdate(UrlUi.Saved(savedFileName(p.localUri, context.getString(R.string.video_url_file_fallback))))
                 return
             }
             DownloadManager.STATUS_FAILED -> {

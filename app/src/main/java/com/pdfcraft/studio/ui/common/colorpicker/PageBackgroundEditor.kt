@@ -1101,7 +1101,7 @@ private fun livePreviewFilter(brightness: Float, tint: Long?): ColorFilter? {
         0f, 0f, 0f, 1f, 0f
     )
     if (needsT) {
-        val c = tint!!
+        val c = tint ?: 0x00FFFFFFL
         val tr = ((c shr 16) and 0xFFL).toFloat() / 255f
         val tg = ((c shr 8) and 0xFFL).toFloat() / 255f
         val tb = (c and 0xFFL).toFloat() / 255f

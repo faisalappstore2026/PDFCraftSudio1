@@ -343,7 +343,7 @@ object PdfGenerator {
                     if (drawn != null && img.numberLabel != null) {
                         drawNumberBadge(
                             canvas = canvas,
-                            label = img.numberLabel!!,
+                            label = img.numberLabel ?: 0,
                             bounds = drawn,
                             xFrac = img.numberXFrac,
                             yFrac = img.numberYFrac,
@@ -886,41 +886,5 @@ object PdfGenerator {
             android.util.Log.e("PdfGenerator", "Failed to add link annotations", e)
             pdfBytes to (e.javaClass.simpleName + ": " + (e.message ?: "unknown error"))
         }
-    }
-
-
-
-    private fun saveToDocuments(context: Context, fileName: String, pdf: PdfDocument): Uri? {
-        val resolver = context.contentResolver
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(
-                    MediaStore.MediaColumns.RELATIVE_PATH,
-                    Environment.DIRECTORY_DOCUMENTS + "/PDFCraftStudio"
-                )
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
-            }
-        }
-
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        } else {
-            MediaStore.Files.getContentUri("external")
-        }
-
-        val uri = resolver.insert(collection, values) ?: return null
-
-        resolver.openOutputStream(uri)?.use { out: OutputStream ->
-            pdf.writeTo(out)
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            values.clear()
-            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-            resolver.update(uri, values, null, null)
-        }
-        return uri
     }
 }

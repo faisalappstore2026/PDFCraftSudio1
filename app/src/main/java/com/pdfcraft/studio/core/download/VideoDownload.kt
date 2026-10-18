@@ -266,7 +266,7 @@ object VideoSaver {
         } catch (_: Throwable) {}
     }
 
-    class Progress(val status: Int, val done: Long, val total: Long, val reason: Int)
+    class Progress(val status: Int, val done: Long, val total: Long, val reason: Int, val localUri: String? = null)
 
     fun query(context: Context, id: Long): Progress? {
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -280,7 +280,9 @@ object VideoSaver {
                 val total = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                 val reasonIdx = it.getColumnIndex(DownloadManager.COLUMN_REASON)
                 val reason = if (reasonIdx >= 0) it.getInt(reasonIdx) else 0
-                Progress(st, done, total, reason)
+                val localIdx = it.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
+                val local = if (localIdx >= 0) it.getString(localIdx) else null
+                Progress(st, done, total, reason, local)
             }
         }
     }

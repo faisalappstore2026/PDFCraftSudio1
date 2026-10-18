@@ -13,5 +13,10 @@ import android.app.Application
 class PdfCraftApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        try {
+            com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(this)
+        } catch (e: Throwable) {
+            android.util.Log.w("PdfCraftApp", "PDFBox init failed", e)
+        }
     }
 }
