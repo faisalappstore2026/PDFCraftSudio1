@@ -38,8 +38,7 @@ fun HomeScreen(
     onCreatePdfClick: () -> Unit,
     onMyProjectsClick: () -> Unit = {},
     onRecoverDraft: (String) -> Unit = {},
-    onViewPdf: () -> Unit = {},
-    onDownloadVideosClick: () -> Unit = {}
+    onViewPdf: () -> Unit = {}
 ) {
     Scaffold(
         containerColor = Color.White
@@ -119,7 +118,7 @@ fun HomeScreen(
                 PrimaryActionButton(
                     text = stringResource(R.string.download_videos_url),
                     icon = AppIcons.Download,
-                    onClick = onDownloadVideosClick,
+                    onClick = {},
                     modifier = Modifier
                         .fillMaxWidth()
                         .widthIn(max = 420.dp)

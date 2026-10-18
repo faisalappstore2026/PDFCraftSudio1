@@ -405,24 +405,5 @@
     <string name="draft_recover_title">Continue last editing?</string>
     <string name="draft_recover_message">Your last PDF wasn’t saved. Tap OK to keep editing, or Cancel to save it in My Projects.</string>
     <string name="download_videos_url">Download Videos Through URL</string>
-    <string name="video_url_intro">Paste a direct HTTPS video or audio file link. OK checks the real file type, plays a video on this screen, and shows only a format that the server actually returned. Tap that format to save it in Download / PDFCraftStudio. YouTube, Shorts, TikTok, Facebook, and Instagram links are recognized, but they are not saved, because those sites do not give an authorized file.</string>
-    <string name="video_url_label">Video URL</string>
-    <string name="video_url_paste">Paste</string>
-    <string name="video_url_clear">Clear</string>
-    <string name="video_url_ok">OK</string>
-    <string name="video_url_checking">Checking link...</string>
-    <string name="video_url_open_link">Open link</string>
-    <string name="video_url_downloading">Downloading...</string>
-    <string name="video_url_cancel">Cancel</string>
-    <string name="video_url_saved_to">Saved to Downloads / PDFCraftStudio</string>
-    <string name="video_url_retry">Retry</string>
-    <string name="video_url_back">Back</string>
-    <string name="video_url_file_fallback">Video file</string>
-    <string name="video_url_err_open">Could not open this link.</string>
-    <string name="video_url_err_permission">Allow storage permission, then tap OK again.</string>
-    <string name="video_url_err_format">No download format was returned.</string>
-    <string name="video_url_err_start">Could not start the download.</string>
-    <string name="video_url_cancelled">Download cancelled.</string>
-    <string name="video_url_clipboard_empty">Clipboard is empty.</string>
 </resources>
 
