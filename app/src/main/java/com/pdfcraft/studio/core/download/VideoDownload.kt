@@ -246,7 +246,7 @@ private object SocialVideoExtractor {
             setOf(RegexOption.IGNORE_CASE)
         )
         for (match in regex.findAll(body)) {
-            val raw = match.value.trim().trimEnd('"', ''', ',', '>', ']')
+            val raw = match.value.trim().trimEnd('"', '\'', ',', '>', ']')
             if (raw.isBlank()) continue
             val lower = raw.lowercase(Locale.US)
             if (!lower.startsWith("http://") && !lower.startsWith("https://")) continue
