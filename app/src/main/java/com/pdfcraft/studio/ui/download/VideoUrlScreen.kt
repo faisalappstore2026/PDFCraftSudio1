@@ -99,7 +99,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
             val result = withContext(Dispatchers.IO) {
                 CompliantVideoProvider.lookup(context.applicationContext, check)
             }
-            if (!isActive) return@launch
+            if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == false) return@launch
             when (result) {
                 is ProviderResult.Failed -> ui = UrlUi.Failed(result.message)
                 is ProviderResult.Unavailable -> ui = UrlUi.Unavailable(result.url, result.message)
@@ -115,7 +115,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                         } catch (_: Throwable) {
                             -1L
                         }
-                        if (!isActive) {
+                        if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == false) {
                             if (id >= 0L) VideoSaver.remove(context.applicationContext, id)
                             return@launch
                         }

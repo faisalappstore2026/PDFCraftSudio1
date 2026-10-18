@@ -275,7 +275,7 @@ fun PdfViewerScreen(
                     Result.failure(e)
                 }
         }
-        if (!isActive) {
+        if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == false) {
             opened.getOrNull()?.first?.closeSafely()
             return@LaunchedEffect
         }
