@@ -54,7 +54,8 @@ class MainActivity : ComponentActivity() {
                         uri,
                         Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
-                } catch (_: SecurityException) {
+                } catch (e: SecurityException) {
+                    android.util.Log.w("MainActivity", "Open-with URI is not persistable", e)
                     // Non-persistable grant — openFileDescriptor still works this session
                 }
             }

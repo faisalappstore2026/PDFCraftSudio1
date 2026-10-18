@@ -628,7 +628,8 @@ object PdfGenerator {
             }
             uri
         } catch (e: Exception) {
-            resolver.delete(uri, null, null)
+            android.util.Log.w("PdfGenerator", "Export write failed", e)
+            try { resolver.delete(uri, null, null) } catch (_: Exception) {}
             null
         }
     }

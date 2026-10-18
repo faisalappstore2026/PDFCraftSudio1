@@ -98,12 +98,30 @@ object VideoUrls {
         if (host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0" || host == "::1") {
             return UrlCheck.Bad("This host is not allowed.")
         }
+        if (isPrivateHost(host)) {
+            return UrlCheck.Bad("This host is not allowed.")
+        }
         val normalized = uri.toString()
         if (youtubeHosts.contains(host)) return checkYoutube(uri, normalized, host)
         if (facebookHosts.contains(host)) return checkFacebook(uri, normalized, host)
         if (tiktokHosts.contains(host)) return checkTikTok(uri, normalized, host)
         if (extensionOf(uri) in videoExt) return UrlCheck.Direct(normalized)
         return UrlCheck.MaybeFile(normalized)
+    }
+
+    private fun isPrivateHost(h: String): Boolean {
+        if (h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".localhost")) return true
+        if (h.startsWith("[") || h.contains(":")) return true
+        val p = h.split('.')
+        if (p.size == 4 && p.all { it.isNotEmpty() && it.length <= 3 && it.all { c -> c.isDigit() } }) {
+            val a = p[0].toInt()
+            val b = p[1].toInt()
+            return a == 10 || a == 127 || a == 0 ||
+                (a == 169 && b == 254) ||
+                (a == 172 && b in 16..31) ||
+                (a == 192 && b == 168)
+        }
+        return false
     }
 
     private fun checkYoutube(uri: Uri, url: String, host: String): UrlCheck {

@@ -719,14 +719,24 @@ object ProjectStore {
                 zip.getInputStream(entry).use { input ->
                     java.io.FileOutputStream(dest).use { output -> input.copyTo(output) }
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                android.util.Log.w("ProjectStore", "Font restore failed", e)
+            }
         }
     }
 
     private fun decodeZipBitmap(zip: ZipFile, path: String?): Bitmap? {
         if (path.isNullOrBlank()) return null
         val entry = zip.getEntry(path) ?: return null
-        return try { zip.getInputStream(entry).use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null }
+        return try {
+            zip.getInputStream(entry).use { BitmapFactory.decodeStream(it) }
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.w("ProjectStore", "Bitmap too large: " + path, e)
+            null
+        } catch (e: Exception) {
+            android.util.Log.w("ProjectStore", "Bitmap decode failed: " + path, e)
+            null
+        }
     }
 
     private fun imageSizeFromJson(obj: JSONObject?): ImageSizeOption {

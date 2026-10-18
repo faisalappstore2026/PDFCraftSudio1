@@ -23,6 +23,9 @@ class ImageHandler(private val contentResolver: ContentResolver) {
                 contentResolver.openInputStream(uri)?.use { input ->
                     BitmapFactory.decodeStream(input, null, decodeOptions)
                 }
+            } catch (e: OutOfMemoryError) {
+                android.util.Log.w("ImageHandler", "Image too large to decode", e)
+                null
             } catch (e: Exception) {
                 null
             }

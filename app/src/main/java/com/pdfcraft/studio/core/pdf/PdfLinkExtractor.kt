@@ -36,7 +36,8 @@ object PdfLinkExtractor {
     fun extract(
         context: Context,
         uri: Uri,
-        pageHeightsPoints: List<Float>
+        pageHeightsPoints: List<Float>,
+        pageWidthsPoints: List<Float> = emptyList()
     ): List<PdfLinkRegion> {
         val regions = mutableListOf<PdfLinkRegion>()
         try {
@@ -47,6 +48,8 @@ object PdfLinkExtractor {
                         val pageH = pageHeightsPoints.getOrNull(pageIndex)?.coerceAtLeast(1f)
                             ?: continue
                         val page = doc.getPage(pageIndex)
+                        val pageW = pageWidthsPoints.getOrNull(pageIndex)?.takeIf { it > 1f }
+                            ?: PAGE_WIDTH_POINTS
 
                         page.annotations
                             .filterIsInstance<PDAnnotationLink>()
@@ -58,9 +61,9 @@ object PdfLinkExtractor {
                                 regions.add(
                                     PdfLinkRegion(
                                         pageIndex = pageIndex,
-                                        leftFraction = (rect.lowerLeftX / PAGE_WIDTH_POINTS).coerceIn(0f, 1f),
+                                        leftFraction = (rect.lowerLeftX / pageW).coerceIn(0f, 1f),
                                         topFraction = (1f - rect.upperRightY / pageH).coerceIn(0f, 1f),
-                                        rightFraction = (rect.upperRightX / PAGE_WIDTH_POINTS).coerceIn(0f, 1f),
+                                        rightFraction = (rect.upperRightX / pageW).coerceIn(0f, 1f),
                                         bottomFraction = (1f - rect.lowerLeftY / pageH).coerceIn(0f, 1f),
                                         url = url
                                     )

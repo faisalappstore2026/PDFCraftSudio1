@@ -90,7 +90,7 @@ private class PdfSession(
     @kotlin.jvm.Volatile var closed: Boolean = false
     private val closeLock = Any()
 
-    private fun <T> onThread(block: () -> T?): T? {
+    private fun <T> onThread(timeoutSec: Long = 25L, block: () -> T?): T? {
         if (closed) return null
         val fut = try {
             exec.submit<T?> {
@@ -105,19 +105,27 @@ private class PdfSession(
             return null
         }
         return try {
-            fut.get(25, java.util.concurrent.TimeUnit.SECONDS)
+            fut.get(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
         } catch (_: Throwable) {
             try { fut.cancel(true) } catch (_: Throwable) {}
             null
         }
     }
 
-    fun readHeights(): List<Float>? = onThread {
+    fun readHeights(): List<Float>? = onThread(120L) {
         val heights = ArrayList<Float>(renderer.pageCount)
         for (i in 0 until renderer.pageCount) {
             renderer.openPage(i).use { heights.add(it.height.toFloat()) }
         }
         heights
+    }
+
+    fun readWidths(): List<Float>? = onThread(120L) {
+        val widths = ArrayList<Float>(renderer.pageCount)
+        for (i in 0 until renderer.pageCount) {
+            renderer.openPage(i).use { widths.add(it.width.toFloat()) }
+        }
+        widths
     }
 
     fun renderPage(pageIndex: Int, targetWidthPx: Int): android.graphics.Bitmap? = onThread {
@@ -180,9 +188,7 @@ private object PdfPageBitmapCache {
             oldValue: Bitmap,
             newValue: Bitmap?
         ) {
-            if (evicted && oldValue !== newValue && !oldValue.isRecycled) {
-                try { oldValue.recycle() } catch (_: Exception) {}
-            }
+            // B19: no recycle here, bitmap may still be on screen. GC frees it.
         }
     }
 
@@ -288,7 +294,7 @@ fun PdfViewerScreen(
                 isLoading = false
                 linkRegions = try {
                     withContext(Dispatchers.IO) {
-                        PdfLinkExtractor.extract(context, uri, pair.second)
+                        PdfLinkExtractor.extract(context, uri, pair.second, pair.first.readWidths().orEmpty())
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("PdfViewerScreen", "Link extract failed", e)

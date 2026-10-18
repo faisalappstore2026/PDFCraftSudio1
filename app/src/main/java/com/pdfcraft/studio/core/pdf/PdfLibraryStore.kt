@@ -98,8 +98,10 @@ object PdfLibraryStore {
                     }
                 }
             }
-        } catch (_: SecurityException) {
-        } catch (_: Exception) {
+        } catch (e: SecurityException) {
+            android.util.Log.w("PdfLibraryStore", "No permission to scan PDFs", e)
+        } catch (e: Exception) {
+            android.util.Log.w("PdfLibraryStore", "PDF scan failed", e)
         }
     }
 
@@ -190,14 +192,16 @@ object PdfLibraryStore {
             if (context.contentResolver.update(uri, values, null, null) > 0) {
                 return item.copy(name = finalName)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("PdfLibraryStore", "Rename via MediaStore failed", e)
         }
         return try {
             val out = android.provider.DocumentsContract.renameDocument(
                 context.contentResolver, uri, finalName
             )
             if (out != null) item.copy(uri = out.toString(), name = finalName) else null
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("PdfLibraryStore", "Rename failed", e)
             null
         }
     }
@@ -205,7 +209,8 @@ object PdfLibraryStore {
     fun deletePdf(context: Context, item: PdfItem): Boolean {
         return try {
             context.contentResolver.delete(android.net.Uri.parse(item.uri), null, null) > 0
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("PdfLibraryStore", "Delete failed", e)
             false
         }
     }
