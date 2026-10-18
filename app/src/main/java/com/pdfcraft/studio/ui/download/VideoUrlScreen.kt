@@ -78,6 +78,9 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
     var job by remember { mutableStateOf<Job?>(null) }
     var downloadId by remember { mutableStateOf(-1L) }
     val busy = ui is UrlUi.Checking || ui is UrlUi.Working
+    val permLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { }
 
     fun openExternal(link: String) {
         try {
@@ -92,6 +95,13 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
         val check = VideoUrls.validate(raw)
         if (check is com.pdfcraft.studio.core.download.UrlCheck.Bad) {
             ui = UrlUi.Failed(check.message)
+            return
+        }
+        if (android.os.Build.VERSION.SDK_INT <= 28 &&
+            context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            permLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            ui = UrlUi.Failed("Allow storage permission, then tap OK again.")
             return
         }
         ui = UrlUi.Checking
@@ -136,9 +146,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
 
     BackHandler {
         job?.cancel()
-        if (downloadId >= 0L && ui is UrlUi.Working) {
-            VideoSaver.remove(context, downloadId)
-        }
+        // Back keeps download A
         onBackClick()
     }
 
@@ -149,7 +157,7 @@ fun VideoUrlScreen(onBackClick: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = {
                         job?.cancel()
-                        if (downloadId >= 0L && ui is UrlUi.Working) VideoSaver.remove(context, downloadId)
+                        // Back keeps download B
                         onBackClick()
                     }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = null)
@@ -295,5 +303,8 @@ private suspend fun watchDownload(context: Context, id: Long, onUpdate: (UrlUi) 
         }
         delay(500)
         spins++
+    }
+    if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive != false) {
+        onUpdate(UrlUi.Failed("Taking too long. The video may still finish in your Downloads notification. Tap Retry only if it fails."))
     }
 }

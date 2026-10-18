@@ -1212,7 +1212,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
             pageBackgroundBitmap = null
             pages.forEachIndexed { idx, img ->
                 val src = img.bitmap ?: return@forEachIndexed
-                val copy = src.copy(Bitmap.Config.ARGB_8888, false)
+                val copy = src // no extra copy
                 pageBackgroundBitmapOverrides[idx] = copy
                 pdfPageRasters[idx] = copy
                 pdfPageRasterIndices.add(idx)
@@ -1253,7 +1253,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
             for (i in 0 until renderer.pageCount) {
                 renderer.openPage(i).use { page ->
                     val maxW = 1080
-                    val scale = maxW.toFloat() / page.width.coerceAtLeast(1)
+                    val scale = (maxW.toFloat() / page.width.coerceAtLeast(1)).coerceAtMost(3f)
                     val w = (page.width * scale).toInt().coerceAtLeast(1)
                     val h = (page.height * scale).toInt().coerceAtLeast(1)
                     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -1268,6 +1268,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
                     )
                 }
             }
+        } catch (_: OutOfMemoryError) {
         } catch (_: Exception) {
         } finally {
             renderer.close()

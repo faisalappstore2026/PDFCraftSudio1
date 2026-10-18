@@ -260,13 +260,14 @@ object ProjectStore {
                 zip.write(json.toString().toByteArray(Charsets.UTF_8))
                 zip.closeEntry()
             }
-            if (outFile.exists() && !outFile.delete()) {
-                tmp.delete()
-                return SaveResult(false, error = "Could not overwrite project")
-            }
             if (!tmp.renameTo(outFile)) {
-                tmp.delete()
-                return SaveResult(false, error = "Could not finish saving project")
+                try {
+                    tmp.copyTo(outFile, overwrite = true)
+                    tmp.delete()
+                } catch (e: Exception) {
+                    tmp.delete()
+                    return SaveResult(false, error = "Could not finish saving project")
+                }
             }
             SaveResult(success = true, displayName = outFile.name, path = outFile.absolutePath)
         } catch (e: Exception) {
