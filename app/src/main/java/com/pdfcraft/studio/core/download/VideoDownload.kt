@@ -335,7 +335,10 @@ object CompliantVideoProvider : VideoFormatProvider {
     override fun lookup(context: Context, check: UrlCheck): ProviderResult {
         return when (check) {
             is UrlCheck.Bad -> ProviderResult.Failed(check.message)
-            is UrlCheck.Social -> SocialVideoExtractor.lookup(check.url)
+            is UrlCheck.Social -> ProviderResult.Unavailable(
+                check.url,
+                "YouTube, YouTube Shorts, TikTok, Facebook, and Instagram do not give this app an authorized video or audio file. No quality list is shown and nothing is saved. Open the link in the browser or use a dedicated extractor service."
+            )
             is UrlCheck.Direct -> probe(check.url)
             is UrlCheck.MaybeFile -> probe(check.url)
         }
