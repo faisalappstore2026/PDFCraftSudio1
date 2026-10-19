@@ -404,6 +404,5 @@
     <string name="project_selected">Selected: %d</string>
     <string name="draft_recover_title">Continue last editing?</string>
     <string name="draft_recover_message">Your last PDF wasn’t saved. Tap OK to keep editing, or Cancel to save it in My Projects.</string>
-    <string name="download_videos_url">Download Videos Through URL</string>
 </resources>
 

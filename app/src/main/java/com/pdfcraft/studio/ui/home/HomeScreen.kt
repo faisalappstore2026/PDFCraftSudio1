@@ -112,17 +112,6 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .widthIn(max = 420.dp)
                 )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                PrimaryActionButton(
-                    text = stringResource(R.string.download_videos_url),
-                    icon = AppIcons.Download,
-                    onClick = {},
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 420.dp)
-                )
             }
         }
     }

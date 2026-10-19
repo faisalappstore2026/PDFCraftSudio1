@@ -269,6 +269,7 @@ fun PdfPagesPreview(
     }
     val scaleState = remember { mutableStateOf(1f) }
     val panState = remember { mutableStateOf(Offset.Zero) }
+    val pinching = remember { mutableStateOf(false) }
     val zoomLayer = Modifier.graphicsLayer {
         val s = scaleState.value
         val p = panState.value
@@ -280,41 +281,51 @@ fun PdfPagesPreview(
     }
     val pinchMod = Modifier.pointerInput(Unit) {
         awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false)
+            var zooming = false
             var lastCx = Float.NaN
             var lastCy = Float.NaN
-            do {
-                val event = awaitPointerEvent()
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
                 val pressed = event.changes.count { it.pressed }
                 if (pressed >= 2) {
+                    zooming = true
+                    pinching.value = true
                     val z = event.calculateZoom()
                     val c = event.calculateCentroid()
-                    if (lastCx.isNaN()) {
+                    if (z > 0f) {
+                        if (lastCx.isNaN()) {
+                            lastCx = c.x
+                            lastCy = c.y
+                        }
+                        val pan = Offset(c.x - lastCx, c.y - lastCy)
                         lastCx = c.x
                         lastCy = c.y
+                        val oldS = scaleState.value
+                        val newS = (oldS * z).coerceIn(1f, 4f)
+                        val r = newS / oldS.coerceAtLeast(0.01f)
+                        val oldP = panState.value
+                        val nx = c.x - (c.x - oldP.x) * r + pan.x
+                        val ny = c.y - (c.y - oldP.y) * r + pan.y
+                        val vw = size.width.toFloat().coerceAtLeast(1f)
+                        val vh = size.height.toFloat().coerceAtLeast(1f)
+                        if (newS <= 1.001f) {
+                            scaleState.value = 1f
+                            panState.value = Offset.Zero
+                        } else {
+                            scaleState.value = newS
+                            panState.value = Offset(
+                                nx.coerceIn(vw * (1f - newS), 0f),
+                                ny.coerceIn(vh * (1f - newS), 0f)
+                            )
+                        }
                     }
-                    val pan = Offset(c.x - lastCx, c.y - lastCy)
-                    lastCx = c.x
-                    lastCy = c.y
-                    val oldS = scaleState.value
-                    val newS = (oldS * z).coerceIn(1f, 4f)
-                    val r = newS / oldS.coerceAtLeast(0.01f)
-                    val oldP = panState.value
-                    var nx = c.x - (c.x - oldP.x) * r + pan.x
-                    var ny = c.y - (c.y - oldP.y) * r + pan.y
-                    val vw = size.width.toFloat().coerceAtLeast(1f)
-                    val vh = size.height.toFloat().coerceAtLeast(1f)
-                    scaleState.value = newS
-                    panState.value = Offset(
-                        nx.coerceIn(vw * (1f - newS), 0f),
-                        ny.coerceIn(vh * (1f - newS), 0f)
-                    )
                     event.changes.forEach { it.consume() }
-                } else {
-                    lastCx = Float.NaN
-                    lastCy = Float.NaN
+                } else if (zooming) {
+                    event.changes.forEach { it.consume() }
                 }
-            } while (event.changes.any { it.pressed })
+                if (event.changes.none { it.pressed }) break
+            }
+            pinching.value = false
         }
     }
     // Always show at least one page so text can be added before any images.
@@ -322,6 +333,7 @@ fun PdfPagesPreview(
         BoxWithConstraints(modifier = modifier.fillMaxSize().background(Color(0xFFE8E8E8)).clipToBounds().then(pinchMod)) {
             LazyColumn(
                 state = pageListState,
+                userScrollEnabled = !pinching.value,
                 modifier = Modifier
                     .fillMaxSize()
                     .then(zoomLayer),
@@ -431,6 +443,7 @@ fun PdfPagesPreview(
 
         LazyColumn(
             state = pageListState,
+            userScrollEnabled = !pinching.value,
             modifier = Modifier
                 .fillMaxSize()
                 .then(zoomLayer),
