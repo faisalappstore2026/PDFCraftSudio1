@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:left="-23.76dp"
-        android:top="-25.2dp"
-        android:right="-23.76dp"
-        android:bottom="-22.32dp">
-        <bitmap
-            android:gravity="fill"
-            android:src="@drawable/ic_appicon_art" />
-    </item>
-</layer-list>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_appicon_art"
+    android:insetLeft="0.0000%"
+    android:insetTop="1.1236%"
+    android:insetRight="0.0000%"
+    android:insetBottom="1.1236%" />
