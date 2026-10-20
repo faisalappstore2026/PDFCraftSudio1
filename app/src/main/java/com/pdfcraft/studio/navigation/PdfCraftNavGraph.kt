@@ -13,6 +13,7 @@ import com.pdfcraft.studio.core.session.SessionStore
 import com.pdfcraft.studio.core.project.ProjectStore
 import com.pdfcraft.studio.ui.editor.EditorScreen
 import com.pdfcraft.studio.ui.home.HomeScreen
+import com.pdfcraft.studio.ui.home.IconCenterScreen
 import com.pdfcraft.studio.ui.home.MyProjectsScreen
 import com.pdfcraft.studio.ui.viewer.PdfLibraryScreen
 import com.pdfcraft.studio.ui.viewer.PdfViewerScreen
@@ -80,6 +81,9 @@ fun PdfCraftNavGraph(
                 onViewPdf = {
                     SessionStore.setScreen(context, SessionStore.LIBRARY)
                     navController.navigate(Screen.PdfLibrary.route)
+                },
+                onIconCenterClick = {
+                    navController.navigate(Screen.IconCenter.route)
                 }
             )
         }
@@ -96,6 +100,9 @@ fun PdfCraftNavGraph(
                     navController.navigate(Screen.Editor.routeOpen("pdf|" + uri))
                 }
             )
+        }
+        composable(Screen.IconCenter.route) {
+            IconCenterScreen(onBackClick = { navController.popBackStack() })
         }
         composable(Screen.MyProjects.route) {
             MyProjectsScreen(

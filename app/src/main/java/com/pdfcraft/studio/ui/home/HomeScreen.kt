@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -38,7 +39,8 @@ fun HomeScreen(
     onCreatePdfClick: () -> Unit,
     onMyProjectsClick: () -> Unit = {},
     onRecoverDraft: (String) -> Unit = {},
-    onViewPdf: () -> Unit = {}
+    onViewPdf: () -> Unit = {},
+    onIconCenterClick: () -> Unit = {}
 ) {
     Scaffold(
         containerColor = Color.White
@@ -108,6 +110,17 @@ fun HomeScreen(
                     text = stringResource(R.string.my_projects),
                     icon = AppIcons.FileDocument,
                     onClick = onMyProjectsClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 420.dp)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                PrimaryActionButton(
+                    text = "Icon Center",
+                    icon = Icons.Filled.Settings,
+                    onClick = onIconCenterClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .widthIn(max = 420.dp)
