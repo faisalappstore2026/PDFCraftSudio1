@@ -165,6 +165,8 @@ private fun packImagesForPages(
     return packEditorPages(images, imagesPerRow, spacingDp, cellWidthDp, gridHeightDp, defaultAspect)
 }
 
+private val editorZoomScale = mutableStateOf(1f)
+
 @Composable
 fun PdfPagesPreview(
     images: List<ImportedImage>,
@@ -328,6 +330,7 @@ fun PdfPagesPreview(
             pinching.value = false
         }
     }
+    editorZoomScale.value = scaleState.value
     // Always show at least one page so text can be added before any images.
     if (images.isEmpty() && minPageCount <= 1) {
         BoxWithConstraints(modifier = modifier.fillMaxSize().background(Color(0xFFE8E8E8)).clipToBounds().then(pinchMod)) {
@@ -1071,12 +1074,15 @@ private fun PageTextOverlay(
             }
 
             if (selected) {
+                val spinView = androidx.compose.ui.platform.LocalView.current
+                val lastSnap = remember(textElement.id) { floatArrayOf(Float.NaN) }
                 TextHandle(
                     symbol = "\u21bb",
                     modifier = Modifier.align(Alignment.TopEnd),
                     onDragStart = {
                         rotHud = true
                         rawRot = rotState.value
+                        lastSnap[0] = Float.NaN
                     },
                     onDragEnd = { rotHud = false }
                 ) { drag ->
@@ -1088,7 +1094,17 @@ private fun PageTextOverlay(
                     val r2 = (vx * vx + vy * vy).coerceAtLeast(1f)
                     val dDeg = ((vx * drag.y - vy * drag.x) / r2) * (180f / 3.14159265f)
                     rawRot += dDeg
-                    onTextRotate(textElement.id, snapRotationDeg(rawRot))
+                    val snapped = snapRotationDeg(rawRot)
+                    var shown = ((snapped % 360f) + 360f) % 360f
+                    if (shown > 180f) shown -= 360f
+                    val step = kotlin.math.round(shown / 10f) * 10f
+                    val onMagnet = kotlin.math.abs(shown - step) < 0.8f
+                    val prevSnap = lastSnap[0]
+                    if (onMagnet && !prevSnap.isNaN() && kotlin.math.abs(prevSnap - snapped) > 0.5f) {
+                        spinView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                    }
+                    lastSnap[0] = snapped
+                    onTextRotate(textElement.id, snapped)
                 }
                 val liveW = remember(textElement.id) { floatArrayOf(0f) }
                 val liveH = remember(textElement.id) { floatArrayOf(0f) }
@@ -1560,7 +1576,8 @@ private fun ImageCell(
     ) {
         if (!dragModeActive || image.ownerPageIndex != null) return@LaunchedEffect
         if (coordsSync == null || pwSync < 1f || phSync < 1f) return@LaunchedEffect
-        val origin = coordsSync.positionInRoot() - pageOrigin
+        val zoomFix = editorZoomScale.value.coerceIn(1f, 4f)
+        val origin = (coordsSync.positionInRoot() - pageOrigin) / zoomFix
         val cw = coordsSync.size.width.toFloat().coerceAtLeast(1f)
         val ch = coordsSync.size.height.toFloat().coerceAtLeast(1f)
         val bmp = image.bitmap
@@ -1619,7 +1636,8 @@ private fun ImageCell(
                         if (coords == null || pageSizePx.width <= 0) {
                             IntOffset(wantX.roundToInt(), wantY.roundToInt())
                         } else {
-                            val origin = coords.positionInRoot() - pageOrigin
+                            val zoomFix = editorZoomScale.value.coerceIn(1f, 4f)
+                            val origin = (coords.positionInRoot() - pageOrigin) / zoomFix
                             val cw = coords.size.width.toFloat().coerceAtLeast(1f)
                             val ch = coords.size.height.toFloat().coerceAtLeast(1f)
                             val bmp = image.bitmap

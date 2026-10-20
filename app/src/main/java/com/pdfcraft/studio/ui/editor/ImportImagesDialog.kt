@@ -450,7 +450,7 @@ private fun ImageImportSizeRow(
         )
         Box(modifier = Modifier.weight(0.85f)) {
             PsSizeCombo(
-                value = ImageSizeOption.formatKb(fieldKb),
+                value = if (selectedOption is ImageSizeOption.Default) "Select Size" else ImageSizeOption.formatKb(fieldKb),
                 open = menuOpen,
                 onToggle = { menuOpen = menuOpen.not() },
                 onDismiss = { menuOpen = false },
@@ -539,19 +539,12 @@ private fun PsSizeMenu(
     onPreset: (Int) -> Unit,
     onCustom: () -> Unit
 ) {
-    val menu = ImageSizeOption.menuKb
+    val menu = listOf(5, 20, 30, 40, 50, 60, 70, 80, 90, 100)
     val scroll = rememberScrollState()
-    val density = LocalDensity.current
     val itemDp = 22.dp
     val customOn = selectedOption is ImageSizeOption.Custom
     val presetKb = (selectedOption as? ImageSizeOption.Preset)?.kb
-    val anchorKb = if (presetKb != null) presetKb else centerKb
-    LaunchedEffect(customOn, anchorKb) {
-        val at = menu.indexOf(anchorKb)
-        val index = if (customOn) 0 else if (at < 0) 0 else at + 1
-        val itemPx = with(density) { itemDp.toPx() }
-        scroll.scrollTo((index * itemPx).toInt())
-    }
+    if (centerKb < -1000000) return
     Row(
         modifier = Modifier
             .heightIn(max = 220.dp)
