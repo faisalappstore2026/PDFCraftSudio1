@@ -96,7 +96,7 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Import the icon. Move and zoom it inside the circle. Copy the numbers and send them in chat.",
+                text = "This circle matches the real round app icon. Scale 1.00 is the same size as the phone icon. Copy the numbers and send them in chat.",
                 color = Color(0xFF424242)
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -121,8 +121,9 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
+                                val launcherScale = 1.5f * scale
+                                scaleX = launcherScale
+                                scaleY = launcherScale
                                 translationX = offsetX * size.width
                                 translationY = offsetY * size.height
                             }
@@ -200,7 +201,7 @@ private fun NudgeButton(label: String, onClick: () -> Unit) {
 private fun buildIconReport(offsetX: Float, offsetY: Float, scale: Float): String {
     val sideX = if (offsetX > 0.001f) "right" else if (offsetX < -0.001f) "left" else "center"
     val sideY = if (offsetY > 0.001f) "down" else if (offsetY < -0.001f) "up" else "center"
-    return "ICON_FIT\noffsetX=" + trimNum(offsetX) + "\noffsetY=" + trimNum(offsetY) + "\nscale=" + trimNum(scale) + "\nhorizontal=" + sideX + "\nvertical=" + sideY + "\nmeaning=offsetX positive is right. offsetY positive is down. scale 1.00 fits the whole image in the circle."
+    return "ICON_FIT\noffsetX=" + trimNum(offsetX) + "\noffsetY=" + trimNum(offsetY) + "\nscale=" + trimNum(scale) + "\nhorizontal=" + sideX + "\nvertical=" + sideY + "\nmeaning=offsetX positive is right. offsetY positive is down. scale 1.00 matches the real round app icon."
 }
 
 private fun trimNum(v: Float): String {
