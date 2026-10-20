@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/ic_appicon_art"
-    android:insetLeft="16.0000%"
-    android:insetTop="16.0000%"
-    android:insetRight="16.0000%"
-    android:insetBottom="16.0000%" />
+    android:insetLeft="18.5000%"
+    android:insetTop="19.2079%"
+    android:insetRight="18.5000%"
+    android:insetBottom="19.2079%" />
