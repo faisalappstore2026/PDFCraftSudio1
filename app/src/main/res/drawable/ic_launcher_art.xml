@@ -2,9 +2,9 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:left="16.2dp"
-        android:top="17.64dp"
+        android:top="16.2dp"
         android:right="16.2dp"
-        android:bottom="14.76dp">
+        android:bottom="16.2dp">
         <bitmap
             android:gravity="fill"
             android:src="@drawable/ic_appicon_art" />

@@ -7,10 +7,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,8 +24,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -46,7 +44,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -133,44 +130,46 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
                 }
             }
             Spacer(modifier = Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NudgeButton("Left") {
-                    offsetX = offsetX - 0.02f
+            Text(
+                text = "Left / Right   " + trimNum(offsetX),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Slider(
+                value = offsetX,
+                onValueChange = { value ->
+                    offsetX = value
                     copied = false
-                }
-                NudgeButton("Right") {
-                    offsetX = offsetX + 0.02f
+                },
+                valueRange = -0.50f..0.50f,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "Up / Down   " + trimNum(offsetY),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Slider(
+                value = offsetY,
+                onValueChange = { value ->
+                    offsetY = value
                     copied = false
-                }
-                NudgeButton("Up") {
-                    offsetY = offsetY - 0.02f
+                },
+                valueRange = -0.50f..0.50f,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "Zoom   " + trimNum(scale),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Slider(
+                value = scale,
+                onValueChange = { value ->
+                    scale = value
                     copied = false
-                }
-                NudgeButton("Down") {
-                    offsetY = offsetY + 0.02f
-                    copied = false
-                }
-            }
+                },
+                valueRange = 0.40f..3.00f,
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NudgeButton("Center") {
-                    offsetX = 0f
-                    offsetY = 0f
-                    scale = 1f
-                    copied = false
-                }
-                NudgeButton("Zoom in") {
-                    val next = scale + 0.05f
-                    scale = if (next > 3f) 3f else next
-                    copied = false
-                }
-                NudgeButton("Zoom out") {
-                    val next = scale - 0.05f
-                    scale = if (next < 0.4f) 0.4f else next
-                    copied = false
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = report,
                 modifier = Modifier
@@ -188,13 +187,6 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
                 Text(if (copied) "Copied" else "Copy details")
             }
         }
-    }
-}
-
-@Composable
-private fun NudgeButton(label: String, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick) {
-        Text(text = label, fontWeight = FontWeight.SemiBold)
     }
 }
 
