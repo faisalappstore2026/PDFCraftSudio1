@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:left="16.2dp"
-        android:top="16.2dp"
-        android:right="16.2dp"
-        android:bottom="16.2dp">
+        android:left="-23.76dp"
+        android:top="-25.2dp"
+        android:right="-23.76dp"
+        android:bottom="-22.32dp">
         <bitmap
             android:gravity="fill"
             android:src="@drawable/ic_appicon_art" />
