@@ -11,6 +11,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
+import com.pdfcraft.studio.core.update.VersionCheckRepository
+import com.pdfcraft.studio.core.update.VersionStatus
+import com.pdfcraft.studio.ui.update.UpdateRequiredScreen
+import com.pdfcraft.studio.ui.update.VersionCheckLoading
+import com.pdfcraft.studio.ui.update.openPlayStore
+import kotlinx.coroutines.launch
 import com.pdfcraft.studio.navigation.PdfCraftNavGraph
 import com.pdfcraft.studio.ui.theme.PDFCraftStudioTheme
 
@@ -18,16 +25,34 @@ class MainActivity : ComponentActivity() {
 
     private var openPdfUri by mutableStateOf<String?>(null)
 
+    // null = checking; gate only on a real UPDATE_REQUIRED decision
+    private var versionStatus by mutableStateOf<VersionStatus?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openPdfUri = extractPdfUri(intent)
         enableEdgeToEdge()
+        runVersionCheck()
         setContent {
             PDFCraftStudioTheme {
                 Surface(modifier = Modifier) {
-                    PdfCraftNavGraph(openPdfUri = openPdfUri)
+                    when (versionStatus) {
+                        null -> VersionCheckLoading()
+                        VersionStatus.UPDATE_REQUIRED -> UpdateRequiredScreen(
+                            onUpdateNow = { openPlayStore(this@MainActivity) },
+                            onRetry = { runVersionCheck() }
+                        )
+                        else -> PdfCraftNavGraph(openPdfUri = openPdfUri)
+                    }
                 }
             }
+        }
+    }
+
+    private fun runVersionCheck() {
+        versionStatus = null
+        lifecycleScope.launch {
+            versionStatus = VersionCheckRepository(applicationContext).check()
         }
     }
 

@@ -404,5 +404,10 @@
     <string name="project_selected">Selected: %d</string>
     <string name="draft_recover_title">Continue last editing?</string>
     <string name="draft_recover_message">Your last PDF wasn’t saved. Tap OK to keep editing, or Cancel to save it in My Projects.</string>
+    <string name="update_required_title">Update Required</string>
+    <string name="update_required_message">Your current version is no longer supported. Please update PDFCraft Studio to continue using the app.</string>
+    <string name="update_now">Update Now</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_store_unavailable">Could not open Google Play. Please update PDFCraft Studio from the Play Store.</string>
 </resources>
 
