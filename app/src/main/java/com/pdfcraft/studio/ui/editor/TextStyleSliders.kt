@@ -5,6 +5,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +50,14 @@ fun TextBgSliderPanel(
     alpha: Float,
     onCornerChange: (Float) -> Unit,
     onAlphaChange: (Float) -> Unit,
+    padLeft: Float = 0f,
+    padRight: Float = 0f,
+    padTop: Float = 0f,
+    padBottom: Float = 0f,
+    onPadLeftChange: (Float) -> Unit = {},
+    onPadRightChange: (Float) -> Unit = {},
+    onPadTopChange: (Float) -> Unit = {},
+    onPadBottomChange: (Float) -> Unit = {},
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -65,6 +75,40 @@ fun TextBgSliderPanel(
             value = alpha,
             range = 0.05f..1f,
             onChange = onAlphaChange
+        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            PadSlider("Left", padLeft, onPadLeftChange, Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
+            PadSlider("Right", padRight, onPadRightChange, Modifier.weight(1f))
+        }
+        Row(modifier = Modifier.fillMaxWidth()) {
+            PadSlider("Top", padTop, onPadTopChange, Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
+            PadSlider("Bottom", padBottom, onPadBottomChange, Modifier.weight(1f))
+        }
+    }
+}
+
+/** Compact 0..40 slider with its number, used for background padding. */
+@Composable
+private fun PadSlider(
+    label: String,
+    value: Float,
+    onChange: (Float) -> Unit,
+    modifier: Modifier
+) {
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, color = Color.DarkGray, fontSize = 13.sp)
+            Text(value.roundToInt().toString(), color = Color.DarkGray, fontSize = 13.sp)
+        }
+        Slider(
+            value = value.coerceIn(0f, 40f),
+            onValueChange = { onChange(it.roundToInt().toFloat()) },
+            valueRange = 0f..40f
         )
     }
 }

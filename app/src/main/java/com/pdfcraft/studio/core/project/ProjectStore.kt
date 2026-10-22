@@ -446,6 +446,10 @@ object ProjectStore {
         obj.put("borderWidthDp", t.borderWidthDp.toDouble())
         obj.put("bgCornerDp", t.bgCornerDp.toDouble())
         obj.put("bgAlpha", t.bgAlpha.toDouble())
+        obj.put("bgPadLeftDp", t.bgPadLeftDp.toDouble())
+        obj.put("bgPadTopDp", t.bgPadTopDp.toDouble())
+        obj.put("bgPadRightDp", t.bgPadRightDp.toDouble())
+        obj.put("bgPadBottomDp", t.bgPadBottomDp.toDouble())
         return obj
     }
 
@@ -821,7 +825,11 @@ object ProjectStore {
             borderRanges = colorRangesFromJson(o.optJSONArray("borderRanges")),
             borderWidthDp = o.optDouble("borderWidthDp", 2.0).toFloat(),
             bgCornerDp = o.optDouble("bgCornerDp", 0.0).toFloat(),
-            bgAlpha = o.optDouble("bgAlpha", 1.0).toFloat()
+            bgAlpha = o.optDouble("bgAlpha", 1.0).toFloat(),
+            bgPadLeftDp = o.optDouble("bgPadLeftDp", 0.0).toFloat(),
+            bgPadTopDp = o.optDouble("bgPadTopDp", 0.0).toFloat(),
+            bgPadRightDp = o.optDouble("bgPadRightDp", 0.0).toFloat(),
+            bgPadBottomDp = o.optDouble("bgPadBottomDp", 0.0).toFloat()
         )
     }
 

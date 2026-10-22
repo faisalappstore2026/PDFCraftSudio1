@@ -324,7 +324,12 @@ data class TextElement(
     val borderWidthDp: Float = 2f,
     /** Background corner radius (dp) and opacity (0..1) for this box. */
     val bgCornerDp: Float = 0f,
-    val bgAlpha: Float = 1f
+    val bgAlpha: Float = 1f,
+    /** Extra background around each text line, in dp (0..40). */
+    val bgPadLeftDp: Float = 0f,
+    val bgPadTopDp: Float = 0f,
+    val bgPadRightDp: Float = 0f,
+    val bgPadBottomDp: Float = 0f
 )
 
 private fun adjustRangesForEdit(
@@ -4086,6 +4091,24 @@ fun isSelectionStrike(): Boolean {
         textElements[index] = cur.copy(
             bgCornerDp = (cornerDp ?: cur.bgCornerDp).coerceIn(0f, 24f),
             bgAlpha = (alpha ?: cur.bgAlpha).coerceIn(0.05f, 1f)
+        )
+    }
+
+    fun updateTextBgPadding(
+        left: Float? = null,
+        top: Float? = null,
+        right: Float? = null,
+        bottom: Float? = null
+    ) {
+        beginCoalescedEdit("textBgPad")
+        val index = activeTextIndex()
+        if (index < 0) return
+        val cur = textElements[index]
+        textElements[index] = cur.copy(
+            bgPadLeftDp = (left ?: cur.bgPadLeftDp).coerceIn(0f, 40f),
+            bgPadTopDp = (top ?: cur.bgPadTopDp).coerceIn(0f, 40f),
+            bgPadRightDp = (right ?: cur.bgPadRightDp).coerceIn(0f, 40f),
+            bgPadBottomDp = (bottom ?: cur.bgPadBottomDp).coerceIn(0f, 40f)
         )
     }
 

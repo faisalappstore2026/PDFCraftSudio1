@@ -130,6 +130,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pdfcraft.studio.R
 import com.pdfcraft.studio.core.session.SessionStore
 import com.pdfcraft.studio.ui.editor.canvas.PdfPagesPreview
+import com.pdfcraft.studio.ui.editor.canvas.TextBoxTouch
 import com.pdfcraft.studio.ui.theme.PDFCraftStudioTheme
 import com.pdfcraft.studio.ui.theme.BrandPageSurface
 import kotlinx.coroutines.delay
@@ -1840,10 +1841,15 @@ Column(
                     .then(
                         if (textBoxActive && !toolMenuOpen) {
                             Modifier.pointerInput(textBoxActive) {
-                                detectTapGestures {
-                                    keyboardController?.hide()
-                                    focusManager.clearFocus(force = true)
-                                    viewModel.deselectText()
+                                awaitEachGesture {
+                                    val down = awaitFirstDown()
+                                    val up = waitForUpOrCancellation()
+                                    // A tap inside a text box never deselects it.
+                                    if (up != null && TextBoxTouch.downUptime != down.uptimeMillis) {
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus(force = true)
+                                        viewModel.deselectText()
+                                    }
                                 }
                             }
                         } else Modifier
@@ -1858,6 +1864,38 @@ Column(
                         .background(BrandPageSurface)
                         .padding(20.dp)
                 ) {
+                // Slider panels sit above the pages (pages shift down, not hidden).
+                val panelText = viewModel.activeTextElement()
+                if (textBorderSliderOpen && panelText != null && !toolMenuOpen) {
+                    TextBorderSliderPanel(
+                        widthDp = panelText.borderWidthDp,
+                        onWidthChange = { viewModel.updateTextBorderWidth(it) },
+                        onDone = {
+                            viewModel.endCoalescedEdit()
+                            textBorderSliderOpen = false
+                        }
+                    )
+                }
+                if (textBgSliderOpen && panelText != null && !toolMenuOpen) {
+                    TextBgSliderPanel(
+                        cornerDp = panelText.bgCornerDp,
+                        alpha = panelText.bgAlpha,
+                        onCornerChange = { viewModel.updateTextBgStyle(cornerDp = it) },
+                        onAlphaChange = { viewModel.updateTextBgStyle(alpha = it) },
+                        padLeft = panelText.bgPadLeftDp,
+                        padRight = panelText.bgPadRightDp,
+                        padTop = panelText.bgPadTopDp,
+                        padBottom = panelText.bgPadBottomDp,
+                        onPadLeftChange = { viewModel.updateTextBgPadding(left = it) },
+                        onPadRightChange = { viewModel.updateTextBgPadding(right = it) },
+                        onPadTopChange = { viewModel.updateTextBgPadding(top = it) },
+                        onPadBottomChange = { viewModel.updateTextBgPadding(bottom = it) },
+                        onDone = {
+                            viewModel.endCoalescedEdit()
+                            textBgSliderOpen = false
+                        }
+                    )
+                }
                 PdfPagesPreview(
                     images = viewModel.importedImages,
                     imagesPerRow = viewModel.imagesPerRow,
@@ -2108,31 +2146,7 @@ Column(
                     modifier = Modifier.fillMaxWidth()
                 )
                 }
-                val panelText = viewModel.activeTextElement()
-                if (textBorderSliderOpen && panelText != null && !toolMenuOpen) {
-                    TextBorderSliderPanel(
-                        widthDp = panelText.borderWidthDp,
-                        onWidthChange = { viewModel.updateTextBorderWidth(it) },
-                        onDone = {
-                            viewModel.endCoalescedEdit()
-                            textBorderSliderOpen = false
-                        },
-                        modifier = Modifier.align(Alignment.TopCenter)
-                    )
-                }
-                if (textBgSliderOpen && panelText != null && !toolMenuOpen) {
-                    TextBgSliderPanel(
-                        cornerDp = panelText.bgCornerDp,
-                        alpha = panelText.bgAlpha,
-                        onCornerChange = { viewModel.updateTextBgStyle(cornerDp = it) },
-                        onAlphaChange = { viewModel.updateTextBgStyle(alpha = it) },
-                        onDone = {
-                            viewModel.endCoalescedEdit()
-                            textBgSliderOpen = false
-                        },
-                        modifier = Modifier.align(Alignment.TopCenter)
-                    )
-                }
+                // (old overlay slider panels moved into the Column above)
                 if (toolMenuOpen) {
                     Box(
                         modifier = Modifier

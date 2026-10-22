@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
@@ -606,6 +607,12 @@ fun PdfPagesPreview(
 
 }
 
+/** Uptime of the last finger-down that landed inside a text box (or its handles). */
+internal object TextBoxTouch {
+    @JvmField
+    var downUptime: Long = -1L
+}
+
 /** Per character color: whole-box color first, then ranges on top. */
 private fun charColorsFor(len: Int, whole: Long?, ranges: List<ColorRange>): Array<Long?> {
     val out = arrayOfNulls<Long>(len)
@@ -625,27 +632,42 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
     layout: androidx.compose.ui.text.TextLayoutResult,
     bg: Array<Long?>,
     radiusPx: Float,
-    alpha: Float
+    alpha: Float,
+    padLeftPx: Float = 0f,
+    padTopPx: Float = 0f,
+    padRightPx: Float = 0f,
+    padBottomPx: Float = 0f
 ) {
-    val len = minOf(bg.size, layout.layoutInput.text.length)
+    val txt = layout.layoutInput.text.text
+    val len = minOf(bg.size, txt.length)
     for (line in 0 until layout.lineCount) {
-        val ls = layout.getLineStart(line)
-        val le = minOf(layout.getLineEnd(line, visibleEnd = true), len)
-        val top = layout.getLineTop(line)
-        val bottom = layout.getLineBottom(line)
+        // Each line gets its own background, trimmed to its visible characters.
+        var ls = layout.getLineStart(line).coerceIn(0, len)
+        var le = minOf(layout.getLineEnd(line, visibleEnd = true), len)
+        while (ls < le && txt[ls].isWhitespace()) ls++
+        while (le > ls && txt[le - 1].isWhitespace()) le--
+        val top = layout.getLineTop(line) - padTopPx
+        val bottom = layout.getLineBottom(line) + padBottomPx
         var i = ls
         while (i < le) {
             val c = bg[i]
-            if (c == null) {
+            if (c == null || txt[i].isWhitespace()) {
                 i++
                 continue
             }
             var j = i + 1
             while (j < le && bg[j] == c) j++
-            val a = layout.getBoundingBox(i)
-            val z = layout.getBoundingBox(j - 1)
-            val left = minOf(a.left, z.left)
-            val right = maxOf(a.right, z.right)
+            var k = j
+            while (k > i + 1 && txt[k - 1].isWhitespace()) k--
+            var left = Float.MAX_VALUE
+            var right = -Float.MAX_VALUE
+            for (q in i until k) {
+                val bb = layout.getBoundingBox(q)
+                if (bb.left < left) left = bb.left
+                if (bb.right > right) right = bb.right
+            }
+            left -= padLeftPx
+            right += padRightPx
             val h = bottom - top
             val r = radiusPx.coerceIn(0f, h / 2f)
             val col = Color(c)
@@ -885,8 +907,11 @@ private fun PageTextOverlay(
                                 val event = awaitPointerEvent(PointerEventPass.Final)
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                 if (!change.pressed) {
-                                    focusManager.clearFocus(force = true)
-                                    onDeselect()
+                                    // Only a tap outside every text box border deselects.
+                                    if (TextBoxTouch.downUptime != down.uptimeMillis) {
+                                        focusManager.clearFocus(force = true)
+                                        onDeselect()
+                                    }
                                     break
                                 }
                             }
@@ -914,6 +939,7 @@ private fun PageTextOverlay(
                 }
             }
             val focusRequester = remember { FocusRequester() }
+            val tapKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
             val density = LocalDensity.current
             val fontPx = with(density) { textElement.fontSizeSp.sp.toPx() }
             val measurePaint = remember(fontPx) {
@@ -1045,6 +1071,7 @@ private fun PageTextOverlay(
                         val slop = viewConfiguration.touchSlop
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
+                            TextBoxTouch.downUptime = down.uptimeMillis
                             var dragging = false
                             var pinching = false
                             var xf = xFracState.value
@@ -1135,7 +1162,8 @@ private fun PageTextOverlay(
                         .width(boxWidthDp)
                         .then(
                             if (textElement.boxHeightFrac > 0.01f) {
-                                Modifier.height(boxHeightDp).clipToBounds()
+                                // Manual size is the minimum; long text grows the box (never clipped).
+                                Modifier.heightIn(min = boxHeightDp)
                             } else {
                                 Modifier
                             }
@@ -1204,7 +1232,11 @@ private fun PageTextOverlay(
                                     lay,
                                     bgChars,
                                     textElement.bgCornerDp.dp.toPx(),
-                                    textElement.bgAlpha
+                                    textElement.bgAlpha,
+                                    textElement.bgPadLeftDp.dp.toPx(),
+                                    textElement.bgPadTopDp.dp.toPx(),
+                                    textElement.bgPadRightDp.dp.toPx(),
+                                    textElement.bgPadBottomDp.dp.toPx()
                                 )
                             }
                             val bLay = borderLayout
@@ -1228,9 +1260,18 @@ private fun PageTextOverlay(
                             .matchParentSize()
                             .pointerInput(textElement.id) {
                                 detectTapGestures(
-                                    onTap = {
+                                    onTap = { tapPos ->
                                         if (selectedNow.value) {
+                                            // Cursor goes to the character under the finger.
+                                            val lay = textLayout
+                                            if (lay != null) {
+                                                val off = lay.getOffsetForPosition(tapPos)
+                                                    .coerceIn(0, fieldValue.text.length)
+                                                fieldValue = fieldValue.copy(selection = TextRange(off))
+                                                onTextValueChange(textElement.id, fieldValue.text, TextRange(off))
+                                            }
                                             focusRequester.requestFocus()
+                                            tapKeyboard?.show()
                                         } else {
                                             focusManager.clearFocus(force = true)
                                             onTextSelect(textElement.id)
@@ -1297,7 +1338,7 @@ private fun PageTextOverlay(
                         }
                         val pad = with(density) { 8.dp.toPx() }
                         liveH[0] = if (heightFracState.value > 0.01f) {
-                            heightFracState.value * pageH
+                            maxOf(heightFracState.value * pageH, rowMeasured.height.toFloat() - pad)
                         } else {
                             (rowMeasured.height.toFloat() - pad).coerceAtLeast(with(density) { 20.dp.toPx() })
                         }
@@ -2576,6 +2617,7 @@ private fun TextHandle(
                         pass = PointerEventPass.Initial
                     )
                     down.consume()
+                    TextBoxTouch.downUptime = down.uptimeMillis
                     onDragStart()
                     val slop = viewConfiguration.touchSlop
                     var moved = false

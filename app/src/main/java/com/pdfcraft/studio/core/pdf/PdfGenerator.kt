@@ -452,11 +452,8 @@ object PdfGenerator {
                     1e20f
                 }
                 val lines = wrapTextLines(fullText, textPaint, wrapW)
-                val boxBottom = if (te.boxHeightFrac > 0.01f) {
-                    te.yFraction * thisPageHeight + te.boxHeightFrac * thisPageHeight + lineH * 0.45f
-                } else {
-                    1e20f
-                }
+                // Box grows with its content: never cut lines off at the set height.
+                val boxBottom = 1e20f
 
                 val bgPaint = Paint(textPaint).apply { style = Paint.Style.FILL }
                 val scale = pageWidth / 360f
@@ -480,6 +477,11 @@ object PdfGenerator {
                     val lineEnd = range.last + 1
                     val lineStr = fullText.substring(range.first, lineEnd)
                     val lineW = textPaint.measureText(lineStr)
+                    // Background skips leading/trailing spaces of each line.
+                    var lineTs = range.first
+                    while (lineTs < lineEnd && fullText[lineTs].isWhitespace()) lineTs++
+                    var lineTe = lineEnd
+                    while (lineTe > lineTs && fullText[lineTe - 1].isWhitespace()) lineTe--
                     val minBox = textPaint.measureText("000000000000000")
                     val longestW = lines.maxOf { lr ->
                         textPaint.measureText(fullText.substring(lr.first, lr.last + 1))
@@ -516,10 +518,26 @@ object PdfGenerator {
                             bgPaint.color = cBg.toInt()
                             bgPaint.alpha = (((cBg shr 24) and 0xFFL).toFloat() * te.bgAlpha.coerceIn(0f, 1f))
                                 .toInt().coerceIn(0, 255)
-                            val top = y - textPaint.textSize * 0.85f
-                            val bottom = y + textPaint.textSize * 0.2f
-                            val bgR = (te.bgCornerDp * scale).coerceIn(0f, (bottom - top) / 2f)
-                            canvas.drawRoundRect(x, top, x + w, bottom, bgR, bgR, bgPaint)
+                            var s0 = maxOf(i, lineTs)
+                            var e0 = minOf(j, lineTe)
+                            while (s0 < e0 && fullText[s0].isWhitespace()) s0++
+                            while (e0 > s0 && fullText[e0 - 1].isWhitespace()) e0--
+                            if (s0 < e0) {
+                                val bx0 = x + textPaint.measureText(fullText, i, s0)
+                                val bx1 = bx0 + textPaint.measureText(fullText, s0, e0)
+                                val top = y - textPaint.textSize * 0.85f - te.bgPadTopDp * scale
+                                val bottom = y + textPaint.textSize * 0.2f + te.bgPadBottomDp * scale
+                                val bgR = (te.bgCornerDp * scale).coerceIn(0f, (bottom - top) / 2f)
+                                canvas.drawRoundRect(
+                                    bx0 - te.bgPadLeftDp * scale,
+                                    top,
+                                    bx1 + te.bgPadRightDp * scale,
+                                    bottom,
+                                    bgR,
+                                    bgR,
+                                    bgPaint
+                                )
+                            }
                         }
                         textPaint.color = cFg.toInt()
                         val italic = isI[i] || isQ[i]
