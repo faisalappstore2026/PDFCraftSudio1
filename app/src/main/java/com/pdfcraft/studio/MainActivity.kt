@@ -16,7 +16,9 @@ import com.pdfcraft.studio.core.update.VersionCheckRepository
 import com.pdfcraft.studio.core.update.VersionStatus
 import com.pdfcraft.studio.ui.update.UpdateRequiredScreen
 import com.pdfcraft.studio.ui.update.VersionCheckLoading
-import com.pdfcraft.studio.ui.update.openPlayStore
+import com.pdfcraft.studio.ui.update.openUpdateUrl
+import com.pdfcraft.studio.core.update.VersionPolicy
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import com.pdfcraft.studio.navigation.PdfCraftNavGraph
 import com.pdfcraft.studio.ui.theme.PDFCraftStudioTheme
@@ -27,6 +29,8 @@ class MainActivity : ComponentActivity() {
 
     // null = checking; gate only on a real UPDATE_REQUIRED decision
     private var versionStatus by mutableStateOf<VersionStatus?>(null)
+    private var updatePolicy by mutableStateOf<VersionPolicy?>(null)
+    private var checkJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,8 +43,9 @@ class MainActivity : ComponentActivity() {
                     when (versionStatus) {
                         null -> VersionCheckLoading()
                         VersionStatus.UPDATE_REQUIRED -> UpdateRequiredScreen(
-                            onUpdateNow = { openPlayStore(this@MainActivity) },
-                            onRetry = { runVersionCheck() }
+                            onUpdateNow = { openUpdateUrl(this@MainActivity, updatePolicy?.updateUrl) },
+                            onRetry = { runVersionCheck() },
+                            message = updatePolicy?.updateMessage
                         )
                         else -> PdfCraftNavGraph(openPdfUri = openPdfUri)
                     }
@@ -50,9 +55,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun runVersionCheck() {
+        if (checkJob?.isActive == true) return
         versionStatus = null
-        lifecycleScope.launch {
-            versionStatus = VersionCheckRepository(applicationContext).check()
+        checkJob = lifecycleScope.launch {
+            val result = VersionCheckRepository(applicationContext).checkWithPolicy()
+            updatePolicy = result.policy
+            versionStatus = result.status
         }
     }
 

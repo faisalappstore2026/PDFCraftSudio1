@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -71,6 +72,10 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
+
+    // Firebase (Step 2: Remote Config version policy)
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-config")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

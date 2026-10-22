@@ -49,4 +49,50 @@ class VersionPolicyTest {
         val out = VersionDecision.decide(1L, PolicyFetchResult.NotConfigured, null, now)
         assertEquals(VersionStatus.SUPPORTED, out.status)
     }
+
+    @Test fun remote_validValues_success_withMessageAndUrl() {
+        val r = RemotePolicyParser.parse(2L, 3L, "1.1.0", " Please update ", "https://play.google.com/store/apps/details?id=com.pdfcraft.studio", now)
+        assertTrue(r is PolicyFetchResult.Success)
+        val p = (r as PolicyFetchResult.Success).policy
+        assertEquals(2L, p.minimumSupportedVersionCode)
+        assertEquals("Please update", p.updateMessage)
+        assertEquals("https://play.google.com/store/apps/details?id=com.pdfcraft.studio", p.updateUrl)
+        assertEquals(VersionStatus.UPDATE_REQUIRED, VersionDecision.decide(1L, r, null, now).status)
+        assertEquals(VersionStatus.SUPPORTED, VersionDecision.decide(2L, r, null, now).status)
+    }
+
+    @Test fun remote_missingOrZero_isInvalid() {
+        assertTrue(RemotePolicyParser.parse(0L, 0L, "", "", "", now) is PolicyFetchResult.Invalid)
+        assertTrue(RemotePolicyParser.parse(-1L, 3L, "", "", "", now) is PolicyFetchResult.Invalid)
+        assertTrue(RemotePolicyParser.parse(2L, 0L, "", "", "", now) is PolicyFetchResult.Invalid)
+    }
+
+    @Test fun remote_latestBelowMin_isInvalid_andAllowed() {
+        val r = RemotePolicyParser.parse(5L, 2L, "", "", "", now)
+        assertTrue(r is PolicyFetchResult.Invalid)
+        assertEquals(VersionStatus.SUPPORTED, VersionDecision.decide(1L, r, null, now).status)
+    }
+
+    @Test fun remote_badUrl_isDropped_policyStillValid() {
+        val r = RemotePolicyParser.parse(2L, 2L, "", "", "https://evil.example.com/app.apk", now)
+        assertEquals("", (r as PolicyFetchResult.Success).policy.updateUrl)
+    }
+
+    @Test fun updateUrl_validation() {
+        assertTrue(isAllowedUpdateUrl("https://play.google.com/store/apps/details?id=com.pdfcraft.studio"))
+        assertTrue(isAllowedUpdateUrl("market://details?id=com.pdfcraft.studio"))
+        assertFalse(isAllowedUpdateUrl(""))
+        assertFalse(isAllowedUpdateUrl(null))
+        assertFalse(isAllowedUpdateUrl("http://play.google.com/store/apps/details?id=x"))
+        assertFalse(isAllowedUpdateUrl("https://play.google.com.evil.com/x"))
+        assertFalse(isAllowedUpdateUrl("https://user@play.google.com/x"))
+        assertFalse(isAllowedUpdateUrl("javascript:alert(1)"))
+        assertFalse(isAllowedUpdateUrl("https://example.com/update.apk"))
+    }
+
+    @Test fun networkError_noCache_allowed() {
+        val out = VersionDecision.decide(1L, PolicyFetchResult.NetworkError, null, now)
+        assertEquals(VersionStatus.SUPPORTED, out.status)
+        assertNull(out.usedPolicy)
+    }
 }

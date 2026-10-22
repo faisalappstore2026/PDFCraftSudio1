@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pdfcraft.studio.R
+import com.pdfcraft.studio.core.update.isAllowedUpdateUrl
 
 @Composable
 fun VersionCheckLoading() {
@@ -36,7 +37,9 @@ fun VersionCheckLoading() {
 @Composable
 fun UpdateRequiredScreen(
     onUpdateNow: () -> Unit,
-    onRetry: (() -> Unit)? = null
+    onRetry: (() -> Unit)? = null,
+    message: String? = null,
+    retryEnabled: Boolean = true
 ) {
     Column(
         modifier = Modifier
@@ -52,7 +55,8 @@ fun UpdateRequiredScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = stringResource(R.string.update_required_message),
+            text = message?.takeIf { it.isNotBlank() }
+                ?: stringResource(R.string.update_required_message),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center
         )
@@ -62,7 +66,11 @@ fun UpdateRequiredScreen(
         }
         if (onRetry != null) {
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = onRetry,
+                enabled = retryEnabled,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(stringResource(R.string.update_retry))
             }
         }
@@ -87,4 +95,24 @@ fun openPlayStore(context: Context) {
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, R.string.update_store_unavailable, Toast.LENGTH_LONG).show()
     }
+}
+
+/**
+ * Opens a remote update URL only if it is an official store link
+ * (https://play.google.com or market://). Otherwise uses openPlayStore.
+ */
+fun openUpdateUrl(context: Context, url: String?) {
+    if (url != null && isAllowedUpdateUrl(url)) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url.trim()))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(intent)
+            return
+        } catch (e: ActivityNotFoundException) {
+            // fall through to the standard store logic
+        } catch (e: SecurityException) {
+            // fall through to the standard store logic
+        }
+    }
+    openPlayStore(context)
 }
