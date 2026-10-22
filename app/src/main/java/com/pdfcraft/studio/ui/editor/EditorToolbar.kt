@@ -95,6 +95,7 @@ fun EditorToolbar(
     onNeedHint: (String) -> Unit = {},
     onTextColorClick: () -> Unit = {},
     onTextBgColorClick: () -> Unit = {},
+    onTextBorderColorClick: () -> Unit = {},
     onTextShadowClick: () -> Unit = {},
     onPinTextSelection: () -> Unit = {},
     textSizeSp: Float = 16f,
@@ -453,6 +454,7 @@ fun EditorToolbar(
                         onFontClick = onFontClick,
                         onTextColorClick = onTextColorClick,
                         onTextBgColorClick = onTextBgColorClick,
+                        onTextBorderColorClick = onTextBorderColorClick,
                         onTextShadowClick = onTextShadowClick,
                         onTextSizeClick = {
                             if (hasFocusedText) textSizeModeActive = true
@@ -1101,6 +1103,7 @@ private fun TextToolsMenu(
     onTextColorClick: () -> Unit,
     onTextBgColorClick: () -> Unit,
     onTextShadowClick: () -> Unit,
+    onTextBorderColorClick: () -> Unit = {},
     onDeleteTextClick: () -> Unit,
     onInsertLinkClick: () -> Unit = {},
     onBulletListClick: () -> Unit = {},
@@ -1144,7 +1147,7 @@ private fun TextToolsMenu(
             }
             HorizontalDivider(color = Color.LightGray)
             ToolMenuItem(stringResource(R.string.text_tool_font)) {
-                if (!hasTextRangeSelection) onNeedHint(hintText) else {
+                if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onFontClick()
                 }
@@ -1158,21 +1161,28 @@ private fun TextToolsMenu(
             }
             HorizontalDivider(color = Color.LightGray)
             ToolMenuItem(stringResource(R.string.text_tool_text_color)) {
-                if (!hasTextRangeSelection) onNeedHint(hintText) else {
+                if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onTextColorClick()
                 }
             }
             HorizontalDivider(color = Color.LightGray)
+            ToolMenuItem(stringResource(R.string.text_tool_border_color)) {
+                if (!hasSelectedText) onNeedHint(hintBox) else {
+                    onMenuDismiss()
+                    onTextBorderColorClick()
+                }
+            }
+            HorizontalDivider(color = Color.LightGray)
             ToolMenuItem(stringResource(R.string.text_tool_bg_color)) {
-                if (!hasTextRangeSelection) onNeedHint(hintText) else {
+                if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onTextBgColorClick()
                 }
             }
             HorizontalDivider(color = Color.LightGray)
             ToolMenuItem(stringResource(R.string.text_tool_shadow)) {
-                if (!hasTextRangeSelection) onNeedHint(hintText) else {
+                if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onTextShadowClick()
                 }
@@ -1200,7 +1210,7 @@ private fun TextToolsMenu(
             }
             HorizontalDivider(color = Color.LightGray)
             ToolMenuItem(stringResource(R.string.text_tool_insert_link)) {
-                if (!hasTextRangeSelection) onNeedHint(hintText) else {
+                if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onInsertLinkClick()
                 }

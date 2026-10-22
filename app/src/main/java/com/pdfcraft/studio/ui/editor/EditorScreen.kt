@@ -58,6 +58,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
@@ -292,6 +295,9 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     var showTextColorPicker by remember { mutableStateOf(false) }
     var showTextBgColorPicker by remember { mutableStateOf(false) }
     var showTextShadowPanel by remember { mutableStateOf(false) }
+    var showTextBorderPicker by remember { mutableStateOf(false) }
+    var textBorderSliderOpen by remember { mutableStateOf(false) }
+    var textBgSliderOpen by remember { mutableStateOf(false) }
     var showFontTools by remember { mutableStateOf(false) }
     var showTextLinkDialog by remember { mutableStateOf(false) }
     var showAdvancedBgEditor by remember { mutableStateOf(false) }
@@ -1429,9 +1435,23 @@ if (showFontTools) {
             onConfirm = {
                 viewModel.updateSelectedTextBgColor(it)
                 showTextBgColorPicker = false
+                textBorderSliderOpen = false
+                textBgSliderOpen = true
             },
             onDismiss = { showTextBgColorPicker = false },
             previewAsBackground = true
+        )
+    }
+    if (showTextBorderPicker) {
+        ColorPickerDialog(
+            initialColor = viewModel.selectedTextBorderColorArgb(),
+            onConfirm = {
+                viewModel.updateSelectedTextBorder(it)
+                showTextBorderPicker = false
+                textBgSliderOpen = false
+                textBorderSliderOpen = true
+            },
+            onDismiss = { showTextBorderPicker = false }
         )
     }
     if (showTextShadowPanel) {
@@ -1584,14 +1604,14 @@ Column(
                 onAddTextClick =
                     viewModel::enterAddTextMode,
                 onFontClick = {
-                    if (!viewModel.selectionForEdit().collapsed &&
+                    if ( // whole box when no range is selected
                         (viewModel.selectedTextId != null || viewModel.focusedTextId != null)
                     ) showFontTools = true
                     else textLinkHint = true
                 },
                 onInsertLinkClick = {
                     val sel = viewModel.selectionForEdit()
-                    if (sel.collapsed || (viewModel.selectedTextId == null && viewModel.focusedTextId == null && viewModel.pinnedTextId == null)) {
+                    if (sel.end < 0 || (viewModel.selectedTextId == null && viewModel.focusedTextId == null && viewModel.pinnedTextId == null)) {
                         textLinkHint = true
                     } else {
                         textLinkUrl = ""
@@ -1604,31 +1624,39 @@ Column(
                 onDividerClick = { viewModel.applyDividerToSelection() },
                 hasTextRangeSelection = if (
                     toolMenuOpen || showFontTools || showTextColorPicker ||
-                    showTextBgColorPicker || showTextShadowPanel || showTextLinkDialog
+                    showTextBgColorPicker || showTextShadowPanel || showTextLinkDialog ||
+                    showTextBorderPicker
                 ) viewModel.hasTextRangeForEdit() else viewModel.hasLiveTextRange(),
                 onDeleteTextClick =
                     viewModel::deleteSelectedText,
                 hasSelectedText =
                     viewModel.selectedTextId != null || viewModel.focusedTextId != null,
-                hasFocusedText = viewModel.focusedTextId != null,
+                hasFocusedText = viewModel.focusedTextId != null || viewModel.selectedTextId != null,
                 onNeedHint = { msg ->
                     coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
                 },
                 currentTextAlign = viewModel.activeTextAlign(),
                 onTextAlignSelected = viewModel::updateSelectedTextAlign,
                 onTextColorClick = {
-                    if (!viewModel.selectionForEdit().collapsed &&
+                    if ( // whole box when no range is selected
                         (viewModel.selectedTextId != null || viewModel.focusedTextId != null)
                     ) showTextColorPicker = true else textLinkHint = true
                 },
                 onTextBgColorClick = {
-                    if (!viewModel.selectionForEdit().collapsed &&
+                    if ( // whole box when no range is selected
                         (viewModel.selectedTextId != null || viewModel.focusedTextId != null)
                     ) showTextBgColorPicker = true else textLinkHint = true
                 },
                 onPinTextSelection = { viewModel.pinTextSelectionIfAny() },
+                onTextBorderColorClick = {
+                    if (viewModel.selectedTextId != null || viewModel.focusedTextId != null) {
+                        showTextBorderPicker = true
+                    } else {
+                        textLinkHint = true
+                    }
+                },
                 onTextShadowClick = {
-                    if (!viewModel.selectionForEdit().collapsed &&
+                    if ( // whole box when no range is selected
                         (viewModel.selectedTextId != null || viewModel.focusedTextId != null)
                     ) showTextShadowPanel = true else textLinkHint = true
                 },
@@ -1776,7 +1804,8 @@ Column(
 
             val systemTextToolbar = LocalTextToolbar.current
             val hideSystemTextMenu = toolMenuOpen || showFontTools || showTextColorPicker ||
-                showTextBgColorPicker || showTextShadowPanel || showTextLinkDialog
+                showTextBgColorPicker || showTextShadowPanel || showTextLinkDialog ||
+                showTextBorderPicker
             LaunchedEffect(hideSystemTextMenu) {
                 if (hideSystemTextMenu) systemTextToolbar.hide()
             }
@@ -1785,7 +1814,25 @@ Column(
             }
             val focusManager = LocalFocusManager.current
             val keyboardController = LocalSoftwareKeyboardController.current
+            // Dropdown menus are popups above the app window and can cover the keyboard.
+            // Never show both: keyboard opening closes menus; a menu opening hides the keyboard.
+            val imeShowing = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+            LaunchedEffect(imeShowing) {
+                if (imeShowing && toolMenuOpen) {
+                    closeMenusSignal++
+                    toolMenuOpen = false
+                }
+            }
+            LaunchedEffect(toolMenuOpen) {
+                if (toolMenuOpen) keyboardController?.hide()
+            }
             val textBoxActive = viewModel.focusedTextId != null || viewModel.selectedTextId != null
+            LaunchedEffect(textBoxActive) {
+                if (!textBoxActive) {
+                    textBorderSliderOpen = false
+                    textBgSliderOpen = false
+                }
+            }
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -2060,6 +2107,31 @@ Column(
 
                     modifier = Modifier.fillMaxWidth()
                 )
+                }
+                val panelText = viewModel.activeTextElement()
+                if (textBorderSliderOpen && panelText != null && !toolMenuOpen) {
+                    TextBorderSliderPanel(
+                        widthDp = panelText.borderWidthDp,
+                        onWidthChange = { viewModel.updateTextBorderWidth(it) },
+                        onDone = {
+                            viewModel.endCoalescedEdit()
+                            textBorderSliderOpen = false
+                        },
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
+                if (textBgSliderOpen && panelText != null && !toolMenuOpen) {
+                    TextBgSliderPanel(
+                        cornerDp = panelText.bgCornerDp,
+                        alpha = panelText.bgAlpha,
+                        onCornerChange = { viewModel.updateTextBgStyle(cornerDp = it) },
+                        onAlphaChange = { viewModel.updateTextBgStyle(alpha = it) },
+                        onDone = {
+                            viewModel.endCoalescedEdit()
+                            textBgSliderOpen = false
+                        },
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
                 }
                 if (toolMenuOpen) {
                     Box(

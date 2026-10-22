@@ -317,7 +317,14 @@ data class TextElement(
     val rotationDeg: Float = 0f,
     /** 0 = size follows the text. Otherwise a fraction of the page. */
     val boxWidthFrac: Float = 0f,
-    val boxHeightFrac: Float = 0f
+    val boxHeightFrac: Float = 0f,
+    /** Text outline (stroke). Whole box color, or per range. Width in dp. */
+    val borderColorArgb: Long? = null,
+    val borderRanges: List<ColorRange> = emptyList(),
+    val borderWidthDp: Float = 2f,
+    /** Background corner radius (dp) and opacity (0..1) for this box. */
+    val bgCornerDp: Float = 0f,
+    val bgAlpha: Float = 1f
 )
 
 private fun adjustRangesForEdit(
@@ -1300,6 +1307,12 @@ private fun beginCoalescedEdit(key: String = "edit") {
     }
 
     fun selectText(id: String) {
+        if (selectedTextId != id && focusedTextId != id) {
+            // New box: forget a text range left over from another box.
+            currentSelection = TextRange.Zero
+            pinnedTextId = null
+            pinnedSelection = TextRange.Zero
+        }
         selectedTextId = id
     }
 
@@ -1406,7 +1419,12 @@ private fun beginCoalescedEdit(key: String = "edit") {
                 fontRanges = adjustedFonts,
                 linkRanges = adjustedLinks,
                 bgColorRanges = adjustedBgColors,
-                shadowRanges = adjustedShadows
+                shadowRanges = adjustedShadows,
+                borderRanges = if (textChanged) {
+                    adjustColorRangesForEdit(current.text, newText, current.borderRanges)
+                } else {
+                    current.borderRanges
+                }
             )
             if (!newSelection.collapsed) {
                 currentSelection = newSelection
@@ -1435,13 +1453,19 @@ private fun beginCoalescedEdit(key: String = "edit") {
         textElements[index] = textElements[index].copy(fontSizeSp = sizeSp.coerceIn(6f, 96f))
     }
 
-    fun setTextBoxSize(id: String, boxWidthFrac: Float, boxHeightFrac: Float) {
+    fun setTextBoxSize(id: String, boxWidthFrac: Float, boxHeightFrac: Float, fontSizeSp: Float) {
         beginCoalescedEdit("textBox")
         val index = textElements.indexOfFirst { it.id == id }
         if (index < 0) return
-        textElements[index] = textElements[index].copy(
+        val cur = textElements[index]
+        val newSp = fontSizeSp.coerceIn(6f, 96f)
+        val k = if (cur.fontSizeSp > 0.01f) newSp / cur.fontSizeSp else 1f
+        textElements[index] = cur.copy(
             boxWidthFrac = boxWidthFrac.coerceIn(0.02f, 1.8f),
-            boxHeightFrac = boxHeightFrac.coerceIn(0.02f, 1.8f)
+            boxHeightFrac = boxHeightFrac.coerceIn(0.02f, 1.8f),
+            fontSizeSp = newSp,
+            borderWidthDp = (cur.borderWidthDp * k).coerceIn(0.5f, 8f),
+            bgCornerDp = (cur.bgCornerDp * k).coerceIn(0f, 24f)
         )
     }
 
@@ -3808,7 +3832,8 @@ fun isSelectionStrike(): Boolean {
             bgColorRanges = mapCr(element.bgColorRanges),
             fontRanges = mapFr(element.fontRanges),
             linkRanges = mapLr(element.linkRanges),
-            shadowRanges = mapSr(element.shadowRanges)
+            shadowRanges = mapSr(element.shadowRanges),
+            borderRanges = mapCr(element.borderRanges)
         )
         currentSelection = TextRange(s, s + insertion.length)
         pinnedTextId = element.id
@@ -3896,9 +3921,10 @@ fun isSelectionStrike(): Boolean {
         if (index < 0) return false
         val element = textElements[index]
         val selection = selectionForEdit()
-        if (selection.collapsed) return false
-        val start = selection.min.coerceIn(0, element.text.length)
-        val end = selection.max.coerceIn(0, element.text.length)
+        // No range selected: the link covers the whole box text.
+        val wholeBox = selection.collapsed
+        val start = if (wholeBox) 0 else selection.min.coerceIn(0, element.text.length)
+        val end = if (wholeBox) element.text.length else selection.max.coerceIn(0, element.text.length)
         if (start >= end) return false
         val linkBlue = 0xFF1976D2L
         val newLinks = applyLinkRange(element.linkRanges, start, end, clean, element.text.length)
@@ -4016,7 +4042,70 @@ fun isSelectionStrike(): Boolean {
             textElements[index] = cur.copy(
                 shadowRanges = applyShadowRange(cur.shadowRanges, start, end, color, ox, oy, blur, cur.text.length)
             )
+        } else {
+            // No range selected: shadow for the whole box text.
+            textElements[index] = cur.copy(
+                shadowColorArgb = color,
+                shadowOffsetXPx = ox,
+                shadowOffsetYPx = oy,
+                shadowBlurPx = blur,
+                shadowRanges = emptyList()
+            )
         }
+    }
+
+    fun updateSelectedTextBorder(colorArgb: Long) {
+        beginCoalescedEdit("textBorder")
+        val index = activeTextIndex()
+        if (index < 0) return
+        val element = textElements[index]
+        val selection = selectionForEdit()
+        val start = selection.min.coerceIn(0, element.text.length)
+        val end = selection.max.coerceIn(0, element.text.length)
+        if (!selection.collapsed && start < end) {
+            textElements[index] = element.copy(
+                borderRanges = applyColorRange(element.borderRanges, start, end, colorArgb, element.text.length)
+            )
+        } else {
+            textElements[index] = element.copy(borderColorArgb = colorArgb, borderRanges = emptyList())
+        }
+    }
+
+    fun updateTextBorderWidth(widthDp: Float) {
+        beginCoalescedEdit("textBorderWidth")
+        val index = activeTextIndex()
+        if (index < 0) return
+        textElements[index] = textElements[index].copy(borderWidthDp = widthDp.coerceIn(0.5f, 8f))
+    }
+
+    fun updateTextBgStyle(cornerDp: Float? = null, alpha: Float? = null) {
+        beginCoalescedEdit("textBgStyle")
+        val index = activeTextIndex()
+        if (index < 0) return
+        val cur = textElements[index]
+        textElements[index] = cur.copy(
+            bgCornerDp = (cornerDp ?: cur.bgCornerDp).coerceIn(0f, 24f),
+            bgAlpha = (alpha ?: cur.bgAlpha).coerceIn(0.05f, 1f)
+        )
+    }
+
+    fun selectedTextBorderColorArgb(): Long {
+        val index = activeTextIndex()
+        if (index < 0) return 0xFF000000L
+        val element = textElements[index]
+        val selection = selectionForEdit()
+        if (!selection.collapsed) {
+            val start = selection.min.coerceIn(0, element.text.length)
+            val end = selection.max.coerceIn(0, element.text.length)
+            if (start < end) {
+                val inSel = element.borderRanges
+                    .filter { it.range.first < end && it.range.last + 1 > start }
+                    .map { it.colorArgb }
+                    .distinct()
+                if (inSel.size == 1) return inSel[0]
+            }
+        }
+        return element.borderColorArgb ?: 0xFF000000L
     }
 
     fun activeTextElement(): TextElement? {

@@ -117,6 +117,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -208,7 +209,7 @@ fun PdfPagesPreview(
     onDeselectText: () -> Unit = {},
     onTextRotate: (String, Float) -> Unit = { _, _ -> },
     onTextScale: (String, Float) -> Unit = { _, _ -> },
-    onTextBoxResize: (String, Float, Float) -> Unit = { _, _, _ -> },
+    onTextBoxResize: (String, Float, Float, Float) -> Unit = { _, _, _, _ -> },
     onImageClick: (String) -> Unit = {},
     onImageLongPress: (String) -> Unit = {},
     onChangePosition: (String) -> Unit = {},
@@ -605,6 +606,102 @@ fun PdfPagesPreview(
 
 }
 
+/** Per character color: whole-box color first, then ranges on top. */
+private fun charColorsFor(len: Int, whole: Long?, ranges: List<ColorRange>): Array<Long?> {
+    val out = arrayOfNulls<Long>(len)
+    if (whole != null) {
+        for (k in 0 until len) out[k] = whole
+    }
+    ranges.forEach { cr ->
+        val s = cr.range.first.coerceIn(0, len)
+        val e = (cr.range.last + 1).coerceIn(0, len)
+        for (k in s until e) out[k] = cr.colorArgb
+    }
+    return out
+}
+
+/** Text background as rounded rects per line run, with box opacity. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds(
+    layout: androidx.compose.ui.text.TextLayoutResult,
+    bg: Array<Long?>,
+    radiusPx: Float,
+    alpha: Float
+) {
+    val len = minOf(bg.size, layout.layoutInput.text.length)
+    for (line in 0 until layout.lineCount) {
+        val ls = layout.getLineStart(line)
+        val le = minOf(layout.getLineEnd(line, visibleEnd = true), len)
+        val top = layout.getLineTop(line)
+        val bottom = layout.getLineBottom(line)
+        var i = ls
+        while (i < le) {
+            val c = bg[i]
+            if (c == null) {
+                i++
+                continue
+            }
+            var j = i + 1
+            while (j < le && bg[j] == c) j++
+            val a = layout.getBoundingBox(i)
+            val z = layout.getBoundingBox(j - 1)
+            val left = minOf(a.left, z.left)
+            val right = maxOf(a.right, z.right)
+            val h = bottom - top
+            val r = radiusPx.coerceIn(0f, h / 2f)
+            val col = Color(c)
+            drawRoundRect(
+                color = col.copy(alpha = (col.alpha * alpha).coerceIn(0f, 1f)),
+                topLeft = Offset(left, top),
+                size = androidx.compose.ui.geometry.Size(right - left, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r)
+            )
+            i = j
+        }
+    }
+}
+
+/** Same text and spans, glyph fill hidden, outline (stroke) on bordered characters. */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+private fun buildBorderText(base: AnnotatedString, border: Array<Long?>, strokePx: Float): AnnotatedString {
+    val b = AnnotatedString.Builder(base)
+    val len = minOf(base.text.length, border.size)
+    if (base.text.isNotEmpty()) {
+        b.addStyle(
+            SpanStyle(
+                color = Color.Transparent,
+                background = Color.Transparent,
+                shadow = Shadow.None,
+                textDecoration = TextDecoration.None
+            ),
+            0,
+            base.text.length
+        )
+    }
+    var i = 0
+    while (i < len) {
+        val c = border[i]
+        if (c == null) {
+            i++
+            continue
+        }
+        var j = i + 1
+        while (j < len && border[j] == c) j++
+        b.addStyle(
+            SpanStyle(
+                color = Color(c),
+                drawStyle = Stroke(
+                    width = strokePx,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round
+                )
+            ),
+            i,
+            j
+        )
+        i = j
+    }
+    return b.toAnnotatedString()
+}
+
 private class TextStyleRangesVisualTransformation(
     private val boldRanges: List<IntRange>,
     private val italicRanges: List<IntRange>,
@@ -754,7 +851,7 @@ private fun PageTextOverlay(
     onDeselect: () -> Unit,
     onTextRotate: (String, Float) -> Unit = { _, _ -> },
     onTextScale: (String, Float) -> Unit = { _, _ -> },
-    onTextBoxResize: (String, Float, Float) -> Unit = { _, _, _ -> }
+    onTextBoxResize: (String, Float, Float, Float) -> Unit = { _, _, _, _ -> }
 ) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
     val focusManager = LocalFocusManager.current
@@ -864,6 +961,41 @@ private fun PageTextOverlay(
             var rawRot by remember(textElement.id) { mutableStateOf(0f) }
             var sizeHud by remember(textElement.id) { mutableStateOf(false) }
             var boxHud by remember(textElement.id) { mutableStateOf(false) }
+            // Edit mode = this field has focus (cursor + keyboard).
+            var editFocused by remember(textElement.id) { mutableStateOf(false) }
+            val selectedNow = rememberUpdatedState(selected)
+            var textLayout by remember(textElement.id) {
+                mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
+            }
+            val bgChars = charColorsFor(textElement.text.length, textElement.bgColorArgb, textElement.bgColorRanges)
+            val hasBg = bgChars.any { it != null }
+            val borderChars = charColorsFor(textElement.text.length, textElement.borderColorArgb, textElement.borderRanges)
+            val hasBorder = borderChars.any { it != null }
+            val borderMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val borderLayout = remember(
+                textLayout, hasBorder, textElement.text, textElement.borderColorArgb,
+                textElement.borderRanges, textElement.borderWidthDp
+            ) {
+                val lay = textLayout
+                if (!hasBorder || lay == null || lay.layoutInput.text.length != borderChars.size) {
+                    null
+                } else {
+                    val inp = lay.layoutInput
+                    val strokePx = with(density) { textElement.borderWidthDp.dp.toPx() }
+                    borderMeasurer.measure(
+                        text = buildBorderText(inp.text, borderChars, strokePx),
+                        style = inp.style.copy(shadow = null),
+                        overflow = inp.overflow,
+                        softWrap = inp.softWrap,
+                        maxLines = inp.maxLines,
+                        placeholders = inp.placeholders,
+                        constraints = inp.constraints,
+                        layoutDirection = inp.layoutDirection,
+                        density = inp.density,
+                        fontFamilyResolver = inp.fontFamilyResolver
+                    )
+                }
+            }
             val ants = rememberInfiniteTransition(label = "ants")
             val dashPhase by ants.animateFloat(
                 initialValue = 0f,
@@ -1026,8 +1158,9 @@ private fun PageTextOverlay(
                             .distinct()
                             .associateWith { FontCatalog.resolveComposeFontFamily(it, customFonts) },
                         colorRanges = textElement.colorRanges,
-                        bgColorRanges = textElement.bgColorRanges,
-                        wholeBgColorArgb = textElement.bgColorArgb,
+                        // Backgrounds are drawn in drawBehind (rounded + opacity).
+                        bgColorRanges = emptyList(),
+                        wholeBgColorArgb = null,
                         linkRanges = textElement.linkRanges,
                         shadowRanges = textElement.shadowRanges
                     ),
@@ -1057,11 +1190,29 @@ private fun PageTextOverlay(
                         } else null
                     ),
                     cursorBrush = SolidColor(Color.Black),
+                    onTextLayout = { res ->
+                        val prev = textLayout
+                        if (prev == null || prev.layoutInput != res.layoutInput || prev.size != res.size) textLayout = res
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .wrapContentHeight(Alignment.Top, unbounded = true)
+                        .drawBehind {
+                            val lay = textLayout
+                            if (lay != null && hasBg) {
+                                drawTextBackgrounds(
+                                    lay,
+                                    bgChars,
+                                    textElement.bgCornerDp.dp.toPx(),
+                                    textElement.bgAlpha
+                                )
+                            }
+                            val bLay = borderLayout
+                            if (bLay != null) drawText(textLayoutResult = bLay)
+                        }
                         .focusRequester(focusRequester)
                         .onFocusChanged { state ->
+                            editFocused = state.isFocused
                             if (state.isFocused) {
                                 onTextFocused(textElement.id)
                             } else {
@@ -1069,6 +1220,26 @@ private fun PageTextOverlay(
                             }
                         }
                 )
+                if (!editFocused) {
+                    // 1st tap selects the box only. 2nd tap on the selected box
+                    // focuses the field (cursor + keyboard).
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .pointerInput(textElement.id) {
+                                detectTapGestures(
+                                    onTap = {
+                                        if (selectedNow.value) {
+                                            focusRequester.requestFocus()
+                                        } else {
+                                            focusManager.clearFocus(force = true)
+                                            onTextSelect(textElement.id)
+                                        }
+                                    }
+                                )
+                            }
+                    )
+                }
                 }
             }
             }
@@ -1108,6 +1279,7 @@ private fun PageTextOverlay(
                 }
                 val liveW = remember(textElement.id) { floatArrayOf(0f) }
                 val liveH = remember(textElement.id) { floatArrayOf(0f) }
+                val startBox = remember(textElement.id) { floatArrayOf(1f, 1f, 16f) }
                 val widthFracState = rememberUpdatedState(textElement.boxWidthFrac)
                 val heightFracState = rememberUpdatedState(textElement.boxHeightFrac)
                 val resizeState = rememberUpdatedState(onTextBoxResize)
@@ -1129,6 +1301,9 @@ private fun PageTextOverlay(
                         } else {
                             (rowMeasured.height.toFloat() - pad).coerceAtLeast(with(density) { 20.dp.toPx() })
                         }
+                        startBox[0] = liveW[0].coerceAtLeast(1f)
+                        startBox[1] = liveH[0].coerceAtLeast(1f)
+                        startBox[2] = sizeSpState.value
                     },
                     onDragEnd = { boxHud = false }
                 ) { drag ->
@@ -1139,10 +1314,16 @@ private fun PageTextOverlay(
                     val minH = with(density) { 20.dp.toPx() }
                     liveW[0] = (liveW[0] + drag.x).coerceIn(minW, pageW * 1.6f)
                     liveH[0] = (liveH[0] + drag.y).coerceIn(minH, pageH * 1.6f)
+                    // Text scales with the box (geometric mean of both axes).
+                    val fw = liveW[0] / startBox[0]
+                    val fh = liveH[0] / startBox[1]
+                    val scaledSp = (startBox[2] * kotlin.math.sqrt((fw * fh).coerceAtLeast(0.0001f)))
+                        .coerceIn(6f, 96f)
                     resizeState.value(
                         textElement.id,
                         (liveW[0] / pageW).coerceIn(0.02f, 1.8f),
-                        (liveH[0] / pageH).coerceIn(0.02f, 1.8f)
+                        (liveH[0] / pageH).coerceIn(0.02f, 1.8f),
+                        scaledSp
                     )
                 }
             }

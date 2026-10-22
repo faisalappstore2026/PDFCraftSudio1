@@ -441,6 +441,11 @@ object ProjectStore {
         obj.put("bgColorRanges", colorRangesToJson(t.bgColorRanges))
         obj.put("linkRanges", linkRangesToJson(t.linkRanges))
         obj.put("shadowRanges", shadowRangesToJson(t.shadowRanges))
+        obj.put("borderColorArgb", t.borderColorArgb ?: JSONObject.NULL)
+        obj.put("borderRanges", colorRangesToJson(t.borderRanges))
+        obj.put("borderWidthDp", t.borderWidthDp.toDouble())
+        obj.put("bgCornerDp", t.bgCornerDp.toDouble())
+        obj.put("bgAlpha", t.bgAlpha.toDouble())
         return obj
     }
 
@@ -811,7 +816,12 @@ object ProjectStore {
             shadowOffsetXPx = o.optDouble("shadowOffsetXPx", 0.0).toFloat(),
             shadowOffsetYPx = o.optDouble("shadowOffsetYPx", 0.0).toFloat(),
             shadowBlurPx = o.optDouble("shadowBlurPx", 0.0).toFloat(),
-            textAlign = o.optString("textAlign", "LEFT").ifBlank { "LEFT" }
+            textAlign = o.optString("textAlign", "LEFT").ifBlank { "LEFT" },
+            borderColorArgb = if (o.has("borderColorArgb") && !o.isNull("borderColorArgb")) o.optLong("borderColorArgb") else null,
+            borderRanges = colorRangesFromJson(o.optJSONArray("borderRanges")),
+            borderWidthDp = o.optDouble("borderWidthDp", 2.0).toFloat(),
+            bgCornerDp = o.optDouble("bgCornerDp", 0.0).toFloat(),
+            bgAlpha = o.optDouble("bgAlpha", 1.0).toFloat()
         )
     }
 

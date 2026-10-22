@@ -178,6 +178,38 @@ private val COLOR_CATEGORIES = listOf(
     )
 )
 
+private val GRID_COLORS: List<Long> = listOf(
+    0xFFFFFFFF, 0xFFE8E8E8, 0xFFD1D1D1, 0xFFB9B9B9, 0xFFA2A2A2, 0xFF8B8B8B,
+    0xFF747474, 0xFF5D5D5D, 0xFF464646, 0xFF2E2E2E, 0xFF171717, 0xFF000000,
+    0xFFFFD6D6, 0xFFFFEBD6, 0xFFFFFFD6, 0xFFEBFFD6, 0xFFD6FFD6, 0xFFD6FFEB,
+    0xFFD6FFFF, 0xFFD6EBFF, 0xFFD6D6FF, 0xFFEBD6FF, 0xFFFFD6FF, 0xFFFFD6EB,
+    0xFFFFADAD, 0xFFFFD6AD, 0xFFFFFFAD, 0xFFD6FFAD, 0xFFADFFAD, 0xFFADFFD6,
+    0xFFADFFFF, 0xFFADD6FF, 0xFFADADFF, 0xFFD6ADFF, 0xFFFFADFF, 0xFFFFADD6,
+    0xFFFF7A7A, 0xFFFFBD7A, 0xFFFFFF7A, 0xFFBDFF7A, 0xFF7AFF7A, 0xFF7AFFBD,
+    0xFF7AFFFF, 0xFF7ABDFF, 0xFF7A7AFF, 0xFFBD7AFF, 0xFFFF7AFF, 0xFFFF7ABD,
+    0xFFFF3D3D, 0xFFFF9E3D, 0xFFFFFF3D, 0xFF9EFF3D, 0xFF3DFF3D, 0xFF3DFF9E,
+    0xFF3DFFFF, 0xFF3D9EFF, 0xFF3D3DFF, 0xFF9E3DFF, 0xFFFF3DFF, 0xFFFF3D9E,
+    0xFFFF0000, 0xFFFF8000, 0xFFFFFF00, 0xFF80FF00, 0xFF00FF00, 0xFF00FF80,
+    0xFF00FFFF, 0xFF007FFF, 0xFF0000FF, 0xFF7F00FF, 0xFFFF00FF, 0xFFFF0080,
+    0xFFCC0000, 0xFFCC6600, 0xFFCCCC00, 0xFF66CC00, 0xFF00CC00, 0xFF00CC66,
+    0xFF00CCCC, 0xFF0066CC, 0xFF0000CC, 0xFF6600CC, 0xFFCC00CC, 0xFFCC0066,
+    0xFF990000, 0xFF994C00, 0xFF999900, 0xFF4D9900, 0xFF009900, 0xFF00994D,
+    0xFF009999, 0xFF004C99, 0xFF000099, 0xFF4C0099, 0xFF990099, 0xFF99004D,
+    0xFF660000, 0xFF663300, 0xFF666600, 0xFF336600, 0xFF006600, 0xFF006633,
+    0xFF006666, 0xFF003366, 0xFF000066, 0xFF330066, 0xFF660066, 0xFF660033,
+    0xFFB24D4D, 0xFFB2804D, 0xFFB2B24D, 0xFF80B24D, 0xFF4DB24D, 0xFF4DB280,
+    0xFF4DB2B2, 0xFF4D7FB2, 0xFF4D4DB2, 0xFF7F4DB2, 0xFFB24DB2, 0xFFB24D80,
+    0xFF762D2D, 0xFF76522D, 0xFF76762D, 0xFF52762D, 0xFF2D762D, 0xFF2D7652,
+    0xFF2D7676, 0xFF2D5276, 0xFF2D2D76, 0xFF522D76, 0xFF762D76, 0xFF762D52
+)
+
+private fun isLightSwatch(c: Long): Boolean {
+    val r = (c shr 16) and 0xFFL
+    val g = (c shr 8) and 0xFFL
+    val b = c and 0xFFL
+    return (r * 299L + g * 587L + b * 114L) / 1000L > 150L
+}
+
 /** One-page color window — every category/color kept, compact so it does not scroll. */
 @Composable
 fun ColorPickerDialog(
@@ -227,43 +259,32 @@ fun ColorPickerDialog(
                     )
                 }
 
-                // Scrollable color categories
-                LazyColumn(
+                // One color grid: 6 swatches per row, no gaps.
+                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(6),
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .fillMaxWidth()
                 ) {
-                    items(COLOR_CATEGORIES) { category ->
-                        Column {
-                            Text(
-                                text = category.title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = Color.Black,
-                                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
-                            )
-                            // 5 colors per row
-                            category.colors.chunked(5).forEach { rowColors ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    rowColors.forEach { named ->
-                                        ColorItem(
-                                            named = named,
-                                            isSelected = selectedColor == named.hex,
-                                            onClick = { selectedColor = named.hex }
+                    items(GRID_COLORS.size) { idx ->
+                        val hex = GRID_COLORS[idx]
+                        val isSel = (selectedColor and 0xFFFFFFFFL) == hex
+                        Box(
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .background(Color(hex))
+                                .clickable { selectedColor = hex }
+                                .then(
+                                    if (isSel) {
+                                        Modifier.border(
+                                            3.dp,
+                                            if (isLightSwatch(hex)) Color.Black else Color.White
                                         )
+                                    } else {
+                                        Modifier
                                     }
-                                    repeat(5 - rowColors.size) {
-                                        Spacer(modifier = Modifier.width(64.dp))
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                            }
-                        }
+                                )
+                        )
                     }
                 }
 

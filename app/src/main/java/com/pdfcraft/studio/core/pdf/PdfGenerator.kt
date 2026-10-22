@@ -420,6 +420,15 @@ object PdfGenerator {
                     val e = (cr.range.last + 1).coerceIn(0, fullText.length)
                     for (i in s until e) bg[i] = cr.colorArgb
                 }
+                val bd = arrayOfNulls<Long>(fullText.length)
+                if (te.borderColorArgb != null) {
+                    for (i in fullText.indices) bd[i] = te.borderColorArgb
+                }
+                te.borderRanges.forEach { cr ->
+                    val s = cr.range.first.coerceIn(0, fullText.length)
+                    val e = (cr.range.last + 1).coerceIn(0, fullText.length)
+                    for (i in s until e) bd[i] = cr.colorArgb
+                }
 
                 val fm = textPaint.fontMetrics
                 var lineH = fm.descent - fm.ascent + fm.leading
@@ -500,14 +509,17 @@ object PdfGenerator {
                         val cBg = bg[i]
                         val cSh = sh[i]
                         var j = i + 1
-                        while (j < lineEnd && fg[j] == cFg && bg[j] == cBg && sh[j] == cSh && isB[j] == isB[i] && isI[j] == isI[i] && isU[j] == isU[i] && isS[j] == isS[i] && fids[j] == fids[i]) j++
+                        while (j < lineEnd && fg[j] == cFg && bg[j] == cBg && bd[j] == bd[i] && sh[j] == cSh && isB[j] == isB[i] && isI[j] == isI[i] && isU[j] == isU[i] && isS[j] == isS[i] && fids[j] == fids[i]) j++
                         val segment = fullText.substring(i, j)
                         val w = textPaint.measureText(segment)
                         if (cBg != null) {
                             bgPaint.color = cBg.toInt()
+                            bgPaint.alpha = (((cBg shr 24) and 0xFFL).toFloat() * te.bgAlpha.coerceIn(0f, 1f))
+                                .toInt().coerceIn(0, 255)
                             val top = y - textPaint.textSize * 0.85f
                             val bottom = y + textPaint.textSize * 0.2f
-                            canvas.drawRect(x, top, x + w, bottom, bgPaint)
+                            val bgR = (te.bgCornerDp * scale).coerceIn(0f, (bottom - top) / 2f)
+                            canvas.drawRoundRect(x, top, x + w, bottom, bgR, bgR, bgPaint)
                         }
                         textPaint.color = cFg.toInt()
                         val italic = isI[i] || isQ[i]
@@ -529,6 +541,18 @@ object PdfGenerator {
                             )
                         } else {
                             textPaint.clearShadowLayer()
+                        }
+                        val cBd = bd[i]
+                        if (cBd != null) {
+                            val strokePaint = Paint(textPaint)
+                            strokePaint.clearShadowLayer()
+                            strokePaint.style = Paint.Style.STROKE
+                            strokePaint.strokeJoin = Paint.Join.ROUND
+                            strokePaint.strokeWidth = (te.borderWidthDp * scale).coerceAtLeast(0.5f)
+                            strokePaint.color = cBd.toInt()
+                            strokePaint.isUnderlineText = false
+                            strokePaint.isStrikeThruText = false
+                            canvas.drawText(segment, x, y, strokePaint)
                         }
                         canvas.drawText(segment, x, y, textPaint)
                         x += w
