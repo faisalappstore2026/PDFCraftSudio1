@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "967810490965",
+    "project_id": "pdfcraftstudio-79ad7",
+    "storage_bucket": "pdfcraftstudio-79ad7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:967810490965:android:31f01f64765c68a7986adc",
+        "android_client_info": {
+          "package_name": "com.pdfcraft.studio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDj4sGFXDNsVuM34YhZfStp0nEooGJd85Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
