@@ -420,6 +420,13 @@ object PdfGenerator {
                     val e = (cr.range.last + 1).coerceIn(0, fullText.length)
                     for (i in s until e) bg[i] = cr.colorArgb
                 }
+                // Spaces inside a background RANGE keep their background.
+                val bgKeep = BooleanArray(fullText.length)
+                te.bgColorRanges.forEach { cr ->
+                    val s = cr.range.first.coerceIn(0, fullText.length)
+                    val e = (cr.range.last + 1).coerceIn(0, fullText.length)
+                    for (i in s until e) bgKeep[i] = true
+                }
                 val bd = arrayOfNulls<Long>(fullText.length)
                 if (te.borderColorArgb != null) {
                     for (i in fullText.indices) bd[i] = te.borderColorArgb
@@ -479,9 +486,9 @@ object PdfGenerator {
                     val lineW = textPaint.measureText(lineStr)
                     // Background skips leading/trailing spaces of each line.
                     var lineTs = range.first
-                    while (lineTs < lineEnd && fullText[lineTs].isWhitespace()) lineTs++
+                    while (lineTs < lineEnd && fullText[lineTs].isWhitespace() && !bgKeep[lineTs]) lineTs++
                     var lineTe = lineEnd
-                    while (lineTe > lineTs && fullText[lineTe - 1].isWhitespace()) lineTe--
+                    while (lineTe > lineTs && fullText[lineTe - 1].isWhitespace() && !bgKeep[lineTe - 1]) lineTe--
                     val minBox = textPaint.measureText("000000000000000")
                     val longestW = lines.maxOf { lr ->
                         textPaint.measureText(fullText.substring(lr.first, lr.last + 1))
@@ -520,8 +527,8 @@ object PdfGenerator {
                                 .toInt().coerceIn(0, 255)
                             var s0 = maxOf(i, lineTs)
                             var e0 = minOf(j, lineTe)
-                            while (s0 < e0 && fullText[s0].isWhitespace()) s0++
-                            while (e0 > s0 && fullText[e0 - 1].isWhitespace()) e0--
+                            while (s0 < e0 && fullText[s0].isWhitespace() && !bgKeep[s0]) s0++
+                            while (e0 > s0 && fullText[e0 - 1].isWhitespace() && !bgKeep[e0 - 1]) e0--
                             if (s0 < e0) {
                                 val bx0 = x + textPaint.measureText(fullText, i, s0)
                                 val bx1 = bx0 + textPaint.measureText(fullText, s0, e0)

@@ -299,6 +299,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     var showTextBorderPicker by remember { mutableStateOf(false) }
     var textBorderSliderOpen by remember { mutableStateOf(false) }
     var textBgSliderOpen by remember { mutableStateOf(false) }
+    var revealTextSignal by remember { mutableStateOf(0) }
     var showFontTools by remember { mutableStateOf(false) }
     var showTextLinkDialog by remember { mutableStateOf(false) }
     var showAdvancedBgEditor by remember { mutableStateOf(false) }
@@ -1438,6 +1439,7 @@ if (showFontTools) {
                 showTextBgColorPicker = false
                 textBorderSliderOpen = false
                 textBgSliderOpen = true
+                revealTextSignal++
             },
             onDismiss = { showTextBgColorPicker = false },
             previewAsBackground = true
@@ -2138,6 +2140,7 @@ Column(
                     onDragImagesByFrac = viewModel::dragImagesByFrac,
                     onSyncDragOffset = viewModel::syncDragOffset,
                     onEnsureDragSelection = viewModel::ensureDragSelection,
+                    revealTextSignal = revealTextSignal,
                     customFonts = viewModel.availableFonts.filter { it.isCustom },
                     initialScrollIndex = if (restoreThisEditor) sessionSnap.editorIndex else 0,
                     initialScrollOffset = if (restoreThisEditor) sessionSnap.editorOffset else 0,

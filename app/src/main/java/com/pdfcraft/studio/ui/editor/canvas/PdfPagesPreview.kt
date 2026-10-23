@@ -25,6 +25,7 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -248,9 +249,39 @@ fun PdfPagesPreview(
     onDragImagesByFrac: (Float, Float) -> Unit = { _, _ -> },
     onSyncDragOffset: (String, Float, Float) -> Unit = { _, _, _ -> },
     onEnsureDragSelection: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    revealTextSignal: Int = 0
 ) {
     val pageListState = rememberLazyListState(0, 0)
+    val revealDensity = LocalDensity.current
+    // Scroll so the selected text box sits just below the top slider panel.
+    LaunchedEffect(revealTextSignal) {
+        if (revealTextSignal <= 0) return@LaunchedEffect
+        val te = textElements.firstOrNull { it.id == selectedTextId } ?: return@LaunchedEffect
+        val total = pageListState.layoutInfo.totalItemsCount
+        if (total <= 0) return@LaunchedEffect
+        val src = packPageSource.copyOf()
+        var item = -1
+        for (q in src.indices) {
+            if (src[q] == te.pageIndex) {
+                item = q
+                break
+            }
+        }
+        if (item < 0) item = te.pageIndex
+        item = item.coerceIn(0, total - 1)
+        pageListState.animateScrollToItem(item)
+        val info = pageListState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == item }
+        if (info != null) {
+            val labelPx = with(revealDensity) { 28.dp.toPx() }
+            val marginPx = with(revealDensity) { 24.dp.toPx() }
+            val cardH = (info.size.toFloat() - labelPx).coerceAtLeast(0f)
+            val target = labelPx + te.yFraction.coerceIn(0f, 1f) * cardH - marginPx
+            if (target > 1f) {
+                pageListState.animateScrollBy(target)
+            }
+        }
+    }
     var scrollRestoreDone by remember {
         mutableStateOf(initialScrollIndex <= 0 && initialScrollOffset <= 0)
     }
@@ -283,6 +314,8 @@ fun PdfPagesPreview(
         translationY = p.y
         transformOrigin = TransformOrigin(0f, 0f)
     }
+    // Page zoom is off while a text box is selected (pinch then belongs to the box).
+    val selTextNow = rememberUpdatedState(selectedTextId)
     val pinchMod = Modifier.pointerInput(Unit) {
         awaitEachGesture {
             var zooming = false
@@ -291,7 +324,7 @@ fun PdfPagesPreview(
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val pressed = event.changes.count { it.pressed }
-                if (pressed >= 2) {
+                if (pressed >= 2 && selTextNow.value == null) {
                     zooming = true
                     pinching.value = true
                     val z = event.calculateZoom()
@@ -613,6 +646,17 @@ internal object TextBoxTouch {
     var downUptime: Long = -1L
 }
 
+/** true where a background RANGE covers the char (its spaces get background too). */
+private fun bgKeepMask(len: Int, ranges: List<ColorRange>): BooleanArray {
+    val m = BooleanArray(len.coerceAtLeast(0))
+    ranges.forEach { cr ->
+        val s = cr.range.first.coerceIn(0, m.size)
+        val e = (cr.range.last + 1).coerceIn(0, m.size)
+        for (q in s until e) m[q] = true
+    }
+    return m
+}
+
 /** Per character color: whole-box color first, then ranges on top. */
 private fun charColorsFor(len: Int, whole: Long?, ranges: List<ColorRange>): Array<Long?> {
     val out = arrayOfNulls<Long>(len)
@@ -636,29 +680,34 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
     padLeftPx: Float = 0f,
     padTopPx: Float = 0f,
     padRightPx: Float = 0f,
-    padBottomPx: Float = 0f
+    padBottomPx: Float = 0f,
+    keep: BooleanArray? = null
 ) {
     val txt = layout.layoutInput.text.text
     val len = minOf(bg.size, txt.length)
+    // Spaces inside a selected background range keep their background.
+    fun keepAt(q: Int): Boolean =
+        !txt[q].isWhitespace() || (keep != null && q < keep.size && keep[q])
     for (line in 0 until layout.lineCount) {
         // Each line gets its own background, trimmed to its visible characters.
         var ls = layout.getLineStart(line).coerceIn(0, len)
-        var le = minOf(layout.getLineEnd(line, visibleEnd = true), len)
-        while (ls < le && txt[ls].isWhitespace()) ls++
-        while (le > ls && txt[le - 1].isWhitespace()) le--
+        var le = layout.getLineEnd(line, visibleEnd = false).coerceIn(ls, len)
+        while (le > ls && txt[le - 1] == '\n') le--
+        while (ls < le && !keepAt(ls)) ls++
+        while (le > ls && !keepAt(le - 1)) le--
         val top = layout.getLineTop(line) - padTopPx
         val bottom = layout.getLineBottom(line) + padBottomPx
         var i = ls
         while (i < le) {
             val c = bg[i]
-            if (c == null || txt[i].isWhitespace()) {
+            if (c == null || !keepAt(i)) {
                 i++
                 continue
             }
             var j = i + 1
             while (j < le && bg[j] == c) j++
             var k = j
-            while (k > i + 1 && txt[k - 1].isWhitespace()) k--
+            while (k > i + 1 && !keepAt(k - 1)) k--
             var left = Float.MAX_VALUE
             var right = -Float.MAX_VALUE
             for (q in i until k) {
@@ -903,12 +952,19 @@ private fun PageTextOverlay(
                                 requireUnconsumed = true,
                                 pass = PointerEventPass.Final
                             )
+                            var movedAway = false
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Final)
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                // Scroll / pinch / drag is not a tap: never deselect for it.
+                                if (event.changes.size > 1 || change.isConsumed ||
+                                    (change.position - down.position).getDistance() > viewConfiguration.touchSlop
+                                ) {
+                                    movedAway = true
+                                }
                                 if (!change.pressed) {
                                     // Only a tap outside every text box border deselects.
-                                    if (TextBoxTouch.downUptime != down.uptimeMillis) {
+                                    if (!movedAway && TextBoxTouch.downUptime != down.uptimeMillis) {
                                         focusManager.clearFocus(force = true)
                                         onDeselect()
                                     }
@@ -1236,7 +1292,8 @@ private fun PageTextOverlay(
                                     textElement.bgPadLeftDp.dp.toPx(),
                                     textElement.bgPadTopDp.dp.toPx(),
                                     textElement.bgPadRightDp.dp.toPx(),
-                                    textElement.bgPadBottomDp.dp.toPx()
+                                    textElement.bgPadBottomDp.dp.toPx(),
+                                    bgKeepMask(textElement.text.length, textElement.bgColorRanges)
                                 )
                             }
                             val bLay = borderLayout

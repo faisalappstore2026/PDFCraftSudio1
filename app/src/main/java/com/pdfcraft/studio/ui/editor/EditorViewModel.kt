@@ -4121,11 +4121,9 @@ fun isSelectionStrike(): Boolean {
             val start = selection.min.coerceIn(0, element.text.length)
             val end = selection.max.coerceIn(0, element.text.length)
             if (start < end) {
-                val inSel = element.borderRanges
-                    .filter { it.range.first < end && it.range.last + 1 > start }
-                    .map { it.colorArgb }
-                    .distinct()
-                if (inSel.size == 1) return inSel[0]
+                // Color of the first selected character (later ranges win).
+                val firstHit = element.borderRanges.lastOrNull { start >= it.range.first && start <= it.range.last }
+                if (firstHit != null) return firstHit.colorArgb
             }
         }
         return element.borderColorArgb ?: 0xFF000000L
@@ -4145,11 +4143,9 @@ fun isSelectionStrike(): Boolean {
             val start = selection.min.coerceIn(0, element.text.length)
             val end = selection.max.coerceIn(0, element.text.length)
             if (start < end) {
-                val colorsInSel = element.colorRanges
-                    .filter { it.range.first < end && it.range.last + 1 > start }
-                    .map { it.colorArgb }
-                    .distinct()
-                if (colorsInSel.size == 1) return colorsInSel[0]
+                // Color of the first selected character (later ranges win).
+                val firstHit = element.colorRanges.lastOrNull { start >= it.range.first && start <= it.range.last }
+                if (firstHit != null) return firstHit.colorArgb
             }
         }
         return element.textColorArgb
@@ -4164,11 +4160,9 @@ fun isSelectionStrike(): Boolean {
             val start = selection.min.coerceIn(0, element.text.length)
             val end = selection.max.coerceIn(0, element.text.length)
             if (start < end) {
-                val colorsInSel = element.bgColorRanges
-                    .filter { it.range.first < end && it.range.last + 1 > start }
-                    .map { it.colorArgb }
-                    .distinct()
-                if (colorsInSel.size == 1) return colorsInSel[0]
+                // Color of the first selected character (later ranges win).
+                val firstHit = element.bgColorRanges.lastOrNull { start >= it.range.first && start <= it.range.last }
+                if (firstHit != null) return firstHit.colorArgb
             }
         }
         return element.bgColorArgb

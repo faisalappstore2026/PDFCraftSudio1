@@ -219,6 +219,10 @@ fun ColorPickerDialog(
     previewAsBackground: Boolean = false
 ) {
     var selectedColor by remember { mutableStateOf(initialColor) }
+    val initialIdx = GRID_COLORS.indexOfFirst { it == (initialColor and 0xFFFFFFFFL) }
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(
+        initialFirstVisibleItemIndex = (initialIdx - 12).coerceAtLeast(0)
+    )
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -259,9 +263,37 @@ fun ColorPickerDialog(
                     )
                 }
 
+                if (initialIdx < 0) {
+                    // Current color is not one of the swatches: show it here.
+                    androidx.compose.foundation.layout.Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedColor = initialColor }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .height(28.dp)
+                                .aspectRatio(1f)
+                                .background(Color(initialColor), RoundedCornerShape(4.dp))
+                                .border(
+                                    if (selectedColor == initialColor) 3.dp else 1.dp,
+                                    Color.Black,
+                                    RoundedCornerShape(4.dp)
+                                )
+                        )
+                        Text(
+                            text = "  Current color (not in grid)",
+                            fontSize = 14.sp,
+                            color = Color.DarkGray
+                        )
+                    }
+                }
                 // One color grid: 6 swatches per row, no gaps.
                 androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
                     columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(6),
+                    state = gridState,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
