@@ -1491,7 +1491,8 @@ private fun beginCoalescedEdit(key: String = "edit") {
         val index = textElements.indexOfFirst { it.id == id }
         if (index < 0) return
         val cur = textElements[index]
-        val newSp = sizeSp.coerceIn(6f, 96f)
+        // Auto-fit has no practical minimum (0.5sp floor); 6sp applies to user choices only.
+        val newSp = sizeSp.coerceIn(0.5f, 96f)
         if (kotlin.math.abs(newSp - cur.fontSizeSp) < 0.01f) return
         val k = if (cur.fontSizeSp > 0.01f) newSp / cur.fontSizeSp else 1f
         textElements[index] = cur.copy(

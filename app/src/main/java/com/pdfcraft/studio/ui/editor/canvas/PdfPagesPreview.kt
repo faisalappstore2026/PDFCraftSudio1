@@ -1063,7 +1063,7 @@ private fun PageTextOverlay(
             // gets ONE commit when the drag ends (no store update per drag event).
             val liveBox = remember(committedText.id) { mutableStateOf<FloatArray?>(null) }
             val liveVals = liveBox.value
-            val textElement = if (liveVals == null || liveVals.size < 3) {
+            val sizedText = if (liveVals == null || liveVals.size < 3) {
                 committedText
             } else {
                 val k = if (committedText.fontSizeSp > 0.01f) liveVals[2] / committedText.fontSizeSp else 1f
@@ -1071,9 +1071,91 @@ private fun PageTextOverlay(
                     boxWidthFrac = liveVals[0],
                     boxHeightFrac = liveVals[1],
                     fontSizeSp = liveVals[2],
+                    userFontSp = liveVals[2],
                     borderWidthDp = (committedText.borderWidthDp * k).coerceIn(0.5f, 8f),
                     bgCornerDp = (committedText.bgCornerDp * k).coerceIn(0f, 24f)
                 )
+            }
+            // Auto-fit: font = min(user font, largest size whose text fits inside the box).
+            // Recomputed only when text, box size, user font or font family change.
+            val fitDensity = LocalDensity.current
+            val autoFitMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val fitUserSp = (if (sizedText.userFontSp > 0.01f) sizedText.userFontSp else sizedText.fontSizeSp)
+                .coerceIn(0.5f, 96f)
+            val fitPageW = sizePx.width
+            val fitPageH = sizePx.height
+            val fitEdge = with(fitDensity) { 8.dp.toPx() }
+            val fitMinW = with(fitDensity) { 24.dp.toPx() }
+            val fitMinH = with(fitDensity) { 20.dp.toPx() }
+            val fitQuoteW = if (sizedText.quoteRanges.isNotEmpty()) with(fitDensity) { 9.dp.toPx() } else 0f
+            val fitCapW = (fitPageW * (1f - sizedText.xFraction) - fitEdge).coerceAtLeast(fitMinW)
+            val fitCapH = (fitPageH * (1f - sizedText.yFraction) - fitEdge).coerceAtLeast(fitMinH)
+            val fitWrapPx = (
+                if (sizedText.boxWidthFrac > 0.01f) {
+                    (sizedText.boxWidthFrac * fitPageW).coerceIn(fitMinW, maxOf(fitCapW, fitMinW))
+                } else {
+                    fitCapW
+                } - fitQuoteW
+                ).coerceAtLeast(1f)
+            val fitAvailH = if (sizedText.boxHeightFrac > 0.01f) {
+                (sizedText.boxHeightFrac * fitPageH).coerceIn(fitMinH, maxOf(fitCapH, fitMinH))
+            } else {
+                fitCapH
+            }
+            val fitMaxWi = (fitWrapPx * 0.97f).toInt().coerceAtLeast(1)
+            val fitMaxHi = (fitAvailH * 0.97f).toInt().coerceAtLeast(1)
+            val fitFamily = FontCatalog.resolveComposeFontFamily(sizedText.fontId, customFonts)
+            val fitInfo = remember(sizedText.text, fitMaxWi, fitMaxHi, fitUserSp, sizedText.fontId, fitFamily, fitPageW, fitPageH) {
+                if (fitPageW <= 0 || fitPageH <= 0) {
+                    floatArrayOf(sizedText.fontSizeSp, -1f)
+                } else {
+                    val plain = AnnotatedString(sizedText.text)
+                    fun measureAt(spv: Float) = autoFitMeasurer.measure(
+                        text = plain,
+                        style = TextStyle(
+                            fontSize = spv.sp,
+                            fontFamily = fitFamily,
+                            platformStyle = PlatformTextStyle(includeFontPadding = true)
+                        ),
+                        softWrap = true,
+                        constraints = androidx.compose.ui.unit.Constraints(maxWidth = fitMaxWi),
+                        density = fitDensity
+                    )
+                    val atUser = measureAt(fitUserSp)
+                    if (atUser.size.height <= fitMaxHi) {
+                        floatArrayOf(fitUserSp, atUser.size.width.toFloat())
+                    } else {
+                        var lo = 0.5f
+                        var hi = fitUserSp
+                        repeat(12) {
+                            val mid = (lo + hi) / 2f
+                            if (measureAt(mid).size.height <= fitMaxHi) lo = mid else hi = mid
+                        }
+                        floatArrayOf(lo, measureAt(lo).size.width.toFloat())
+                    }
+                }
+            }
+            val fittedSp = fitInfo[0].coerceIn(0.5f, 96f)
+            val textElement = if (fitPageW > 0 && fitPageH > 0 &&
+                kotlin.math.abs(fittedSp - sizedText.fontSizeSp) > 0.01f
+            ) {
+                val kf = if (sizedText.fontSizeSp > 0.01f) fittedSp / sizedText.fontSizeSp else 1f
+                sizedText.copy(
+                    fontSizeSp = fittedSp,
+                    borderWidthDp = (sizedText.borderWidthDp * kf).coerceIn(0.5f, 8f),
+                    bgCornerDp = (sizedText.bgCornerDp * kf).coerceIn(0f, 24f)
+                )
+            } else {
+                sizedText
+            }
+            // Commit the fitted font (not during a live drag; the drag commits on release).
+            val autoFitCb = rememberUpdatedState(onTextAutoFit)
+            LaunchedEffect(committedText.id, fittedSp, liveVals == null, committedText.fontSizeSp) {
+                if (liveBox.value == null && fitPageW > 0 && fitPageH > 0 &&
+                    kotlin.math.abs(fittedSp - committedText.fontSizeSp) > 0.01f
+                ) {
+                    autoFitCb.value(committedText.id, fittedSp)
+                }
             }
             var fieldValue by remember(textElement.id) {
                 mutableStateOf(TextFieldValue(text = textElement.text))
@@ -1102,7 +1184,14 @@ private fun PageTextOverlay(
             }
             val minBoxPx = measurePaint.measureText("000000000000000")
             val longest = fieldValue.text.split('\n').maxByOrNull { it.length } ?: ""
-            val contentPx = if (longest.isEmpty()) 0f else measurePaint.measureText(longest)
+            val contentPx = if (longest.isEmpty()) {
+                0f
+            } else if (fitInfo[1] > 0f && fieldValue.text == textElement.text) {
+                // Width of the fitted layout (real font family), so the auto box never under-wraps.
+                fitInfo[1] / 0.97f
+            } else {
+                measurePaint.measureText(longest)
+            }
             val padPx = with(density) { 10.dp.toPx() }
             // Box stays inside the page: from its position to the right / bottom page border.
             val pageEdgePx = with(density) { 8.dp.toPx() }
@@ -1145,6 +1234,8 @@ private fun PageTextOverlay(
             val yFracState = rememberUpdatedState(textElement.yFraction)
             val rotState = rememberUpdatedState(textElement.rotationDeg)
             val sizeSpState = rememberUpdatedState(textElement.fontSizeSp)
+            // User's own size (handle / pinch scale this, not the auto-fitted size).
+            val userSpState = rememberUpdatedState(fitUserSp)
             val sizeState = rememberUpdatedState(sizePx)
             val boxWState = rememberUpdatedState(boxWpx)
             val boxHState = rememberUpdatedState(boxHpx)
@@ -1270,7 +1361,7 @@ private fun PageTextOverlay(
                             var pinching = false
                             var xf = xFracState.value
                             var yf = yFracState.value
-                            var sp = sizeSpState.value
+                            var sp = userSpState.value
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
                                 val pressed = event.changes.filter { it.pressed }
@@ -1366,64 +1457,10 @@ private fun PageTextOverlay(
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { newValue ->
-                        // Auto-fit: largest font (up to the user's chosen size) that keeps all
-                        // text inside the page. Not enforced until page size + layout are known.
-                        val lay = textLayout
-                        val pw = sizePx.width.toFloat()
-                        val ph = sizePx.height.toFloat()
-                        var fitSp = Float.NaN
-                        var rejectEdit = false
-                        if (newValue.text != fieldValue.text && lay != null && pw > 1f && ph > 1f) {
-                            val edge = with(density) { 8.dp.toPx() }
-                            val availW = (pw - textElement.xFraction * pw - edge).coerceAtLeast(1f)
-                            val availH = (ph - textElement.yFraction * ph - edge).coerceAtLeast(1f)
-                            val wrapW = (
-                                if (textElement.boxWidthFrac > 0.01f) minOf(textElement.boxWidthFrac * pw, availW) else availW
-                                ).coerceAtLeast(1f)
-                            val userSp = (
-                                if (textElement.userFontSp > 0.01f) textElement.userFontSp else textElement.fontSizeSp
-                                ).coerceIn(6f, 96f)
-                            val baseStyle = lay.layoutInput.style
-                            val plain = AnnotatedString(newValue.text)
-                            val maxWi = wrapW.toInt().coerceAtLeast(1)
-                            fun fitsAt(spv: Float): Boolean {
-                                val r = fitMeasurer.measure(
-                                    text = plain,
-                                    style = baseStyle.copy(fontSize = spv.sp, shadow = null),
-                                    softWrap = true,
-                                    constraints = androidx.compose.ui.unit.Constraints(maxWidth = maxWi),
-                                    density = density
-                                )
-                                return r.size.height.toFloat() <= availH * 0.97f
-                            }
-                            if (fitsAt(userSp)) {
-                                fitSp = userSp
-                            } else if (!fitsAt(6f)) {
-                                // Even 6sp overflows: reject typing / paste; deleting still allowed.
-                                if (newValue.text.length > fieldValue.text.length) rejectEdit = true else fitSp = 6f
-                            } else {
-                                var lo = 6f
-                                var hi = userSp
-                                repeat(14) {
-                                    val mid = (lo + hi) / 2f
-                                    if (fitsAt(mid)) lo = mid else hi = mid
-                                }
-                                fitSp = lo
-                            }
-                        }
-                        if (rejectEdit) {
-                            android.widget.Toast.makeText(
-                                fitContext,
-                                fitContext.getString(com.pdfcraft.studio.R.string.text_limit_reached),
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            fieldValue = newValue
-                            onTextValueChange(textElement.id, newValue.text, newValue.selection)
-                            if (!fitSp.isNaN() && kotlin.math.abs(fitSp - textElement.fontSizeSp) > 0.05f) {
-                                onTextAutoFit(textElement.id, fitSp)
-                            }
-                        }
+                        // No text limit: every edit / paste is accepted; the font auto-fits
+                        // (see fitInfo) so the text always stays inside the box.
+                        fieldValue = newValue
+                        onTextValueChange(textElement.id, newValue.text, newValue.selection)
                     },
                     visualTransformation = TextStyleRangesVisualTransformation(
                         boldRanges = textElement.boldRanges,
@@ -1601,7 +1638,7 @@ private fun PageTextOverlay(
                         }
                         startBox[0] = liveW[0].coerceAtLeast(1f)
                         startBox[1] = liveH[0].coerceAtLeast(1f)
-                        startBox[2] = sizeSpState.value
+                        startBox[2] = userSpState.value
                     },
                     onDragEnd = {
                         boxHud = false
