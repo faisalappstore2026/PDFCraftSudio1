@@ -411,6 +411,26 @@
     <string name="update_required_message">Your current version is no longer supported. Please update PDFCraft Studio to continue using the app.</string>
     <string name="update_now">Update Now</string>
     <string name="update_retry">Retry</string>
+    <string name="text_divider_line" translatable="false">────────────</string>
+    <string name="editor_done">Done</string>
+    <string name="editor_more_options">More options</string>
+    <string name="export_link_warning">Link warning: %1$s</string>
+    <string name="color_none_background">None</string>
+    <string name="color_ok">OK</string>
+    <string name="color_preview_sample" translatable="false">Elon Musk</string>
+    <string name="tt_border">Border</string>
+    <string name="tt_thickness">Thickness</string>
+    <string name="tt_spread">Spread</string>
+    <string name="tt_background">Background</string>
+    <string name="tt_corner_radius">Corner radius</string>
+    <string name="tt_opacity">Opacity</string>
+    <string name="tt_pad_left">Left</string>
+    <string name="tt_pad_right">Right</string>
+    <string name="tt_pad_top">Top</string>
+    <string name="tt_pad_bottom">Bottom</string>
+    <string name="tt_hud_rotate">Rotate</string>
+    <string name="tt_hud_box">Box</string>
+    <string name="tt_hud_size">Size</string>
     <string name="update_store_unavailable">Could not open Google Play. Please update PDFCraft Studio from the Play Store.</string>
 </resources>
 

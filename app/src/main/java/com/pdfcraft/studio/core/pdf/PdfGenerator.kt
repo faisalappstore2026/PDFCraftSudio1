@@ -390,7 +390,8 @@ object PdfGenerator {
                 // preview; no own wrap / fit then. Missing or stale: fallback wrap below.
                 val pdfLineCache = PdfTextLineCache.matching(
                     teRaw.id, teRaw.text, teRaw.fontSizeSp, teRaw.boxWidthFrac, teRaw.boxHeightFrac,
-                    teRaw.xFraction, teRaw.yFraction, teRaw.rotationDeg
+                    teRaw.xFraction, teRaw.yFraction, teRaw.rotationDeg,
+                    PdfTextLineCache.styleKeyOf(teRaw)
                 )
                 if (pdfLineCache != null) {
                     textPaint.textSize = (pdfLineCache.fontPerPageW * pageWidth).coerceIn(1f, 2000f)
@@ -946,6 +947,21 @@ object PdfGenerator {
                 s--
             }
             if (br <= i) br = (i + 1).coerceAtMost(end)
+            // Never cut a character cluster: emoji + ZWJ / skin tone / variation selector,
+            // letter + combining marks, surrogate pairs.
+            if (br > i && br < end) {
+                val bi = java.text.BreakIterator.getCharacterInstance()
+                bi.setText(text)
+                if (!bi.isBoundary(br)) {
+                    val p = bi.preceding(br)
+                    br = if (p > i) {
+                        p
+                    } else {
+                        val f = bi.following(br)
+                        if (f == java.text.BreakIterator.DONE || f > end) end else f
+                    }
+                }
+            }
             out.add(i until br)
             i = br
         }

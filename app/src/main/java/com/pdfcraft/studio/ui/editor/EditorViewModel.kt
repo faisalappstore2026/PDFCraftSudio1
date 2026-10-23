@@ -338,6 +338,36 @@ data class TextElement(
     val userFontSp: Float = 0f
 )
 
+/**
+ * Moves one style range through a text edit. Chars before the edit stay, chars after it shift,
+ * deleted chars leave the range. Text typed inside (or at the inner edge of) a range joins it,
+ * so the rest of the styled word keeps its style.
+ */
+private fun shiftRangeForEdit(r: IntRange, prefix: Int, oldEditEnd: Int, newEditEnd: Int): IntRange? {
+    val delta = newEditEnd - oldEditEnd
+    val a = r.first
+    val b = r.last
+    if (a > b) return null
+    if (b < prefix) return r
+    if (a >= oldEditEnd) return (a + delta)..(b + delta)
+    if (a >= prefix && b < oldEditEnd) return null
+    val na = if (a < prefix) a else newEditEnd
+    val nb = if (b >= oldEditEnd) b + delta else newEditEnd - 1
+    return if (na <= nb) na..nb else null
+}
+
+/** True when start until end is fully covered by the ranges (sorted sweep, no per-char scan). */
+private fun rangesCover(ranges: List<IntRange>, start: Int, end: Int): Boolean {
+    if (start >= end) return false
+    var pos = start
+    for (r in ranges.filter { it.first <= it.last }.sortedBy { it.first }) {
+        if (r.first > pos) break
+        if (r.last + 1 > pos) pos = r.last + 1
+        if (pos >= end) return true
+    }
+    return pos >= end
+}
+
 private fun adjustRangesForEdit(
     oldText: String,
     newText: String,
@@ -356,13 +386,8 @@ private fun adjustRangesForEdit(
     val oldEditEnd = oldText.length - suffix
     val lengthDelta = newText.length - oldText.length
 
-    return ranges.mapNotNull { range ->
-        when {
-            range.last < prefix -> range
-            range.first >= oldEditEnd -> (range.first + lengthDelta)..(range.last + lengthDelta)
-            else -> null
-        }
-    }
+    val newEditEnd = oldEditEnd + lengthDelta
+    return ranges.mapNotNull { range -> shiftRangeForEdit(range, prefix, oldEditEnd, newEditEnd) }
 }
 
 private fun toggleStyleRange(
@@ -493,13 +518,11 @@ private fun adjustFontRangesForEdit(
     newText: String,
     ranges: List<FontRange>
 ): List<FontRange> {
-    val mapped = adjustColorRangesForEdit(
-        oldText,
-        newText,
-        ranges.map { ColorRange(it.range, 0L) }
-    )
-    return mapped.mapIndexed { i, cr -> FontRange(cr.range, ranges.getOrNull(i)?.fontId ?: "") }
-        .filter { it.fontId.isNotBlank() }
+    // Map each range on its own so a dropped range never shifts font ids onto other ranges.
+    return ranges.mapNotNull { fr ->
+        adjustColorRangesForEdit(oldText, newText, listOf(ColorRange(fr.range, 0L)))
+            .firstOrNull()?.let { FontRange(it.range, fr.fontId) }
+    }.filter { it.fontId.isNotBlank() }
 }
 
 private fun adjustColorRangesForEdit(
@@ -520,16 +543,9 @@ private fun adjustColorRangesForEdit(
     val oldEditEnd = oldText.length - suffix
     val lengthDelta = newText.length - oldText.length
 
+    val newEditEnd = oldEditEnd + lengthDelta
     return ranges.mapNotNull { cr ->
-        val range = cr.range
-        when {
-            range.last < prefix -> cr
-            range.first >= oldEditEnd -> ColorRange(
-                (range.first + lengthDelta)..(range.last + lengthDelta),
-                cr.colorArgb
-            )
-            else -> null
-        }
+        shiftRangeForEdit(cr.range, prefix, oldEditEnd, newEditEnd)?.let { ColorRange(it, cr.colorArgb) }
     }
 }
 
@@ -1521,11 +1537,12 @@ private fun beginCoalescedEdit(key: String = "edit") {
     }
 
     fun updateSelectedTextAlign(align: String) {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return
         val a = align.uppercase()
         val ok = if (a == "LEFT" || a == "CENTER" || a == "RIGHT" || a == "JUSTIFY") a else "LEFT"
+        if (textElements[index].textAlign.uppercase() == ok) return
+        recordEdit()
         textElements[index] = textElements[index].copy(textAlign = ok)
     }
 
@@ -1535,7 +1552,6 @@ private fun beginCoalescedEdit(key: String = "edit") {
     }
 
     fun toggleBoldForSelection() {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return
         val selection = selectionForEdit()
@@ -1545,13 +1561,13 @@ private fun beginCoalescedEdit(key: String = "edit") {
         val start = selection.min.coerceIn(0, element.text.length)
         val end = selection.max.coerceIn(0, element.text.length)
         if (start >= end) return
+        recordEdit()
 
         val newRanges = toggleStyleRange(element.boldRanges, start, end, element.text.length)
         textElements[index] = element.copy(boldRanges = newRanges)
     }
 
     fun toggleItalicForSelection() {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return
         val selection = selectionForEdit()
@@ -1561,13 +1577,13 @@ private fun beginCoalescedEdit(key: String = "edit") {
         val start = selection.min.coerceIn(0, element.text.length)
         val end = selection.max.coerceIn(0, element.text.length)
         if (start >= end) return
+        recordEdit()
 
         val newRanges = toggleStyleRange(element.italicRanges, start, end, element.text.length)
         textElements[index] = element.copy(italicRanges = newRanges)
     }
 
     fun toggleUnderlineForSelection() {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return
         val selection = selectionForEdit()
@@ -1576,13 +1592,13 @@ private fun beginCoalescedEdit(key: String = "edit") {
         val start = selection.min.coerceIn(0, element.text.length)
         val end = selection.max.coerceIn(0, element.text.length)
         if (start >= end) return
+        recordEdit()
         textElements[index] = element.copy(
             underlineRanges = toggleStyleRange(element.underlineRanges, start, end, element.text.length)
         )
     }
 
     fun toggleStrikeForSelection() {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return
         val selection = selectionForEdit()
@@ -1591,6 +1607,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
         val start = selection.min.coerceIn(0, element.text.length)
         val end = selection.max.coerceIn(0, element.text.length)
         if (start >= end) return
+        recordEdit()
         textElements[index] = element.copy(
             strikeRanges = toggleStyleRange(element.strikeRanges, start, end, element.text.length)
         )
@@ -1605,9 +1622,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
         val start = selection.min.coerceIn(0, element.text.length)
         val end = selection.max.coerceIn(0, element.text.length)
         if (start >= end) return false
-        return (start until end).all { i ->
-            element.boldRanges.any { i in it }
-        }
+        return rangesCover(element.boldRanges, start, end)
     }
 
     fun isSelectionItalic(): Boolean {
@@ -1619,9 +1634,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
         val start = selection.min.coerceIn(0, element.text.length)
         val end = selection.max.coerceIn(0, element.text.length)
         if (start >= end) return false
-        return (start until end).all { i ->
-            element.italicRanges.any { i in it }
-        }
+        return rangesCover(element.italicRanges, start, end)
     }
 fun isSelectionUnderline(): Boolean {
         val index = activeTextIndex()
@@ -1632,9 +1645,7 @@ fun isSelectionUnderline(): Boolean {
         val start = selection.min.coerceIn(0, element.text.length)
         val end = selection.max.coerceIn(0, element.text.length)
         if (start >= end) return false
-        return (start until end).all { i ->
-            element.underlineRanges.any { i in it }
-        }
+        return rangesCover(element.underlineRanges, start, end)
     }
 fun isSelectionStrike(): Boolean {
         val index = activeTextIndex()
@@ -1645,9 +1656,7 @@ fun isSelectionStrike(): Boolean {
         val start = selection.min.coerceIn(0, element.text.length)
         val end = selection.max.coerceIn(0, element.text.length)
         if (start >= end) return false
-        return (start until end).all { i ->
-            element.strikeRanges.any { i in it }
-        }
+        return rangesCover(element.strikeRanges, start, end)
     }
 
     fun currentTextFontId(): String {
@@ -1663,8 +1672,9 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun deleteSelectedText() {
-        recordEdit()
         val id = focusedTextId ?: selectedTextId ?: return
+        if (textElements.none { it.id == id }) return
+        recordEdit()
         textElements.removeAll { it.id == id }
         if (focusedTextId == id) focusedTextId = null
         if (selectedTextId == id) selectedTextId = null
@@ -1672,9 +1682,9 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun applyFontToSelectedText(font: AppFont) {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return
+        recordEdit()
         val element = textElements[index]
         val selection = selectionForEdit()
         val start = selection.min.coerceIn(0, element.text.length)
@@ -3781,10 +3791,10 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun updateSelectedTextSize(sizeSp: Float) {
-        beginCoalescedEdit("textSize")
         val id = focusedTextId ?: selectedTextId ?: return
         val index = textElements.indexOfFirst { it.id == id }
         if (index < 0) return
+        beginCoalescedEdit("textSize")
         val clamped = sizeSp.coerceIn(6f, 96f)
         textElements[index] = textElements[index].copy(fontSizeSp = clamped, userFontSp = clamped)
     }
@@ -3835,6 +3845,50 @@ fun isSelectionStrike(): Boolean {
         val e = end.coerceIn(0, old.length)
         val newText = old.substring(0, s) + insertion + old.substring(e)
         val delta = insertion.length - (e - s)
+        // Per-char map old -> new. Inside the replaced lines only the line body (common end)
+        // survives, so a list prefix never spreads a word style over the whole line.
+        val oldToNew = IntArray(old.length) { i -> if (i < s) i else if (i >= e) i + delta else -1 }
+        val oldLines = old.substring(s, e).split('\n')
+        val newLines = insertion.split('\n')
+        if (e > s && oldLines.size == newLines.size) {
+            var po = s
+            var pn = s
+            for (k in oldLines.indices) {
+                val ol = oldLines[k]
+                val nl = newLines[k]
+                var m = 0
+                while (m < ol.length && m < nl.length && ol[ol.length - 1 - m] == nl[nl.length - 1 - m]) m++
+                for (q in 0 until m) oldToNew[po + ol.length - m + q] = pn + nl.length - m + q
+                po += ol.length
+                pn += nl.length
+                if (k < oldLines.lastIndex) {
+                    oldToNew[po] = pn
+                    po++
+                    pn++
+                }
+            }
+        }
+        fun mapChars(r: IntRange): List<IntRange> {
+            val out = mutableListOf<IntRange>()
+            var rs = -1
+            var prev = -2
+            val a = r.first.coerceAtLeast(0)
+            val b = r.last.coerceAtMost(old.length - 1)
+            for (i in a..b) {
+                val n = oldToNew[i]
+                if (n < 0) continue
+                if (rs >= 0 && n == prev + 1) {
+                    prev = n
+                } else {
+                    if (rs >= 0) out.add(rs..prev)
+                    rs = n
+                    prev = n
+                }
+            }
+            if (rs >= 0) out.add(rs..prev)
+            return out
+        }
+        // Whole-line mapping, kept only for quote ranges (quote is a line style).
         fun mapR(r: IntRange): IntRange? {
             val a = r.first
             val b = r.last
@@ -3848,12 +3902,12 @@ fun isSelectionStrike(): Boolean {
                 }
             }
         }
-        fun mapRs(list: List<IntRange>) = list.mapNotNull { mapR(it) }
-        fun mapCr(list: List<ColorRange>) = list.mapNotNull { cr -> mapR(cr.range)?.let { ColorRange(it, cr.colorArgb) } }
-        fun mapFr(list: List<FontRange>) = list.mapNotNull { fr -> mapR(fr.range)?.let { FontRange(it, fr.fontId) } }
-        fun mapLr(list: List<LinkRange>) = list.mapNotNull { lr -> mapR(lr.range)?.let { LinkRange(it, lr.url) } }
-        fun mapSr(list: List<ShadowRange>) = list.mapNotNull { sr ->
-            mapR(sr.range)?.let { ShadowRange(it, sr.colorArgb, sr.offsetXPx, sr.offsetYPx, sr.blurPx) }
+        fun mapRs(list: List<IntRange>) = list.flatMap { mapChars(it) }
+        fun mapCr(list: List<ColorRange>) = list.flatMap { cr -> mapChars(cr.range).map { ColorRange(it, cr.colorArgb) } }
+        fun mapFr(list: List<FontRange>) = list.flatMap { fr -> mapChars(fr.range).map { FontRange(it, fr.fontId) } }
+        fun mapLr(list: List<LinkRange>) = list.flatMap { lr -> mapChars(lr.range).map { LinkRange(it, lr.url) } }
+        fun mapSr(list: List<ShadowRange>) = list.flatMap { sr ->
+            mapChars(sr.range).map { ShadowRange(it, sr.colorArgb, sr.offsetXPx, sr.offsetYPx, sr.blurPx) }
         }
         textElements[index] = element.copy(
             text = newText,
@@ -3861,7 +3915,7 @@ fun isSelectionStrike(): Boolean {
             italicRanges = mapRs(element.italicRanges),
             underlineRanges = mapRs(element.underlineRanges),
             strikeRanges = mapRs(element.strikeRanges),
-            quoteRanges = mapRs(element.quoteRanges),
+            quoteRanges = element.quoteRanges.mapNotNull { mapR(it) },
             colorRanges = mapCr(element.colorRanges),
             bgColorRanges = mapCr(element.bgColorRanges),
             fontRanges = mapFr(element.fontRanges),
@@ -3876,7 +3930,6 @@ fun isSelectionStrike(): Boolean {
     }
 
     private fun applyListPrefixToSelection(numbered: Boolean): Boolean {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return false
         val element = textElements[index]
@@ -3907,12 +3960,14 @@ fun isSelectionStrike(): Boolean {
             else if (numbered) "${i + 1}. $body"
             else "• $body"
         }
-        spliceText(index, ls, le, newLines.joinToString("\n"))
+        val joined = newLines.joinToString("\n")
+        if (joined == chunk) return false
+        recordEdit()
+        spliceText(index, ls, le, joined)
         return true
     }
 
     fun applyQuoteToSelection(): Boolean {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return false
         val element = textElements[index]
@@ -3925,6 +3980,7 @@ fun isSelectionStrike(): Boolean {
             lineBounds(element.text, selection.min, selection.max)
         }
         if (ls >= le) return false
+        recordEdit()
         val newQuotes = toggleStyleRange(element.quoteRanges, ls, le, element.text.length)
         textElements[index] = element.copy(quoteRanges = newQuotes)
         currentSelection = TextRange(ls, le)
@@ -3934,7 +3990,6 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun applyDividerToSelection(): Boolean {
-        recordEdit()
         val index = activeTextIndex()
         if (index < 0) return false
         val element = textElements[index]
@@ -3948,11 +4003,12 @@ fun isSelectionStrike(): Boolean {
         val b = if (noSel) text.length else selection.max.coerceIn(0, text.length)
         val selected = if (a < b) text.substring(a, b) else ""
         val onlyLine = selected.isNotBlank() && selected.trim().all { it == '─' || it == '-' || it == '—' || it == '\n' }
+        recordEdit()
         if (onlyLine) {
             spliceText(index, a, b, "")
             return true
         }
-        val divider = "────────────"
+        val divider = getApplication<Application>().getString(com.pdfcraft.studio.R.string.text_divider_line)
         val insertAt = b
         val needLead = insertAt > 0 && text.getOrNull(insertAt - 1) != '\n'
         val needTrail = insertAt < text.length && text.getOrNull(insertAt) != '\n'
@@ -3986,9 +4042,9 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun updateSelectedTextColor(colorArgb: Long) {
-        beginCoalescedEdit("textColor")
         val index = activeTextIndex()
         if (index < 0) return
+        beginCoalescedEdit("textColor")
         val element = textElements[index]
         val selection = selectionForEdit()
         val start = selection.min.coerceIn(0, element.text.length)
@@ -4014,12 +4070,45 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun updateSelectedTextBgColor(colorArgb: Long?) {
-        beginCoalescedEdit("textBg")
         val index = activeTextIndex()
         if (index < 0) return
         val element = textElements[index]
+        // Nothing to clear: no undo step.
+        if (colorArgb == null && element.bgColorArgb == null && element.bgColorRanges.isEmpty()) return
+        beginCoalescedEdit("textBg")
         if (colorArgb == null) {
-            textElements[index] = element.copy(bgColorArgb = null, bgColorRanges = emptyList())
+            val selN = selectionForEdit()
+            val lenN = element.text.length
+            val ns = selN.min.coerceIn(0, lenN)
+            val ne = selN.max.coerceIn(0, lenN)
+            if (selN.collapsed || ns >= ne) {
+                // No selection: clear the whole box background.
+                textElements[index] = element.copy(bgColorArgb = null, bgColorRanges = emptyList())
+                return
+            }
+            // Selection: clear only the selected chars, keep the rest as ranges.
+            val cols = arrayOfNulls<Long>(lenN)
+            element.bgColorArgb?.let { boxBg -> for (q in 0 until lenN) cols[q] = boxBg }
+            element.bgColorRanges.forEach { cr ->
+                val cs = cr.range.first.coerceIn(0, lenN)
+                val ce = (cr.range.last + 1).coerceIn(0, lenN)
+                for (q in cs until ce) cols[q] = cr.colorArgb
+            }
+            for (q in ns until ne) cols[q] = null
+            val kept = mutableListOf<ColorRange>()
+            var q = 0
+            while (q < lenN) {
+                val c = cols[q]
+                if (c == null) {
+                    q++
+                    continue
+                }
+                var w = q
+                while (w < lenN && cols[w] == c) w++
+                kept.add(ColorRange(q until w, c))
+                q = w
+            }
+            textElements[index] = element.copy(bgColorArgb = null, bgColorRanges = kept)
             return
         }
         val selection = selectionForEdit()
@@ -4092,9 +4181,9 @@ fun isSelectionStrike(): Boolean {
         offsetYPx: Float? = null,
         blurPx: Float? = null
     ) {
-        beginCoalescedEdit("textShadow")
         val index = activeTextIndex()
         if (index < 0) return
+        beginCoalescedEdit("textShadow")
         val cur = textElements[index]
         val selection = selectionForEdit()
         val color = colorArgb ?: cur.shadowColorArgb
@@ -4120,9 +4209,9 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun updateSelectedTextBorder(colorArgb: Long) {
-        beginCoalescedEdit("textBorder")
         val index = activeTextIndex()
         if (index < 0) return
+        beginCoalescedEdit("textBorder")
         val element = textElements[index]
         val selection = selectionForEdit()
         val start = selection.min.coerceIn(0, element.text.length)
@@ -4212,9 +4301,9 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun updateSelectedTextSpreadColor(colorArgb: Long) {
-        beginCoalescedEdit("textSpread")
         val index = activeTextIndex()
         if (index < 0) return
+        beginCoalescedEdit("textSpread")
         val element = textElements[index]
         val selection = selectionForEdit()
         val start = selection.min.coerceIn(0, element.text.length)

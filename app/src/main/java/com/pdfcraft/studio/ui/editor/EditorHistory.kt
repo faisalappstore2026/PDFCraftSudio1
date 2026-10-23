@@ -124,15 +124,26 @@ class EditorHistory(private val onCounts: (Int, Int) -> Unit) {
     fun seed(m: EditorMemento, undoCount: Int, redoCount: Int) {
         undo.clear()
         redo.clear()
-        repeat(undoCount.coerceIn(0, max)) { undo.addLast(m) }
-        repeat(redoCount.coerceIn(0, max)) { redo.addLast(m) }
+        // Saved steps cannot be rebuilt after reopen, so start with empty history
+        // (no copies of the current state that make Undo/Redo look active).
+        coalescing = false
+        coalesceKey = null
         emit()
     }
 
     private fun pushUndo(m: EditorMemento) {
-        if (undo.isNotEmpty() && undo.last() == m) return
+        if (undo.isNotEmpty() && sameState(undo.last(), m)) return
         undo.addLast(m)
         while (undo.size > max) undo.removeFirst()
+    }
+
+    /** Cheap check first (same instances), full compare only when all elements are identical. */
+    private fun sameState(a: EditorMemento, b: EditorMemento): Boolean {
+        if (a === b) return true
+        if (a.texts.size != b.texts.size || a.images.size != b.images.size) return false
+        for (i in a.texts.indices) if (a.texts[i] !== b.texts[i]) return false
+        for (i in a.images.indices) if (a.images[i] !== b.images[i]) return false
+        return a.copy(texts = b.texts, images = b.images) == b
     }
 
     private fun emit() {

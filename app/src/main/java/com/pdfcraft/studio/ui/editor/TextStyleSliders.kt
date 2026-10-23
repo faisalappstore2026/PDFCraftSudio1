@@ -22,6 +22,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.pdfcraft.studio.R
 import kotlin.math.roundToInt
 
 /** Card shown at the top of the canvas after Border Color OK. */
@@ -32,9 +34,9 @@ fun TextBorderSliderPanel(
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SliderCard(title = "Border", onDone = onDone, modifier = modifier) {
+    SliderCard(title = stringResource(R.string.tt_border), onDone = onDone, modifier = modifier) {
         LabeledSlider(
-            label = "Thickness",
+            label = stringResource(R.string.tt_thickness),
             valueText = ((widthDp * 10f).roundToInt() / 10f).toString(),
             value = widthDp,
             range = 0.5f..8f,
@@ -51,9 +53,9 @@ fun TextSpreadSliderPanel(
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SliderCard(title = "Spread", onDone = onDone, modifier = modifier) {
+    SliderCard(title = stringResource(R.string.tt_spread), onDone = onDone, modifier = modifier) {
         LabeledSlider(
-            label = "Spread",
+            label = stringResource(R.string.tt_spread),
             valueText = spreadDp.roundToInt().toString(),
             value = spreadDp.coerceIn(0f, 40f),
             range = 0f..40f,
@@ -80,30 +82,30 @@ fun TextBgSliderPanel(
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SliderCard(title = "Background", onDone = onDone, modifier = modifier) {
+    SliderCard(title = stringResource(R.string.tt_background), onDone = onDone, modifier = modifier) {
         LabeledSlider(
-            label = "Corner radius",
+            label = stringResource(R.string.tt_corner_radius),
             valueText = cornerDp.roundToInt().toString(),
             value = cornerDp,
             range = 0f..24f,
             onChange = onCornerChange
         )
         LabeledSlider(
-            label = "Opacity",
+            label = stringResource(R.string.tt_opacity),
             valueText = (alpha * 100f).roundToInt().toString() + "%",
             value = alpha,
             range = 0.05f..1f,
             onChange = onAlphaChange
         )
         Row(modifier = Modifier.fillMaxWidth()) {
-            PadSlider("Left", padLeft, onPadLeftChange, Modifier.weight(1f))
+            PadSlider(stringResource(R.string.tt_pad_left), padLeft, onPadLeftChange, Modifier.weight(1f))
             Spacer(Modifier.width(12.dp))
-            PadSlider("Right", padRight, onPadRightChange, Modifier.weight(1f))
+            PadSlider(stringResource(R.string.tt_pad_right), padRight, onPadRightChange, Modifier.weight(1f))
         }
         Row(modifier = Modifier.fillMaxWidth()) {
-            PadSlider("Top", padTop, onPadTopChange, Modifier.weight(1f))
+            PadSlider(stringResource(R.string.tt_pad_top), padTop, onPadTopChange, Modifier.weight(1f))
             Spacer(Modifier.width(12.dp))
-            PadSlider("Bottom", padBottom, onPadBottomChange, Modifier.weight(1f))
+            PadSlider(stringResource(R.string.tt_pad_bottom), padBottom, onPadBottomChange, Modifier.weight(1f))
         }
     }
 }
@@ -155,7 +157,7 @@ private fun SliderCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(title, color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            TextButton(onClick = onDone) { Text("Done") }
+            TextButton(onClick = onDone) { Text(stringResource(R.string.editor_done)) }
         }
         content()
     }

@@ -1111,6 +1111,10 @@ private fun PageTextOverlay(
                 }
             )
     ) {
+        // Fixed page frame (not moved / rotated): finger positions are measured here so a
+        // moving box never eats part of the finger movement.
+        val pageRef = remember { arrayOfNulls<LayoutCoordinates>(1) }
+        Spacer(Modifier.onGloballyPositioned { pageRef[0] = it })
         texts.forEach { committedText ->
             // Live resize: local values while the handle is dragged; the ViewModel
             // gets ONE commit when the drag ends (no store update per drag event).
@@ -1404,6 +1408,7 @@ private fun PageTextOverlay(
             // Drag works on the stored (virtual) position; the drawn one is clamped.
             val xFracState = rememberUpdatedState(sizedText0.xFraction)
             val yFracState = rememberUpdatedState(sizedText0.yFraction)
+            val dragCoords = remember(committedText.id) { arrayOfNulls<LayoutCoordinates>(1) }
             val rotState = rememberUpdatedState(textElement.rotationDeg)
             val sizeSpState = rememberUpdatedState(textElement.fontSizeSp)
             // User's own size (handle / pinch scale this, not the auto-fitted size).
@@ -1462,7 +1467,8 @@ private fun PageTextOverlay(
                             rowWFrac = posRowSize.value.width / pw,
                             rowHFrac = posRowSize.value.height / ph,
                             starts = st,
-                            ends = en
+                            ends = en,
+                            styleKey = com.pdfcraft.studio.core.pdf.PdfTextLineCache.styleKeyOf(committedText)
                         )
                     )
                 }
@@ -1588,8 +1594,15 @@ private fun PageTextOverlay(
                         } else Modifier
                     )
                     .padding(4.dp)
+                    .onGloballyPositioned { dragCoords[0] = it }
                     .pointerInput(textElement.id) {
                         val slop = viewConfiguration.touchSlop
+                        fun pagePos(p: Offset): Offset? {
+                            val pr = pageRef[0] ?: return null
+                            val dc = dragCoords[0] ?: return null
+                            if (!pr.isAttached || !dc.isAttached) return null
+                            return try { pr.localPositionOf(dc, p) } catch (e: Exception) { null }
+                        }
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             TextBoxTouch.downUptime = down.uptimeMillis
@@ -1598,6 +1611,9 @@ private fun PageTextOverlay(
                             var xf = xFracState.value
                             var yf = yFracState.value
                             var sp = userSpState.value
+                            var startPage: Offset? = null
+                            var startXf = xf
+                            var startYf = yf
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
                                 val pressed = event.changes.filter { it.pressed }
@@ -1625,6 +1641,10 @@ private fun PageTextOverlay(
                                         dragging = true
                                         xf = xFracState.value
                                         yf = yFracState.value
+                                        // Anchor at the touch-down point: slop movement is not lost.
+                                        startPage = pagePos(down.position)
+                                        startXf = xf
+                                        startYf = yf
                                         onTextSelect(textElement.id)
                                     }
                                 }
@@ -1637,8 +1657,18 @@ private fun PageTextOverlay(
                                         val rad = rotState.value * (Math.PI.toFloat() / 180f)
                                         val cos = kotlin.math.cos(rad)
                                         val sin = kotlin.math.sin(rad)
-                                        val dx = delta.x * cos - delta.y * sin
-                                        val dy = delta.x * sin + delta.y * cos
+                                        val sp0 = startPage
+                                        val pNow = if (sp0 != null) pagePos(change.position) else null
+                                        val dx: Float
+                                        val dy: Float
+                                        if (sp0 != null && pNow != null) {
+                                            // Absolute: box start + finger travel on the page.
+                                            dx = (startXf + (pNow.x - sp0.x) / sz.width - xf) * sz.width
+                                            dy = (startYf + (pNow.y - sp0.y) / sz.height - yf) * sz.height
+                                        } else {
+                                            dx = delta.x * cos - delta.y * sin
+                                            dy = delta.x * sin + delta.y * cos
+                                        }
                                         // Live clamp on all four sides (visual edge, 8dp margin).
                                         val cl = clampTextBoxPos(
                                             xf + dx / sz.width,
@@ -1874,6 +1904,8 @@ private fun PageTextOverlay(
                 val liveW = remember(textElement.id) { floatArrayOf(0f) }
                 val liveH = remember(textElement.id) { floatArrayOf(0f) }
                 val startBox = remember(textElement.id) { floatArrayOf(1f, 1f, 16f) }
+                // Total finger travel (box axes) since drag start; size = start + travel.
+                val accWH = remember(textElement.id) { floatArrayOf(0f, 0f) }
                 val widthFracState = rememberUpdatedState(textElement.boxWidthFrac)
                 val heightFracState = rememberUpdatedState(textElement.boxHeightFrac)
                 val resizeState = rememberUpdatedState(onTextBoxResize)
@@ -1898,6 +1930,8 @@ private fun PageTextOverlay(
                         startBox[0] = liveW[0].coerceAtLeast(1f)
                         startBox[1] = liveH[0].coerceAtLeast(1f)
                         startBox[2] = userSpState.value
+                        accWH[0] = 0f
+                        accWH[1] = 0f
                     },
                     onDragEnd = {
                         boxHud = false
@@ -1907,15 +1941,22 @@ private fun PageTextOverlay(
                             resizeState.value(textElement.id, lb[0], lb[1], lb[2])
                         }
                         liveBox.value = null
-                    }
+                    },
+                    pageRef = pageRef
                 ) { drag ->
                     onTextSelect(textElement.id)
                     val pageW = sizeState.value.width.toFloat().coerceAtLeast(1f)
                     val pageH = sizeState.value.height.toFloat().coerceAtLeast(1f)
                     val minW = with(density) { 24.dp.toPx() }
                     val minH = with(density) { 20.dp.toPx() }
-                    liveW[0] = (liveW[0] + drag.x).coerceIn(minW, maxOf(minW, pageW * 1.6f))
-                    liveH[0] = (liveH[0] + drag.y).coerceIn(minH, maxOf(minH, pageH * 1.6f))
+                    // Page-frame finger move -> box axes (rotated boxes grow along their own sides).
+                    val rr = (if (rotState.value.isNaN()) 0f else rotState.value) * (Math.PI.toFloat() / 180f)
+                    val rc = kotlin.math.cos(rr)
+                    val rs = kotlin.math.sin(rr)
+                    accWH[0] += drag.x * rc + drag.y * rs
+                    accWH[1] += -drag.x * rs + drag.y * rc
+                    liveW[0] = (startBox[0] + accWH[0]).coerceIn(minW, maxOf(minW, pageW * 1.6f))
+                    liveH[0] = (startBox[1] + accWH[1]).coerceIn(minH, maxOf(minH, pageH * 1.6f))
                     // Text scales with the box (geometric mean of both axes).
                     val fw = liveW[0] / startBox[0]
                     val fh = liveH[0] / startBox[1]
@@ -1945,7 +1986,7 @@ private fun PageTextOverlay(
                 } else {
                     ((((textElement.fontSizeSp - 6f) / 90f) * 100f).roundToInt().coerceIn(0, 100)).toString()
                 }
-                val hudCap = if (rotHud) "Rotate" else if (boxHud) "Box" else "Size"
+                val hudCap = if (rotHud) stringResource(R.string.tt_hud_rotate) else if (boxHud) stringResource(R.string.tt_hud_box) else stringResource(R.string.tt_hud_size)
                 val boxTop = (textElement.yFraction * sizePx.height).toInt()
                 Box(
                     modifier = Modifier.offset {
@@ -3163,15 +3204,28 @@ private fun TextHandle(
     modifier: Modifier = Modifier,
     onDragStart: () -> Unit = {},
     onDragEnd: () -> Unit = {},
+    /** Set: drag deltas are measured in this fixed page frame (handle may move). */
+    pageRef: Array<LayoutCoordinates?>? = null,
     onDrag: (Offset) -> Unit
 ) {
+    val startCb = rememberUpdatedState(onDragStart)
+    val endCb = rememberUpdatedState(onDragEnd)
+    val dragCb = rememberUpdatedState(onDrag)
+    val selfRef = remember { arrayOfNulls<LayoutCoordinates>(1) }
     Box(
         modifier = modifier
             .size(28.dp)
             .shadow(3.dp, CircleShape)
             .background(Color.White, CircleShape)
             .border(1.dp, Color(0x33000000), CircleShape)
+            .onGloballyPositioned { selfRef[0] = it }
             .pointerInput(Unit) {
+                fun pagePos(p: Offset): Offset? {
+                    val pr = pageRef?.get(0) ?: return null
+                    val sr = selfRef[0] ?: return null
+                    if (!pr.isAttached || !sr.isAttached) return null
+                    return try { pr.localPositionOf(sr, p) } catch (e: Exception) { null }
+                }
                 awaitEachGesture {
                     val down = awaitFirstDown(
                         requireUnconsumed = false,
@@ -3179,17 +3233,18 @@ private fun TextHandle(
                     )
                     down.consume()
                     TextBoxTouch.downUptime = down.uptimeMillis
-                    onDragStart()
+                    startCb.value()
                     val slop = viewConfiguration.touchSlop
                     var moved = false
                     var endSent = false
+                    var prevPage: Offset? = pagePos(down.position)
                     try {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == down.id }
                         if (change == null || !change.pressed) {
                             endSent = true
-                            onDragEnd()
+                            endCb.value()
                             break
                         }
                         val delta = change.positionChange()
@@ -3198,12 +3253,22 @@ private fun TextHandle(
                         }
                         if (moved) {
                             change.consume()
-                            if (delta.x != 0f || delta.y != 0f) onDrag(delta)
+                            val pp = prevPage
+                            val pNow = if (pp != null) pagePos(change.position) else null
+                            if (pp != null && pNow != null) {
+                                // Page frame: real finger travel even while the handle moves
+                                // (first step includes the slop distance).
+                                val d = pNow - pp
+                                prevPage = pNow
+                                if (d.x != 0f || d.y != 0f) dragCb.value(d)
+                            } else if (delta.x != 0f || delta.y != 0f) {
+                                dragCb.value(delta)
+                            }
                         }
                     }
                     } finally {
                         // Gesture cancelled: still finish the drag (commit live resize).
-                        if (!endSent) onDragEnd()
+                        if (!endSent) endCb.value()
                     }
                 }
             },

@@ -629,7 +629,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         IconButton(onClick = { menuExpanded = true }) {
                             Icon(
                                 imageVector = Icons.Filled.MoreVert,
-                                contentDescription = "More options"
+                                contentDescription = stringResource(R.string.editor_more_options)
                             )
                         }
                         var projectSaving by remember { mutableStateOf(false) }
@@ -767,7 +767,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                     if (warning != null) {
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
-                                            text = "Link warning: $warning",
+                                            text = stringResource(R.string.export_link_warning, warning),
                                             color = MaterialTheme.colorScheme.error
                                         )
                                     }
@@ -1428,9 +1428,13 @@ if (showFontTools) {
             initialColor = viewModel.selectedTextColorArgb(),
             onConfirm = {
                 viewModel.updateSelectedTextColor(it)
+                viewModel.endCoalescedEdit()
                 showTextColorPicker = false
             },
-            onDismiss = { showTextColorPicker = false }
+            onDismiss = {
+                viewModel.endCoalescedEdit()
+                showTextColorPicker = false
+            }
         )
     }
     if (showTextBgColorPicker) {
@@ -1438,14 +1442,26 @@ if (showFontTools) {
             initialColor = viewModel.selectedTextBgColorArgb() ?: 0xFFFFFF00,
             onConfirm = {
                 viewModel.updateSelectedTextBgColor(it)
+                viewModel.endCoalescedEdit()
                 showTextBgColorPicker = false
                 textBorderSliderOpen = false
                 textSpreadSliderOpen = false
                 textBgSliderOpen = true
                 revealTextSignal++
             },
-            onDismiss = { showTextBgColorPicker = false },
-            previewAsBackground = true
+            onDismiss = {
+                viewModel.endCoalescedEdit()
+                showTextBgColorPicker = false
+            },
+            previewAsBackground = true,
+            onNone = {
+                // Own undo step: selection -> only that part, no selection -> whole box.
+                viewModel.endCoalescedEdit()
+                viewModel.updateSelectedTextBgColor(null)
+                viewModel.endCoalescedEdit()
+                showTextBgColorPicker = false
+                textBgSliderOpen = false
+            }
         )
     }
     if (showTextSpreadPicker) {
@@ -1453,13 +1469,17 @@ if (showFontTools) {
             initialColor = viewModel.selectedTextSpreadColorArgb() ?: 0xFFFFD54FL,
             onConfirm = {
                 viewModel.updateSelectedTextSpreadColor(it)
+                viewModel.endCoalescedEdit()
                 showTextSpreadPicker = false
                 textBorderSliderOpen = false
                 textBgSliderOpen = false
                 textSpreadSliderOpen = true
                 revealTextSignal++
             },
-            onDismiss = { showTextSpreadPicker = false }
+            onDismiss = {
+                viewModel.endCoalescedEdit()
+                showTextSpreadPicker = false
+            }
         )
     }
     if (showTextBorderPicker) {
@@ -1467,12 +1487,16 @@ if (showFontTools) {
             initialColor = viewModel.selectedTextBorderColorArgb(),
             onConfirm = {
                 viewModel.updateSelectedTextBorder(it)
+                viewModel.endCoalescedEdit()
                 showTextBorderPicker = false
                 textBgSliderOpen = false
                 textSpreadSliderOpen = false
                 textBorderSliderOpen = true
             },
-            onDismiss = { showTextBorderPicker = false }
+            onDismiss = {
+                viewModel.endCoalescedEdit()
+                showTextBorderPicker = false
+            }
         )
     }
     if (showTextShadowPanel) {
@@ -1486,9 +1510,13 @@ if (showFontTools) {
                 viewModel.updateSelectedTextShadow(
                     colorArgb = color, offsetXPx = x, offsetYPx = y, blurPx = b
                 )
+                viewModel.endCoalescedEdit()
                 showTextShadowPanel = false
             },
-            onDismiss = { showTextShadowPanel = false }
+            onDismiss = {
+                viewModel.endCoalescedEdit()
+                showTextShadowPanel = false
+            }
         )
     }
 

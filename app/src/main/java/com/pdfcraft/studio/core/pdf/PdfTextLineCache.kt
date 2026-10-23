@@ -27,7 +27,9 @@ object PdfTextLineCache {
         val rowWFrac: Float,
         val rowHFrac: Float,
         val starts: IntArray,
-        val ends: IntArray
+        val ends: IntArray,
+        /** Font and line-width styles (font, bold, italic) at layout time. */
+        val styleKey: Int = 0
     ) {
         /** Line ranges (end exclusive -> IntRange), or null when they do not fit this text. */
         fun ranges(len: Int): List<IntRange>? {
@@ -47,6 +49,10 @@ object PdfTextLineCache {
 
     private val map = ConcurrentHashMap<String, Entry>()
 
+    /** Hash of everything besides text/size that changes line breaks. */
+    fun styleKeyOf(t: com.pdfcraft.studio.ui.editor.TextElement): Int =
+        listOf<Any?>(t.fontId, t.fontRanges, t.boldRanges, t.italicRanges).hashCode()
+
     fun put(id: String, e: Entry) {
         if (map.size > 500) map.clear()
         map[id] = e
@@ -63,10 +69,12 @@ object PdfTextLineCache {
         boxHFrac: Float,
         x: Float,
         y: Float,
-        rotDeg: Float
+        rotDeg: Float,
+        styleKey: Int = 0
     ): Entry? {
         val e = map[id] ?: return null
         if (e.text != text) return null
+        if (e.styleKey != styleKey) return null
         if (kotlin.math.abs(e.fontSp - fontSp) >= 0.01f) return null
         if (!near(e.boxWFrac, boxWFrac) || !near(e.boxHFrac, boxHFrac)) return null
         if (!near(e.rawX, x) || !near(e.rawY, y) || !near(e.rotDeg, rotDeg)) return null

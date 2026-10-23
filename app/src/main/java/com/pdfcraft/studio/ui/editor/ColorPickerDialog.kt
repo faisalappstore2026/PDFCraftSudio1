@@ -216,7 +216,9 @@ fun ColorPickerDialog(
     initialColor: Long,
     onConfirm: (Long) -> Unit,
     onDismiss: () -> Unit,
-    previewAsBackground: Boolean = false
+    previewAsBackground: Boolean = false,
+    /** When set, a "None" button is shown next to OK (no background). */
+    onNone: (() -> Unit)? = null
 ) {
     var selectedColor by remember { mutableStateOf(initialColor) }
     val initialIdx = GRID_COLORS.indexOfFirst { it == (initialColor and 0xFFFFFFFFL) }
@@ -246,7 +248,7 @@ fun ColorPickerDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Elon Musk",
+                        text = stringResource(R.string.color_preview_sample),
                         color = if (previewAsBackground) Color.Black else Color(selectedColor),
                         fontSize = 36.sp,
                         fontWeight = FontWeight.Bold,
@@ -328,10 +330,32 @@ fun ColorPickerDialog(
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
+                  androidx.compose.foundation.layout.Row(
+                      modifier = Modifier.fillMaxWidth(),
+                      verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    if (onNone != null) {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { onNone() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.color_none_background),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        androidx.compose.foundation.layout.Spacer(
+                            modifier = Modifier.width(12.dp)
+                        )
+                    }
                     Button(
                         onClick = { onConfirm(selectedColor) },
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .weight(1f)
                             .height(48.dp),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -339,12 +363,13 @@ fun ColorPickerDialog(
                         )
                     ) {
                         Text(
-                            text = "OK",
+                            text = stringResource(R.string.color_ok),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.White
                         )
                     }
+                  }
                 }
             }
         }

@@ -796,7 +796,39 @@ object ProjectStore {
         return out
     }
 
-    private fun textFromJson(o: JSONObject): TextElement {
+    private fun textFromJson(o: JSONObject): TextElement = sanitizeLoadedText(rawTextFromJson(o))
+
+    /** Old or broken files: keep ranges inside the text, drop empty ones, sane font sizes. */
+    private fun sanitizeLoadedText(t: TextElement): TextElement {
+        val len = t.text.length
+        fun cl(r: IntRange): IntRange? {
+            val a = r.first.coerceAtLeast(0)
+            val b = r.last.coerceAtMost(len - 1)
+            return if (a <= b) a..b else null
+        }
+        val fs = t.fontSizeSp
+        val safeFs = if (fs.isNaN() || fs <= 0f) 16f else fs.coerceIn(0.5f, 96f)
+        val us = t.userFontSp
+        val safeUs = if (us.isNaN()) 0f else us.coerceIn(0f, 96f)
+        return t.copy(
+            boldRanges = t.boldRanges.mapNotNull { cl(it) },
+            italicRanges = t.italicRanges.mapNotNull { cl(it) },
+            underlineRanges = t.underlineRanges.mapNotNull { cl(it) },
+            strikeRanges = t.strikeRanges.mapNotNull { cl(it) },
+            quoteRanges = t.quoteRanges.mapNotNull { cl(it) },
+            colorRanges = t.colorRanges.mapNotNull { cr -> cl(cr.range)?.let { cr.copy(range = it) } },
+            bgColorRanges = t.bgColorRanges.mapNotNull { cr -> cl(cr.range)?.let { cr.copy(range = it) } },
+            borderRanges = t.borderRanges.mapNotNull { cr -> cl(cr.range)?.let { cr.copy(range = it) } },
+            spreadRanges = t.spreadRanges.mapNotNull { cr -> cl(cr.range)?.let { cr.copy(range = it) } },
+            fontRanges = t.fontRanges.mapNotNull { fr -> cl(fr.range)?.let { fr.copy(range = it) } },
+            linkRanges = t.linkRanges.mapNotNull { lr -> cl(lr.range)?.let { lr.copy(range = it) } },
+            shadowRanges = t.shadowRanges.mapNotNull { sr -> cl(sr.range)?.let { sr.copy(range = it) } },
+            fontSizeSp = safeFs,
+            userFontSp = safeUs
+        )
+    }
+
+    private fun rawTextFromJson(o: JSONObject): TextElement {
         return TextElement(
             id = o.optString("id"),
             pageIndex = o.optInt("pageIndex", 0),
