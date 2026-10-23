@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
             PDFCraftStudioTheme {
                 Surface(modifier = Modifier) {
                     when (versionStatus) {
-                        null -> VersionCheckLoading()
+                        // Check runs in background; app opens at once (fail-open).
                         VersionStatus.UPDATE_REQUIRED -> UpdateRequiredScreen(
                             onUpdateNow = { openUpdateUrl(this@MainActivity, updatePolicy?.updateUrl) },
                             onRetry = { runVersionCheck() },

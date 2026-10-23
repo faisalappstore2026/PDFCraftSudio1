@@ -24,6 +24,37 @@ fun PdfCraftNavGraph(
     navController: NavHostController = rememberNavController()
 ) {
     val context = LocalContext.current
+    // Last editor is the start screen from the very first frame (no Home flash).
+    val resumeEditor: String? = androidx.compose.runtime.remember {
+        if (!openPdfUri.isNullOrBlank()) {
+            null
+        } else {
+            try {
+                val s0 = SessionStore.load(context)
+                if (s0.screen != SessionStore.EDITOR) {
+                    null
+                } else if (s0.editorPath.isBlank() || SessionStore.editorPathOpenable(context, s0.editorPath)) {
+                    s0.editorPath
+                } else {
+                    SessionStore.setHome(context)
+                    null
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+    val goHomeFromEditor: () -> Unit = {
+        SessionStore.setHome(context)
+        if (navController.previousBackStackEntry != null) {
+            navController.popBackStack()
+        } else {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(navController.graph.id) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
     LaunchedEffect(openPdfUri) {
         val uri = openPdfUri?.takeIf { it.isNotBlank() }
         if (uri != null) {
@@ -36,15 +67,15 @@ fun PdfCraftNavGraph(
         val s = SessionStore.load(context)
         when (s.screen) {
             SessionStore.EDITOR -> {
+                if (resumeEditor != null) return@LaunchedEffect
                 val path = s.editorPath
                 if (SessionStore.editorPathOpenable(context, path)) {
                     navController.navigate(Screen.Editor.routeOpen(path)) {
                         launchSingleTop = true
                     }
                 } else {
-                    navController.navigate(Screen.Editor.routeNew()) {
-                        launchSingleTop = true
-                    }
+                    // Project could not be loaded: stay on Home.
+                    SessionStore.setHome(context)
                 }
             }
             SessionStore.VIEWER -> {
@@ -63,7 +94,20 @@ fun PdfCraftNavGraph(
         }
     }
 
-    NavHost(navController = navController, startDestination = Screen.Home.route) {
+    NavHost(
+        navController = navController,
+        startDestination = if (resumeEditor != null) "editor_resume" else Screen.Home.route
+    ) {
+        composable("editor_resume") {
+            EditorScreen(
+                projectPath = resumeEditor?.takeIf { it.isNotBlank() },
+                onBackClick = { goHomeFromEditor() },
+                onViewPdfClick = { uriString ->
+                    SessionStore.setViewer(context, uriString)
+                    navController.navigate(Screen.PdfViewer.routeWithUri(uriString))
+                }
+            )
+        }
         composable(Screen.Home.route) {
             HomeScreen(
                 onCreatePdfClick = {
@@ -125,10 +169,7 @@ fun PdfCraftNavGraph(
             val projectPath = Screen.Editor.decodeProject(encoded)
             EditorScreen(
                 projectPath = projectPath,
-                onBackClick = {
-                    SessionStore.setHome(context)
-                    navController.popBackStack()
-                },
+                onBackClick = goHomeFromEditor,
                 onViewPdfClick = { uriString ->
                     SessionStore.setViewer(context, uriString)
                     navController.navigate(Screen.PdfViewer.routeWithUri(uriString))
@@ -157,7 +198,11 @@ fun PdfCraftNavGraph(
                             val route = entry?.destination?.route.orEmpty()
                             if (route.startsWith("editor")) {
                                 val enc = entry?.arguments?.getString("project").orEmpty()
-                                SessionStore.setEditor(context, Screen.Editor.decodeProject(enc).orEmpty())
+                                SessionStore.setEditor(
+                                    context,
+                                    if (route == "editor_resume") resumeEditor.orEmpty()
+                                    else Screen.Editor.decodeProject(enc).orEmpty()
+                                )
                             } else if (route.startsWith("pdf_library")) {
                                 SessionStore.setScreen(context, SessionStore.LIBRARY)
                             } else if (route.startsWith("my_projects")) {

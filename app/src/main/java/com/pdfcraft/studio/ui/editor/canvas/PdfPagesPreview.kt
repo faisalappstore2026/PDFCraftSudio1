@@ -960,14 +960,14 @@ private fun PageTextOverlay(
             val pageWpx = sizePx.width.toFloat().coerceAtLeast(1f)
             val pageHpx = sizePx.height.toFloat().coerceAtLeast(1f)
             val boxWpx = if (textElement.boxWidthFrac > 0.01f) {
-                (textElement.boxWidthFrac * pageWpx).coerceIn(with(density) { 24.dp.toPx() }, capW)
+                (textElement.boxWidthFrac * pageWpx).coerceIn(with(density) { 24.dp.toPx() }, maxOf(capW, with(density) { 24.dp.toPx() }))
             } else {
                 autoW
             }
             val lineCount = 1 + fieldValue.text.count { it == '\n' }
             val autoH = (lineCount * fontPx * 1.35f + padPx).coerceAtMost(capH)
             val boxHpx = if (textElement.boxHeightFrac > 0.01f) {
-                (textElement.boxHeightFrac * pageHpx).coerceIn(with(density) { 20.dp.toPx() }, capH)
+                (textElement.boxHeightFrac * pageHpx).coerceIn(with(density) { 20.dp.toPx() }, maxOf(capH, with(density) { 20.dp.toPx() }))
             } else {
                 autoH
             }
@@ -1353,8 +1353,8 @@ private fun PageTextOverlay(
                     val pageH = sizeState.value.height.toFloat().coerceAtLeast(1f)
                     val minW = with(density) { 24.dp.toPx() }
                     val minH = with(density) { 20.dp.toPx() }
-                    liveW[0] = (liveW[0] + drag.x).coerceIn(minW, pageW * 1.6f)
-                    liveH[0] = (liveH[0] + drag.y).coerceIn(minH, pageH * 1.6f)
+                    liveW[0] = (liveW[0] + drag.x).coerceIn(minW, maxOf(minW, pageW * 1.6f))
+                    liveH[0] = (liveH[0] + drag.y).coerceIn(minH, maxOf(minH, pageH * 1.6f))
                     // Text scales with the box (geometric mean of both axes).
                     val fw = liveW[0] / startBox[0]
                     val fh = liveH[0] / startBox[1]
