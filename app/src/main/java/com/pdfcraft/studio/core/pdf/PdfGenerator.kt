@@ -476,6 +476,10 @@ object PdfGenerator {
                     val e = (sr.range.last + 1).coerceIn(0, fullText.length)
                     for (si in s until e) sh[si] = sr
                 }
+                // Backgrounds first (merged per run), then all text and outlines on top.
+                val bgPieces = ArrayList<FloatArray>()
+                val bgPieceColors = ArrayList<Long>()
+                val textOps = ArrayList<() -> Unit>()
                 lines.forEachIndexed { lineNo, range ->
                     val y = firstBaseline + lineNo * lineH
                     if (y > boxBottom) return@forEachIndexed
@@ -510,7 +514,8 @@ object PdfGenerator {
                         }
                         val top = y + fm.ascent
                         val bot = y + fm.descent
-                        canvas.drawRect(x - 8f * scale, top, x - 5f * scale, bot, bar)
+                        val qx = x
+                        textOps.add { canvas.drawRect(qx - 8f * scale, top, qx - 5f * scale, bot, bar) }
                         x += 10f * scale
                     }
                     while (i < lineEnd) {
@@ -522,9 +527,6 @@ object PdfGenerator {
                         val segment = fullText.substring(i, j)
                         val w = textPaint.measureText(segment)
                         if (cBg != null) {
-                            bgPaint.color = cBg.toInt()
-                            bgPaint.alpha = (((cBg shr 24) and 0xFFL).toFloat() * te.bgAlpha.coerceIn(0f, 1f))
-                                .toInt().coerceIn(0, 255)
                             var s0 = maxOf(i, lineTs)
                             var e0 = minOf(j, lineTe)
                             while (s0 < e0 && fullText[s0].isWhitespace() && !bgKeep[s0]) s0++
@@ -532,18 +534,17 @@ object PdfGenerator {
                             if (s0 < e0) {
                                 val bx0 = x + textPaint.measureText(fullText, i, s0)
                                 val bx1 = bx0 + textPaint.measureText(fullText, s0, e0)
-                                val top = y - textPaint.textSize * 0.85f - te.bgPadTopDp * scale
-                                val bottom = y + textPaint.textSize * 0.2f + te.bgPadBottomDp * scale
-                                val bgR = (te.bgCornerDp * scale).coerceIn(0f, (bottom - top) / 2f)
-                                canvas.drawRoundRect(
-                                    bx0 - te.bgPadLeftDp * scale,
-                                    top,
-                                    bx1 + te.bgPadRightDp * scale,
-                                    bottom,
-                                    bgR,
-                                    bgR,
-                                    bgPaint
+                                bgPieces.add(
+                                    floatArrayOf(
+                                        s0.toFloat(),
+                                        e0.toFloat(),
+                                        bx0,
+                                        y - textPaint.textSize * 0.85f,
+                                        bx1,
+                                        y + textPaint.textSize * 0.2f
+                                    )
                                 )
+                                bgPieceColors.add(cBg)
                             }
                         }
                         textPaint.color = cFg.toInt()
@@ -577,14 +578,64 @@ object PdfGenerator {
                             strokePaint.color = cBd.toInt()
                             strokePaint.isUnderlineText = false
                             strokePaint.isStrikeThruText = false
-                            canvas.drawText(segment, x, y, strokePaint)
+                            val sx = x
+                            textOps.add { canvas.drawText(segment, sx, y, strokePaint) }
                         }
-                        canvas.drawText(segment, x, y, textPaint)
+                        val fillPaint = Paint(textPaint)
+                        val fx = x
+                        textOps.add { canvas.drawText(segment, fx, y, fillPaint) }
                         x += w
                         if (justifyExtra > 0f) x += justifyExtra * segment.count { ch -> ch == ' ' }
                         i = j
                     }
                 }
+
+                // One rounded rect per contiguous background run (across wrapped lines).
+                var pi = 0
+                while (pi < bgPieces.size) {
+                    val col = bgPieceColors[pi]
+                    val fp = bgPieces[pi]
+                    var l = fp[2]
+                    var t = fp[3]
+                    var r = fp[4]
+                    var b = fp[5]
+                    var lastEnd = fp[1].toInt()
+                    var pj = pi + 1
+                    while (pj < bgPieces.size && bgPieceColors[pj] == col) {
+                        val nb = bgPieces[pj]
+                        val ns = nb[0].toInt()
+                        var joined = ns >= lastEnd
+                        var q = lastEnd
+                        while (joined && q < ns) {
+                            if (q >= bg.size || bg[q] != col) joined = false
+                            q++
+                        }
+                        if (!joined) break
+                        l = minOf(l, nb[2])
+                        t = minOf(t, nb[3])
+                        r = maxOf(r, nb[4])
+                        b = maxOf(b, nb[5])
+                        lastEnd = nb[1].toInt()
+                        pj++
+                    }
+                    bgPaint.color = col.toInt()
+                    bgPaint.alpha = (((col shr 24) and 0xFFL).toFloat() * te.bgAlpha.coerceIn(0f, 1f))
+                        .toInt().coerceIn(0, 255)
+                    val rTop = t - te.bgPadTopDp * scale
+                    val rBottom = b + te.bgPadBottomDp * scale
+                    val rR = (te.bgCornerDp * scale).coerceIn(0f, ((rBottom - rTop) / 2f).coerceAtLeast(0f))
+                    canvas.drawRoundRect(
+                        l - te.bgPadLeftDp * scale,
+                        rTop,
+                        r + te.bgPadRightDp * scale,
+                        rBottom,
+                        rR,
+                        rR,
+                        bgPaint
+                    )
+                    pi = pj
+                }
+                textOps.forEach { op -> op() }
 
                 if (kotlin.math.abs(rotDeg) > 0.05f) canvas.restore()
 

@@ -688,15 +688,17 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
     // Spaces inside a selected background range keep their background.
     fun keepAt(q: Int): Boolean =
         !txt[q].isWhitespace() || (keep != null && q < keep.size && keep[q])
+    // Pass 1: one piece per line per color run: start, end, left, top, right, bottom.
+    val pieces = ArrayList<FloatArray>()
+    val pieceColors = ArrayList<Long>()
     for (line in 0 until layout.lineCount) {
-        // Each line gets its own background, trimmed to its visible characters.
         var ls = layout.getLineStart(line).coerceIn(0, len)
         var le = layout.getLineEnd(line, visibleEnd = false).coerceIn(ls, len)
         while (le > ls && txt[le - 1] == '\n') le--
         while (ls < le && !keepAt(ls)) ls++
         while (le > ls && !keepAt(le - 1)) le--
-        val top = layout.getLineTop(line) - padTopPx
-        val bottom = layout.getLineBottom(line) + padBottomPx
+        val lineTop = layout.getLineTop(line)
+        val lineBottom = layout.getLineBottom(line)
         var i = ls
         while (i < le) {
             val c = bg[i]
@@ -715,19 +717,55 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
                 if (bb.left < left) left = bb.left
                 if (bb.right > right) right = bb.right
             }
-            left -= padLeftPx
-            right += padRightPx
-            val h = bottom - top
-            val r = radiusPx.coerceIn(0f, h / 2f)
-            val col = Color(c)
-            drawRoundRect(
-                color = col.copy(alpha = (col.alpha * alpha).coerceIn(0f, 1f)),
-                topLeft = Offset(left, top),
-                size = androidx.compose.ui.geometry.Size(right - left, h),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r)
-            )
+            if (right >= left) {
+                pieces.add(floatArrayOf(i.toFloat(), k.toFloat(), left, lineTop, right, lineBottom))
+                pieceColors.add(c)
+            }
             i = j
         }
+    }
+    // Pass 2: pieces of one contiguous run (across wrapped lines) become ONE rounded rect.
+    var p = 0
+    while (p < pieces.size) {
+        val c = pieceColors[p]
+        val first = pieces[p]
+        var l = first[2]
+        var t = first[3]
+        var r = first[4]
+        var b = first[5]
+        var lastEnd = first[1].toInt()
+        var n = p + 1
+        while (n < pieces.size && pieceColors[n] == c) {
+            val nx = pieces[n]
+            val ns = nx[0].toInt()
+            var joined = ns >= lastEnd
+            var q = lastEnd
+            while (joined && q < ns) {
+                if (q >= len || bg[q] != c) joined = false
+                q++
+            }
+            if (!joined) break
+            l = minOf(l, nx[2])
+            t = minOf(t, nx[3])
+            r = maxOf(r, nx[4])
+            b = maxOf(b, nx[5])
+            lastEnd = nx[1].toInt()
+            n++
+        }
+        val left = l - padLeftPx
+        val right = r + padRightPx
+        val top = t - padTopPx
+        val bottom = b + padBottomPx
+        val h = (bottom - top).coerceAtLeast(0f)
+        val rad = radiusPx.coerceIn(0f, h / 2f)
+        val col = Color(c)
+        drawRoundRect(
+            color = col.copy(alpha = (col.alpha * alpha).coerceIn(0f, 1f)),
+            topLeft = Offset(left, top),
+            size = androidx.compose.ui.geometry.Size((right - left).coerceAtLeast(0f), h),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(rad, rad)
+        )
+        p = n
     }
 }
 
@@ -1110,7 +1148,9 @@ private fun PageTextOverlay(
                     .onSizeChanged { rowMeasured = it }
                     .then(
                         if (selected) {
-                            Modifier.drawBehind {
+                            Modifier.drawWithContent {
+                                // Selection outline is drawn ABOVE text background.
+                                drawContent()
                                 drawRoundRect(
                                     color = Color(0xFF333333),
                                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f),

@@ -3980,12 +3980,25 @@ fun isSelectionStrike(): Boolean {
         val end = selection.max.coerceIn(0, element.text.length)
 
         if (!selection.collapsed && start < end) {
+            // New bg covers the whole selection plus any background run it overlaps or touches,
+            // so the result is one connected run (one rectangle).
+            val textLen = element.text.length
+            val covered = BooleanArray(textLen)
+            element.bgColorRanges.forEach { cr ->
+                val cs = cr.range.first.coerceIn(0, textLen)
+                val ce = (cr.range.last + 1).coerceIn(0, textLen)
+                for (q in cs until ce) covered[q] = true
+            }
+            var runStart = start
+            while (runStart > 0 && covered[runStart - 1]) runStart--
+            var runEnd = end
+            while (runEnd < textLen && covered[runEnd]) runEnd++
             val newRanges = applyColorRange(
                 element.bgColorRanges,
-                start,
-                end,
+                runStart,
+                runEnd,
                 colorArgb,
-                element.text.length
+                textLen
             )
             textElements[index] = element.copy(bgColorRanges = newRanges)
         } else {
