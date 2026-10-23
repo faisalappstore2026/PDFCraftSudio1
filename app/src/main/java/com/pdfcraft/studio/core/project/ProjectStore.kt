@@ -453,6 +453,7 @@ object ProjectStore {
         obj.put("spreadColorArgb", t.spreadColorArgb ?: JSONObject.NULL)
         obj.put("spreadRanges", colorRangesToJson(t.spreadRanges))
         obj.put("spreadDp", t.spreadDp.toDouble())
+        obj.put("userFontSp", t.userFontSp.toDouble())
         return obj
     }
 
@@ -835,7 +836,8 @@ object ProjectStore {
             bgPadBottomDp = o.optDouble("bgPadBottomDp", 0.0).toFloat(),
             spreadColorArgb = if (o.has("spreadColorArgb") && !o.isNull("spreadColorArgb")) o.optLong("spreadColorArgb") else null,
             spreadRanges = colorRangesFromJson(o.optJSONArray("spreadRanges")),
-            spreadDp = o.optDouble("spreadDp", 0.0).toFloat().coerceIn(0f, 40f)
+            spreadDp = o.optDouble("spreadDp", 0.0).toFloat().coerceIn(0f, 40f),
+            userFontSp = o.optDouble("userFontSp", 0.0).toFloat().coerceIn(0f, 96f)
         )
     }
 

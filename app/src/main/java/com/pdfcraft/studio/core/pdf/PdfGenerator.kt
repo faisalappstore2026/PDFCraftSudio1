@@ -465,10 +465,15 @@ object PdfGenerator {
                     )
                 }
 
+                // Box stays inside the page: never wrap past the right page border.
+                val pageRoomFrac = (1f - te.xFraction).coerceIn(0.02f, 1f)
+                val pageRoomPx = pageRoomFrac * pageWidth * 0.98f
                 val wrapW = if (te.boxWidthFrac > 0.01f) {
-                    (te.boxWidthFrac * pageWidth * wrapScale * 0.90f).coerceAtLeast(textPaint.textSize)
+                    minOf(minOf(te.boxWidthFrac, pageRoomFrac) * pageWidth * wrapScale * 0.90f, pageRoomPx)
+                        .coerceAtLeast(textPaint.textSize)
                 } else {
-                    1e20f
+                    minOf(pageRoomFrac * pageWidth * wrapScale * 0.90f, pageRoomPx)
+                        .coerceAtLeast(textPaint.textSize)
                 }
                 val lines = wrapTextLines(fullText, textPaint, wrapW)
                 // Box grows with its content: never cut lines off at the set height.

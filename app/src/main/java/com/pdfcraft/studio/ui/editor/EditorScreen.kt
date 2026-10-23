@@ -1981,6 +1981,7 @@ Column(
                     onTextRotate = viewModel::setTextRotation,
                     onTextScale = viewModel::setTextHandleSize,
                     onTextBoxResize = viewModel::setTextBoxSize,
+                    onTextAutoFit = viewModel::applyTextAutoFit,
 
                     onTextValueChange = { id, newText, newSelection ->
                         viewModel.updateTextValue(id, newText, newSelection)

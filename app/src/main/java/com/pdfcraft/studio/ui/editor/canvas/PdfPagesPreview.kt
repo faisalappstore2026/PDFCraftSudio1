@@ -212,6 +212,7 @@ fun PdfPagesPreview(
     onTextRotate: (String, Float) -> Unit = { _, _ -> },
     onTextScale: (String, Float) -> Unit = { _, _ -> },
     onTextBoxResize: (String, Float, Float, Float) -> Unit = { _, _, _, _ -> },
+    onTextAutoFit: (String, Float) -> Unit = { _, _ -> },
     onImageClick: (String) -> Unit = {},
     onImageLongPress: (String) -> Unit = {},
     onChangePosition: (String) -> Unit = {},
@@ -424,7 +425,8 @@ fun PdfPagesPreview(
                                     onDeselect = onDeselectText,
                                     onTextRotate = onTextRotate,
                                     onTextScale = onTextScale,
-                                    onTextBoxResize = onTextBoxResize
+                                    onTextBoxResize = onTextBoxResize,
+                                    onTextAutoFit = onTextAutoFit
                                 )
                             }
                         }
@@ -620,7 +622,8 @@ fun PdfPagesPreview(
                                 onDeselect = onDeselectText,
                                 onTextRotate = onTextRotate,
                                 onTextScale = onTextScale,
-                                onTextBoxResize = onTextBoxResize
+                                onTextBoxResize = onTextBoxResize,
+                                onTextAutoFit = onTextAutoFit
                             )
                         }
                     }
@@ -998,7 +1001,8 @@ private fun PageTextOverlay(
     onDeselect: () -> Unit,
     onTextRotate: (String, Float) -> Unit = { _, _ -> },
     onTextScale: (String, Float) -> Unit = { _, _ -> },
-    onTextBoxResize: (String, Float, Float, Float) -> Unit = { _, _, _, _ -> }
+    onTextBoxResize: (String, Float, Float, Float) -> Unit = { _, _, _, _ -> },
+    onTextAutoFit: (String, Float) -> Unit = { _, _ -> }
 ) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
     val focusManager = LocalFocusManager.current
@@ -1100,8 +1104,22 @@ private fun PageTextOverlay(
             val longest = fieldValue.text.split('\n').maxByOrNull { it.length } ?: ""
             val contentPx = if (longest.isEmpty()) 0f else measurePaint.measureText(longest)
             val padPx = with(density) { 10.dp.toPx() }
-            val capW = (sizePx.width.toFloat() * 3f).coerceAtLeast(minBoxPx)
-            val capH = (sizePx.height.toFloat() * 3f).coerceAtLeast(fontPx)
+            // Box stays inside the page: from its position to the right / bottom page border.
+            val pageEdgePx = with(density) { 8.dp.toPx() }
+            val capW = if (sizePx.width > 0) {
+                (sizePx.width * (1f - textElement.xFraction) - pageEdgePx)
+                    .coerceAtLeast(with(density) { 24.dp.toPx() })
+            } else {
+                (sizePx.width.toFloat() * 3f).coerceAtLeast(minBoxPx)
+            }
+            val capH = if (sizePx.height > 0) {
+                (sizePx.height * (1f - textElement.yFraction) - pageEdgePx)
+                    .coerceAtLeast(with(density) { 20.dp.toPx() })
+            } else {
+                (sizePx.height.toFloat() * 3f).coerceAtLeast(fontPx)
+            }
+            val fitMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val fitContext = androidx.compose.ui.platform.LocalContext.current
             val autoW = (if (fieldValue.text.isEmpty()) minBoxPx else contentPx + padPx)
                 .coerceAtMost(capW)
                 .coerceAtLeast(with(density) { 8.dp.toPx() })
@@ -1348,8 +1366,64 @@ private fun PageTextOverlay(
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { newValue ->
-                        fieldValue = newValue
-                        onTextValueChange(textElement.id, newValue.text, newValue.selection)
+                        // Auto-fit: largest font (up to the user's chosen size) that keeps all
+                        // text inside the page. Not enforced until page size + layout are known.
+                        val lay = textLayout
+                        val pw = sizePx.width.toFloat()
+                        val ph = sizePx.height.toFloat()
+                        var fitSp = Float.NaN
+                        var rejectEdit = false
+                        if (newValue.text != fieldValue.text && lay != null && pw > 1f && ph > 1f) {
+                            val edge = with(density) { 8.dp.toPx() }
+                            val availW = (pw - textElement.xFraction * pw - edge).coerceAtLeast(1f)
+                            val availH = (ph - textElement.yFraction * ph - edge).coerceAtLeast(1f)
+                            val wrapW = (
+                                if (textElement.boxWidthFrac > 0.01f) minOf(textElement.boxWidthFrac * pw, availW) else availW
+                                ).coerceAtLeast(1f)
+                            val userSp = (
+                                if (textElement.userFontSp > 0.01f) textElement.userFontSp else textElement.fontSizeSp
+                                ).coerceIn(6f, 96f)
+                            val baseStyle = lay.layoutInput.style
+                            val plain = AnnotatedString(newValue.text)
+                            val maxWi = wrapW.toInt().coerceAtLeast(1)
+                            fun fitsAt(spv: Float): Boolean {
+                                val r = fitMeasurer.measure(
+                                    text = plain,
+                                    style = baseStyle.copy(fontSize = spv.sp, shadow = null),
+                                    softWrap = true,
+                                    constraints = androidx.compose.ui.unit.Constraints(maxWidth = maxWi),
+                                    density = density
+                                )
+                                return r.size.height.toFloat() <= availH * 0.97f
+                            }
+                            if (fitsAt(userSp)) {
+                                fitSp = userSp
+                            } else if (!fitsAt(6f)) {
+                                // Even 6sp overflows: reject typing / paste; deleting still allowed.
+                                if (newValue.text.length > fieldValue.text.length) rejectEdit = true else fitSp = 6f
+                            } else {
+                                var lo = 6f
+                                var hi = userSp
+                                repeat(14) {
+                                    val mid = (lo + hi) / 2f
+                                    if (fitsAt(mid)) lo = mid else hi = mid
+                                }
+                                fitSp = lo
+                            }
+                        }
+                        if (rejectEdit) {
+                            android.widget.Toast.makeText(
+                                fitContext,
+                                fitContext.getString(com.pdfcraft.studio.R.string.text_limit_reached),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            fieldValue = newValue
+                            onTextValueChange(textElement.id, newValue.text, newValue.selection)
+                            if (!fitSp.isNaN() && kotlin.math.abs(fitSp - textElement.fontSizeSp) > 0.05f) {
+                                onTextAutoFit(textElement.id, fitSp)
+                            }
+                        }
                     },
                     visualTransformation = TextStyleRangesVisualTransformation(
                         boldRanges = textElement.boldRanges,

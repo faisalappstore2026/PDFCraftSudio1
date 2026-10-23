@@ -333,7 +333,9 @@ data class TextElement(
     /** Spread (glow around glyphs): whole-box color, or per range. Amount in dp (0..40). */
     val spreadColorArgb: Long? = null,
     val spreadRanges: List<ColorRange> = emptyList(),
-    val spreadDp: Float = 0f
+    val spreadDp: Float = 0f,
+    /** Font size the user chose (0 = same as fontSizeSp). Auto-fit never grows above it. */
+    val userFontSp: Float = 0f
 )
 
 private fun adjustRangesForEdit(
@@ -1464,7 +1466,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
         beginCoalescedEdit("textScale")
         val index = textElements.indexOfFirst { it.id == id }
         if (index < 0) return
-        textElements[index] = textElements[index].copy(fontSizeSp = sizeSp.coerceIn(6f, 96f))
+        textElements[index] = textElements[index].copy(fontSizeSp = sizeSp.coerceIn(6f, 96f), userFontSp = sizeSp.coerceIn(6f, 96f))
     }
 
     fun setTextBoxSize(id: String, boxWidthFrac: Float, boxHeightFrac: Float, fontSizeSp: Float) {
@@ -1478,6 +1480,23 @@ private fun beginCoalescedEdit(key: String = "edit") {
             boxWidthFrac = boxWidthFrac.coerceIn(0.02f, 1.8f),
             boxHeightFrac = boxHeightFrac.coerceIn(0.02f, 1.8f),
             fontSizeSp = newSp,
+            userFontSp = newSp,
+            borderWidthDp = (cur.borderWidthDp * k).coerceIn(0.5f, 8f),
+            bgCornerDp = (cur.bgCornerDp * k).coerceIn(0f, 24f)
+        )
+    }
+
+    /** Auto-fit font after a text edit; part of the same undo step as the edit. */
+    fun applyTextAutoFit(id: String, sizeSp: Float) {
+        val index = textElements.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val cur = textElements[index]
+        val newSp = sizeSp.coerceIn(6f, 96f)
+        if (kotlin.math.abs(newSp - cur.fontSizeSp) < 0.01f) return
+        val k = if (cur.fontSizeSp > 0.01f) newSp / cur.fontSizeSp else 1f
+        textElements[index] = cur.copy(
+            fontSizeSp = newSp,
+            userFontSp = if (cur.userFontSp > 0.01f) cur.userFontSp else cur.fontSizeSp,
             borderWidthDp = (cur.borderWidthDp * k).coerceIn(0.5f, 8f),
             bgCornerDp = (cur.bgCornerDp * k).coerceIn(0f, 24f)
         )
@@ -3766,7 +3785,7 @@ fun isSelectionStrike(): Boolean {
         val index = textElements.indexOfFirst { it.id == id }
         if (index < 0) return
         val clamped = sizeSp.coerceIn(6f, 96f)
-        textElements[index] = textElements[index].copy(fontSizeSp = clamped)
+        textElements[index] = textElements[index].copy(fontSizeSp = clamped, userFontSp = clamped)
     }
 
     fun selectedTextSizeSp(): Float {
