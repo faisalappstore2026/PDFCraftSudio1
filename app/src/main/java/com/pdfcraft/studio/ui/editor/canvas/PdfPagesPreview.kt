@@ -769,6 +769,44 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
     }
 }
 
+/** Same text and spans; spread characters drawn in the spread color with a zero-offset blur (glow). */
+private fun buildSpreadText(base: AnnotatedString, spread: Array<Long?>, blurPx: Float): AnnotatedString {
+    val b = AnnotatedString.Builder(base)
+    val len = minOf(base.text.length, spread.size)
+    if (base.text.isNotEmpty()) {
+        b.addStyle(
+            SpanStyle(
+                color = Color.Transparent,
+                background = Color.Transparent,
+                shadow = Shadow.None,
+                textDecoration = TextDecoration.None
+            ),
+            0,
+            base.text.length
+        )
+    }
+    var i = 0
+    while (i < len) {
+        val c = spread[i]
+        if (c == null) {
+            i++
+            continue
+        }
+        var j = i + 1
+        while (j < len && spread[j] == c) j++
+        b.addStyle(
+            SpanStyle(
+                color = Color(c),
+                shadow = Shadow(color = Color(c), offset = Offset.Zero, blurRadius = blurPx)
+            ),
+            i,
+            j
+        )
+        i = j
+    }
+    return b.toAnnotatedString()
+}
+
 /** Same text and spans, glyph fill hidden, outline (stroke) on bordered characters. */
 @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
 private fun buildBorderText(base: AnnotatedString, border: Array<Long?>, strokePx: Float): AnnotatedString {
@@ -1016,7 +1054,23 @@ private fun PageTextOverlay(
                 }
             )
     ) {
-        texts.forEach { textElement ->
+        texts.forEach { committedText ->
+            // Live resize: local values while the handle is dragged; the ViewModel
+            // gets ONE commit when the drag ends (no store update per drag event).
+            val liveBox = remember(committedText.id) { mutableStateOf<FloatArray?>(null) }
+            val liveVals = liveBox.value
+            val textElement = if (liveVals == null || liveVals.size < 3) {
+                committedText
+            } else {
+                val k = if (committedText.fontSizeSp > 0.01f) liveVals[2] / committedText.fontSizeSp else 1f
+                committedText.copy(
+                    boxWidthFrac = liveVals[0],
+                    boxHeightFrac = liveVals[1],
+                    fontSizeSp = liveVals[2],
+                    borderWidthDp = (committedText.borderWidthDp * k).coerceIn(0.5f, 8f),
+                    bgCornerDp = (committedText.bgCornerDp * k).coerceIn(0f, 24f)
+                )
+            }
             var fieldValue by remember(textElement.id) {
                 mutableStateOf(TextFieldValue(text = textElement.text))
             }
@@ -1104,6 +1158,32 @@ private fun PageTextOverlay(
                     val strokePx = with(density) { textElement.borderWidthDp.dp.toPx() }
                     borderMeasurer.measure(
                         text = buildBorderText(inp.text, borderChars, strokePx),
+                        style = inp.style.copy(shadow = null),
+                        overflow = inp.overflow,
+                        softWrap = inp.softWrap,
+                        maxLines = inp.maxLines,
+                        placeholders = inp.placeholders,
+                        constraints = inp.constraints,
+                        layoutDirection = inp.layoutDirection,
+                        density = inp.density,
+                        fontFamilyResolver = inp.fontFamilyResolver
+                    )
+                }
+            }
+            val spreadChars = charColorsFor(textElement.text.length, textElement.spreadColorArgb, textElement.spreadRanges)
+            val hasSpread = textElement.spreadDp > 0.01f && spreadChars.any { it != null }
+            val spreadLayout = remember(
+                textLayout, hasSpread, textElement.text, textElement.spreadColorArgb,
+                textElement.spreadRanges, textElement.spreadDp
+            ) {
+                val lay = textLayout
+                if (!hasSpread || lay == null || lay.layoutInput.text.length != spreadChars.size) {
+                    null
+                } else {
+                    val inp = lay.layoutInput
+                    val glowPx = with(density) { textElement.spreadDp.dp.toPx() }.coerceAtLeast(0.01f)
+                    borderMeasurer.measure(
+                        text = buildSpreadText(inp.text, spreadChars, glowPx),
                         style = inp.style.copy(shadow = null),
                         overflow = inp.overflow,
                         softWrap = inp.softWrap,
@@ -1336,6 +1416,12 @@ private fun PageTextOverlay(
                                     bgKeepMask(textElement.text.length, textElement.bgColorRanges)
                                 )
                             }
+                            val sLay = spreadLayout
+                            if (sLay != null) {
+                                // Spread glow: above background, below border and text.
+                                drawText(textLayoutResult = sLay)
+                                drawText(textLayoutResult = sLay)
+                            }
                             val bLay = borderLayout
                             if (bLay != null) drawText(textLayoutResult = bLay)
                         }
@@ -1443,7 +1529,15 @@ private fun PageTextOverlay(
                         startBox[1] = liveH[0].coerceAtLeast(1f)
                         startBox[2] = sizeSpState.value
                     },
-                    onDragEnd = { boxHud = false }
+                    onDragEnd = {
+                        boxHud = false
+                        val lb = liveBox.value
+                        if (lb != null && lb.size >= 3) {
+                            // Single commit to the ViewModel (one undo step).
+                            resizeState.value(textElement.id, lb[0], lb[1], lb[2])
+                        }
+                        liveBox.value = null
+                    }
                 ) { drag ->
                     onTextSelect(textElement.id)
                     val pageW = sizeState.value.width.toFloat().coerceAtLeast(1f)
@@ -1457,8 +1551,8 @@ private fun PageTextOverlay(
                     val fh = liveH[0] / startBox[1]
                     val scaledSp = (startBox[2] * kotlin.math.sqrt((fw * fh).coerceAtLeast(0.0001f)))
                         .coerceIn(6f, 96f)
-                    resizeState.value(
-                        textElement.id,
+                    // Continuous float values, local only (smooth, no rounding).
+                    liveBox.value = floatArrayOf(
                         (liveW[0] / pageW).coerceIn(0.02f, 1.8f),
                         (liveH[0] / pageH).coerceIn(0.02f, 1.8f),
                         scaledSp
@@ -2718,10 +2812,13 @@ private fun TextHandle(
                     onDragStart()
                     val slop = viewConfiguration.touchSlop
                     var moved = false
+                    var endSent = false
+                    try {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == down.id }
                         if (change == null || !change.pressed) {
+                            endSent = true
                             onDragEnd()
                             break
                         }
@@ -2733,6 +2830,10 @@ private fun TextHandle(
                             change.consume()
                             if (delta.x != 0f || delta.y != 0f) onDrag(delta)
                         }
+                    }
+                    } finally {
+                        // Gesture cancelled: still finish the drag (commit live resize).
+                        if (!endSent) onDragEnd()
                     }
                 }
             },

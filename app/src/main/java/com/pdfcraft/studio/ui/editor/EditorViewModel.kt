@@ -329,7 +329,11 @@ data class TextElement(
     val bgPadLeftDp: Float = 0f,
     val bgPadTopDp: Float = 0f,
     val bgPadRightDp: Float = 0f,
-    val bgPadBottomDp: Float = 0f
+    val bgPadBottomDp: Float = 0f,
+    /** Spread (glow around glyphs): whole-box color, or per range. Amount in dp (0..40). */
+    val spreadColorArgb: Long? = null,
+    val spreadRanges: List<ColorRange> = emptyList(),
+    val spreadDp: Float = 0f
 )
 
 private fun adjustRangesForEdit(
@@ -1425,6 +1429,11 @@ private fun beginCoalescedEdit(key: String = "edit") {
                 linkRanges = adjustedLinks,
                 bgColorRanges = adjustedBgColors,
                 shadowRanges = adjustedShadows,
+                spreadRanges = if (textChanged) {
+                    adjustColorRangesForEdit(current.text, newText, current.spreadRanges)
+                } else {
+                    current.spreadRanges
+                },
                 borderRanges = if (textChanged) {
                     adjustColorRangesForEdit(current.text, newText, current.borderRanges)
                 } else {
@@ -3838,7 +3847,8 @@ fun isSelectionStrike(): Boolean {
             fontRanges = mapFr(element.fontRanges),
             linkRanges = mapLr(element.linkRanges),
             shadowRanges = mapSr(element.shadowRanges),
-            borderRanges = mapCr(element.borderRanges)
+            borderRanges = mapCr(element.borderRanges),
+            spreadRanges = mapCr(element.spreadRanges)
         )
         currentSelection = TextRange(s, s + insertion.length)
         pinnedTextId = element.id
@@ -4162,6 +4172,52 @@ fun isSelectionStrike(): Boolean {
             }
         }
         return element.textColorArgb
+    }
+
+    fun updateSelectedTextSpreadColor(colorArgb: Long) {
+        beginCoalescedEdit("textSpread")
+        val index = activeTextIndex()
+        if (index < 0) return
+        val element = textElements[index]
+        val selection = selectionForEdit()
+        val start = selection.min.coerceIn(0, element.text.length)
+        val end = selection.max.coerceIn(0, element.text.length)
+        val amount = if (element.spreadDp > 0.01f) element.spreadDp else 8f
+        if (!selection.collapsed && start < end) {
+            textElements[index] = element.copy(
+                spreadRanges = applyColorRange(element.spreadRanges, start, end, colorArgb, element.text.length),
+                spreadDp = amount
+            )
+        } else {
+            textElements[index] = element.copy(
+                spreadColorArgb = colorArgb,
+                spreadRanges = emptyList(),
+                spreadDp = amount
+            )
+        }
+    }
+
+    fun updateTextSpread(dp: Float) {
+        beginCoalescedEdit("textSpreadAmount")
+        val index = activeTextIndex()
+        if (index < 0) return
+        textElements[index] = textElements[index].copy(spreadDp = dp.coerceIn(0f, 40f))
+    }
+
+    fun selectedTextSpreadColorArgb(): Long? {
+        val index = activeTextIndex()
+        if (index < 0) return null
+        val element = textElements[index]
+        val selection = selectionForEdit()
+        if (!selection.collapsed) {
+            val start = selection.min.coerceIn(0, element.text.length)
+            val end = selection.max.coerceIn(0, element.text.length)
+            if (start < end) {
+                val hit = element.spreadRanges.lastOrNull { start >= it.range.first && start <= it.range.last }
+                if (hit != null) return hit.colorArgb
+            }
+        }
+        return element.spreadColorArgb
     }
 
     fun selectedTextBgColorArgb(): Long? {

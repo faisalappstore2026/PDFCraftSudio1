@@ -299,6 +299,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     var showTextBorderPicker by remember { mutableStateOf(false) }
     var textBorderSliderOpen by remember { mutableStateOf(false) }
     var textBgSliderOpen by remember { mutableStateOf(false) }
+    var showTextSpreadPicker by remember { mutableStateOf(false) }
+    var textSpreadSliderOpen by remember { mutableStateOf(false) }
     var revealTextSignal by remember { mutableStateOf(0) }
     var showFontTools by remember { mutableStateOf(false) }
     var showTextLinkDialog by remember { mutableStateOf(false) }
@@ -1438,11 +1440,26 @@ if (showFontTools) {
                 viewModel.updateSelectedTextBgColor(it)
                 showTextBgColorPicker = false
                 textBorderSliderOpen = false
+                textSpreadSliderOpen = false
                 textBgSliderOpen = true
                 revealTextSignal++
             },
             onDismiss = { showTextBgColorPicker = false },
             previewAsBackground = true
+        )
+    }
+    if (showTextSpreadPicker) {
+        ColorPickerDialog(
+            initialColor = viewModel.selectedTextSpreadColorArgb() ?: 0xFFFFD54FL,
+            onConfirm = {
+                viewModel.updateSelectedTextSpreadColor(it)
+                showTextSpreadPicker = false
+                textBorderSliderOpen = false
+                textBgSliderOpen = false
+                textSpreadSliderOpen = true
+                revealTextSignal++
+            },
+            onDismiss = { showTextSpreadPicker = false }
         )
     }
     if (showTextBorderPicker) {
@@ -1452,6 +1469,7 @@ if (showFontTools) {
                 viewModel.updateSelectedTextBorder(it)
                 showTextBorderPicker = false
                 textBgSliderOpen = false
+                textSpreadSliderOpen = false
                 textBorderSliderOpen = true
             },
             onDismiss = { showTextBorderPicker = false }
@@ -1628,7 +1646,7 @@ Column(
                 hasTextRangeSelection = if (
                     toolMenuOpen || showFontTools || showTextColorPicker ||
                     showTextBgColorPicker || showTextShadowPanel || showTextLinkDialog ||
-                    showTextBorderPicker
+                    showTextBorderPicker || showTextSpreadPicker
                 ) viewModel.hasTextRangeForEdit() else viewModel.hasLiveTextRange(),
                 onDeleteTextClick =
                     viewModel::deleteSelectedText,
@@ -1651,6 +1669,13 @@ Column(
                     ) showTextBgColorPicker = true else textLinkHint = true
                 },
                 onPinTextSelection = { viewModel.pinTextSelectionIfAny() },
+                onTextSpreadColorClick = {
+                    if (viewModel.selectedTextId != null || viewModel.focusedTextId != null) {
+                        showTextSpreadPicker = true
+                    } else {
+                        textLinkHint = true
+                    }
+                },
                 onTextBorderColorClick = {
                     if (viewModel.selectedTextId != null || viewModel.focusedTextId != null) {
                         showTextBorderPicker = true
@@ -1808,7 +1833,7 @@ Column(
             val systemTextToolbar = LocalTextToolbar.current
             val hideSystemTextMenu = toolMenuOpen || showFontTools || showTextColorPicker ||
                 showTextBgColorPicker || showTextShadowPanel || showTextLinkDialog ||
-                showTextBorderPicker
+                showTextBorderPicker || showTextSpreadPicker
             LaunchedEffect(hideSystemTextMenu) {
                 if (hideSystemTextMenu) systemTextToolbar.hide()
             }
@@ -1834,6 +1859,7 @@ Column(
                 if (!textBoxActive) {
                     textBorderSliderOpen = false
                     textBgSliderOpen = false
+                    textSpreadSliderOpen = false
                 }
             }
             Box(
@@ -1895,6 +1921,16 @@ Column(
                         onDone = {
                             viewModel.endCoalescedEdit()
                             textBgSliderOpen = false
+                        }
+                    )
+                }
+                if (textSpreadSliderOpen && panelText != null && !toolMenuOpen) {
+                    TextSpreadSliderPanel(
+                        spreadDp = panelText.spreadDp,
+                        onSpreadChange = { viewModel.updateTextSpread(it) },
+                        onDone = {
+                            viewModel.endCoalescedEdit()
+                            textSpreadSliderOpen = false
                         }
                     )
                 }

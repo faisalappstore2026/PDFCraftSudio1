@@ -436,6 +436,18 @@ object PdfGenerator {
                     val e = (cr.range.last + 1).coerceIn(0, fullText.length)
                     for (i in s until e) bd[i] = cr.colorArgb
                 }
+                // Spread (glow) color per character.
+                val spr = arrayOfNulls<Long>(fullText.length)
+                if (te.spreadDp > 0.01f) {
+                    if (te.spreadColorArgb != null) {
+                        for (i in fullText.indices) spr[i] = te.spreadColorArgb
+                    }
+                    te.spreadRanges.forEach { cr ->
+                        val s = cr.range.first.coerceIn(0, fullText.length)
+                        val e = (cr.range.last + 1).coerceIn(0, fullText.length)
+                        for (i in s until e) spr[i] = cr.colorArgb
+                    }
+                }
 
                 val fm = textPaint.fontMetrics
                 var lineH = fm.descent - fm.ascent + fm.leading
@@ -480,6 +492,7 @@ object PdfGenerator {
                 val bgPieces = ArrayList<FloatArray>()
                 val bgPieceColors = ArrayList<Long>()
                 val textOps = ArrayList<() -> Unit>()
+                val glowOps = ArrayList<() -> Unit>()
                 lines.forEachIndexed { lineNo, range ->
                     val y = firstBaseline + lineNo * lineH
                     if (y > boxBottom) return@forEachIndexed
@@ -523,7 +536,7 @@ object PdfGenerator {
                         val cBg = bg[i]
                         val cSh = sh[i]
                         var j = i + 1
-                        while (j < lineEnd && fg[j] == cFg && bg[j] == cBg && bd[j] == bd[i] && sh[j] == cSh && isB[j] == isB[i] && isI[j] == isI[i] && isU[j] == isU[i] && isS[j] == isS[i] && fids[j] == fids[i]) j++
+                        while (j < lineEnd && fg[j] == cFg && bg[j] == cBg && bd[j] == bd[i] && sh[j] == cSh && spr[j] == spr[i] && isB[j] == isB[i] && isI[j] == isI[i] && isU[j] == isU[i] && isS[j] == isS[i] && fids[j] == fids[i]) j++
                         val segment = fullText.substring(i, j)
                         val w = textPaint.measureText(segment)
                         if (cBg != null) {
@@ -567,6 +580,19 @@ object PdfGenerator {
                             )
                         } else {
                             textPaint.clearShadowLayer()
+                        }
+                        val cSp = spr[i]
+                        if (cSp != null) {
+                            val glowPaint = Paint(textPaint)
+                            glowPaint.color = cSp.toInt()
+                            glowPaint.isUnderlineText = false
+                            glowPaint.isStrikeThruText = false
+                            glowPaint.setShadowLayer((te.spreadDp * scale).coerceAtLeast(0.01f), 0f, 0f, cSp.toInt())
+                            val gx = x
+                            glowOps.add {
+                                canvas.drawText(segment, gx, y, glowPaint)
+                                canvas.drawText(segment, gx, y, glowPaint)
+                            }
                         }
                         val cBd = bd[i]
                         if (cBd != null) {
@@ -635,6 +661,7 @@ object PdfGenerator {
                     )
                     pi = pj
                 }
+                glowOps.forEach { op -> op() }
                 textOps.forEach { op -> op() }
 
                 if (kotlin.math.abs(rotDeg) > 0.05f) canvas.restore()

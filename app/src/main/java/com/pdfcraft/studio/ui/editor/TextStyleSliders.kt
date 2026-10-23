@@ -43,6 +43,25 @@ fun TextBorderSliderPanel(
     }
 }
 
+/** Card shown at the top of the canvas after Spread Color OK. */
+@Composable
+fun TextSpreadSliderPanel(
+    spreadDp: Float,
+    onSpreadChange: (Float) -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SliderCard(title = "Spread", onDone = onDone, modifier = modifier) {
+        LabeledSlider(
+            label = "Spread",
+            valueText = spreadDp.roundToInt().toString(),
+            value = spreadDp.coerceIn(0f, 40f),
+            range = 0f..40f,
+            onChange = onSpreadChange
+        )
+    }
+}
+
 /** Card shown at the top of the canvas after Background Color OK. */
 @Composable
 fun TextBgSliderPanel(

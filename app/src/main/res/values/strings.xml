@@ -223,6 +223,7 @@
 
     <string name="text_tool_text_color">🎨 Text Color</string>
     <string name="text_tool_border_color">🔳 Border Color</string>
+    <string name="text_tool_spread_color">✨ Spread Color</string>
     <string name="text_tool_bg_color">🖌️ Background Color</string>
     <string name="text_tool_shadow">🌑 Text Shadow</string>
     <string name="color_picker_title">Select Color</string>

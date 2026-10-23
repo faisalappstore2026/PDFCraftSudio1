@@ -96,6 +96,7 @@ fun EditorToolbar(
     onTextColorClick: () -> Unit = {},
     onTextBgColorClick: () -> Unit = {},
     onTextBorderColorClick: () -> Unit = {},
+    onTextSpreadColorClick: () -> Unit = {},
     onTextShadowClick: () -> Unit = {},
     onPinTextSelection: () -> Unit = {},
     textSizeSp: Float = 16f,
@@ -455,6 +456,7 @@ fun EditorToolbar(
                         onTextColorClick = onTextColorClick,
                         onTextBgColorClick = onTextBgColorClick,
                         onTextBorderColorClick = onTextBorderColorClick,
+                        onTextSpreadColorClick = onTextSpreadColorClick,
                         onTextShadowClick = onTextShadowClick,
                         onTextSizeClick = {
                             if (hasFocusedText) textSizeModeActive = true
@@ -1104,6 +1106,7 @@ private fun TextToolsMenu(
     onTextBgColorClick: () -> Unit,
     onTextShadowClick: () -> Unit,
     onTextBorderColorClick: () -> Unit = {},
+    onTextSpreadColorClick: () -> Unit = {},
     onDeleteTextClick: () -> Unit,
     onInsertLinkClick: () -> Unit = {},
     onBulletListClick: () -> Unit = {},
@@ -1171,6 +1174,13 @@ private fun TextToolsMenu(
                 if (!hasSelectedText) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onTextBorderColorClick()
+                }
+            }
+            HorizontalDivider(color = Color.LightGray)
+            ToolMenuItem(stringResource(R.string.text_tool_spread_color)) {
+                if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
+                    onMenuDismiss()
+                    onTextSpreadColorClick()
                 }
             }
             HorizontalDivider(color = Color.LightGray)

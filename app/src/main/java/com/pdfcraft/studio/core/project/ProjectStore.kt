@@ -450,6 +450,9 @@ object ProjectStore {
         obj.put("bgPadTopDp", t.bgPadTopDp.toDouble())
         obj.put("bgPadRightDp", t.bgPadRightDp.toDouble())
         obj.put("bgPadBottomDp", t.bgPadBottomDp.toDouble())
+        obj.put("spreadColorArgb", t.spreadColorArgb ?: JSONObject.NULL)
+        obj.put("spreadRanges", colorRangesToJson(t.spreadRanges))
+        obj.put("spreadDp", t.spreadDp.toDouble())
         return obj
     }
 
@@ -829,7 +832,10 @@ object ProjectStore {
             bgPadLeftDp = o.optDouble("bgPadLeftDp", 0.0).toFloat(),
             bgPadTopDp = o.optDouble("bgPadTopDp", 0.0).toFloat(),
             bgPadRightDp = o.optDouble("bgPadRightDp", 0.0).toFloat(),
-            bgPadBottomDp = o.optDouble("bgPadBottomDp", 0.0).toFloat()
+            bgPadBottomDp = o.optDouble("bgPadBottomDp", 0.0).toFloat(),
+            spreadColorArgb = if (o.has("spreadColorArgb") && !o.isNull("spreadColorArgb")) o.optLong("spreadColorArgb") else null,
+            spreadRanges = colorRangesFromJson(o.optJSONArray("spreadRanges")),
+            spreadDp = o.optDouble("spreadDp", 0.0).toFloat().coerceIn(0f, 40f)
         )
     }
 
