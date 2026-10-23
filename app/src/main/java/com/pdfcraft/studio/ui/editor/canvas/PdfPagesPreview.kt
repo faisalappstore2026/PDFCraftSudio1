@@ -674,20 +674,23 @@ private fun charColorsFor(len: Int, whole: Long?, ranges: List<ColorRange>): Arr
     return out
 }
 
-/** Text background as rounded rects per line run, with box opacity. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds(
+/** Cached background runs (no padding yet): rects = left, top, right, bottom; one color each. */
+private class BgRuns(val rects: List<FloatArray>, val colors: List<Long>)
+
+/**
+ * Text background runs from the layout. Computed once per layout/colors (callers remember it);
+ * only the run-edge characters are measured instead of every character.
+ */
+private fun computeTextBgRuns(
     layout: androidx.compose.ui.text.TextLayoutResult,
     bg: Array<Long?>,
-    radiusPx: Float,
-    alpha: Float,
-    padLeftPx: Float = 0f,
-    padTopPx: Float = 0f,
-    padRightPx: Float = 0f,
-    padBottomPx: Float = 0f,
     keep: BooleanArray? = null
-) {
+): BgRuns {
+    val rects = ArrayList<FloatArray>()
+    val colors = ArrayList<Long>()
     val txt = layout.layoutInput.text.text
     val len = minOf(bg.size, txt.length)
+    if (len <= 0) return BgRuns(rects, colors)
     // Spaces inside a selected background range keep their background.
     fun keepAt(q: Int): Boolean =
         !txt[q].isWhitespace() || (keep != null && q < keep.size && keep[q])
@@ -713,13 +716,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
             while (j < le && bg[j] == c) j++
             var k = j
             while (k > i + 1 && !keepAt(k - 1)) k--
-            var left = Float.MAX_VALUE
-            var right = -Float.MAX_VALUE
-            for (q in i until k) {
-                val bb = layout.getBoundingBox(q)
-                if (bb.left < left) left = bb.left
-                if (bb.right > right) right = bb.right
-            }
+            // Run edges only (first + last char of the run on this line).
+            val bbA = layout.getBoundingBox(i)
+            val bbB = if (k - 1 > i) layout.getBoundingBox(k - 1) else bbA
+            val left = minOf(bbA.left, bbB.left)
+            val right = maxOf(bbA.right, bbB.right)
             if (right >= left) {
                 pieces.add(floatArrayOf(i.toFloat(), k.toFloat(), left, lineTop, right, lineBottom))
                 pieceColors.add(c)
@@ -755,20 +756,40 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
             lastEnd = nx[1].toInt()
             n++
         }
-        val left = l - padLeftPx
-        val right = r + padRightPx
-        val top = t - padTopPx
-        val bottom = b + padBottomPx
+        rects.add(floatArrayOf(l, t, r, b))
+        colors.add(c)
+        p = n
+    }
+    return BgRuns(rects, colors)
+}
+
+/** Draw cached background runs with padding, radius and box opacity (cheap per frame). */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds(
+    runs: BgRuns,
+    radiusPx: Float,
+    alpha: Float,
+    padLeftPx: Float = 0f,
+    padTopPx: Float = 0f,
+    padRightPx: Float = 0f,
+    padBottomPx: Float = 0f
+) {
+    val n = minOf(runs.rects.size, runs.colors.size)
+    for (idx in 0 until n) {
+        val rc = runs.rects[idx]
+        if (rc.size < 4) continue
+        val left = rc[0] - padLeftPx
+        val right = rc[2] + padRightPx
+        val top = rc[1] - padTopPx
+        val bottom = rc[3] + padBottomPx
         val h = (bottom - top).coerceAtLeast(0f)
-        val rad = radiusPx.coerceIn(0f, h / 2f)
-        val col = Color(c)
+        val rad = radiusPx.coerceIn(0f, maxOf(0f, h / 2f))
+        val col = Color(runs.colors[idx])
         drawRoundRect(
             color = col.copy(alpha = (col.alpha * alpha).coerceIn(0f, 1f)),
             topLeft = Offset(left, top),
             size = androidx.compose.ui.geometry.Size((right - left).coerceAtLeast(0f), h),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(rad, rad)
         )
-        p = n
     }
 }
 
@@ -1102,37 +1123,89 @@ private fun PageTextOverlay(
             } else {
                 fitCapH
             }
-            val fitMaxWi = (fitWrapPx * 0.97f).toInt().coerceAtLeast(1)
-            val fitMaxHi = (fitAvailH * 0.97f).toInt().coerceAtLeast(1)
-            val fitFamily = FontCatalog.resolveComposeFontFamily(sizedText.fontId, customFonts)
-            val fitInfo = remember(sizedText.text, fitMaxWi, fitMaxHi, fitUserSp, sizedText.fontId, fitFamily, fitPageW, fitPageH) {
+            // Real room left on the page (raw, no 24x20dp minimum) so tiny boxes near the
+            // edge get a smaller font instead of overflowing.
+            val fitRoomW = (fitPageW * (1f - sizedText.xFraction) - fitEdge - fitQuoteW).coerceAtLeast(1f)
+            val fitRoomH = (fitPageH * (1f - sizedText.yFraction) - fitEdge).coerceAtLeast(1f)
+            val fitClipHpx = minOf(fitAvailH, fitRoomH)
+            val fitMaxWi = (minOf(fitWrapPx, fitRoomW) * 0.99f).toInt().coerceAtLeast(1)
+            val fitMaxHi = (fitClipHpx * 0.99f).toInt().coerceAtLeast(1)
+            // Cached: custom fonts are loaded from file on every resolve call.
+            val fitFamily = remember(sizedText.fontId, customFonts) {
+                FontCatalog.resolveComposeFontFamily(sizedText.fontId, customFonts)
+            }
+            val fitRangeFamilies = remember(sizedText.fontId, sizedText.fontRanges, customFonts) {
+                (listOf(sizedText.fontId) + sizedText.fontRanges.map { it.fontId })
+                    .distinct()
+                    .associateWith { FontCatalog.resolveComposeFontFamily(it, customFonts) }
+            }
+            // One transformation instance per style change (not per recomposition).
+            val visualTx = remember(
+                sizedText.boldRanges, sizedText.italicRanges, sizedText.underlineRanges,
+                sizedText.strikeRanges, sizedText.quoteRanges, sizedText.fontRanges,
+                fitRangeFamilies, sizedText.colorRanges, sizedText.linkRanges, sizedText.shadowRanges
+            ) {
+                TextStyleRangesVisualTransformation(
+                    boldRanges = sizedText.boldRanges,
+                    italicRanges = sizedText.italicRanges,
+                    underlineRanges = sizedText.underlineRanges,
+                    strikeRanges = sizedText.strikeRanges,
+                    quoteRanges = sizedText.quoteRanges,
+                    fontRanges = sizedText.fontRanges,
+                    fontFamilies = fitRangeFamilies,
+                    colorRanges = sizedText.colorRanges,
+                    // Backgrounds are drawn in drawBehind (rounded + opacity).
+                    bgColorRanges = emptyList(),
+                    wholeBgColorArgb = null,
+                    linkRanges = sizedText.linkRanges,
+                    shadowRanges = sizedText.shadowRanges
+                )
+            }
+            val lastFit = remember(committedText.id) { floatArrayOf(0f) }
+            val fitInfo = remember(sizedText.text, fitMaxWi, fitMaxHi, fitUserSp, visualTx, fitFamily, fitPageW, fitPageH) {
                 if (fitPageW <= 0 || fitPageH <= 0) {
                     floatArrayOf(sizedText.fontSizeSp, -1f)
                 } else {
-                    val plain = AnnotatedString(sizedText.text)
+                    // Full styled text (bold / italic / range fonts) exactly as the field draws it.
+                    val styled = visualTx.filter(AnnotatedString(sizedText.text)).text
+                    val fitStyle = TextStyle(
+                        fontFamily = fitFamily,
+                        platformStyle = PlatformTextStyle(includeFontPadding = true)
+                    )
                     fun measureAt(spv: Float) = autoFitMeasurer.measure(
-                        text = plain,
-                        style = TextStyle(
-                            fontSize = spv.sp,
-                            fontFamily = fitFamily,
-                            platformStyle = PlatformTextStyle(includeFontPadding = true)
-                        ),
+                        text = styled,
+                        style = fitStyle.copy(fontSize = spv.sp),
                         softWrap = true,
                         constraints = androidx.compose.ui.unit.Constraints(maxWidth = fitMaxWi),
                         density = fitDensity
                     )
                     val atUser = measureAt(fitUserSp)
-                    if (atUser.size.height <= fitMaxHi) {
+                    val res: FloatArray = if (atUser.size.height <= fitMaxHi) {
                         floatArrayOf(fitUserSp, atUser.size.width.toFloat())
                     } else {
-                        var lo = 0.5f
-                        var hi = fitUserSp
-                        repeat(12) {
-                            val mid = (lo + hi) / 2f
-                            if (measureAt(mid).size.height <= fitMaxHi) lo = mid else hi = mid
+                        // Fast path: the previous fitted size is still right (2 measures, no search).
+                        val prev = lastFit[0]
+                        var quick: FloatArray? = null
+                        if (prev >= 0.5f && prev < fitUserSp) {
+                            val atPrev = measureAt(prev)
+                            if (atPrev.size.height <= fitMaxHi &&
+                                measureAt(minOf(fitUserSp, prev * 1.02f)).size.height > fitMaxHi
+                            ) {
+                                quick = floatArrayOf(prev, atPrev.size.width.toFloat())
+                            }
                         }
-                        floatArrayOf(lo, measureAt(lo).size.width.toFloat())
+                        quick ?: run {
+                            var lo = 0.5f
+                            var hi = fitUserSp
+                            repeat(12) {
+                                val mid = (lo + hi) / 2f
+                                if (measureAt(mid).size.height <= fitMaxHi) lo = mid else hi = mid
+                            }
+                            floatArrayOf(lo, measureAt(lo).size.width.toFloat())
+                        }
                     }
+                    lastFit[0] = res[0]
+                    res
                 }
             }
             val fittedSp = fitInfo[0].coerceIn(0.5f, 96f)
@@ -1188,7 +1261,7 @@ private fun PageTextOverlay(
                 0f
             } else if (fitInfo[1] > 0f && fieldValue.text == textElement.text) {
                 // Width of the fitted layout (real font family), so the auto box never under-wraps.
-                fitInfo[1] / 0.97f
+                fitInfo[1] / 0.99f
             } else {
                 measurePaint.measureText(longest)
             }
@@ -1250,10 +1323,22 @@ private fun PageTextOverlay(
             var textLayout by remember(textElement.id) {
                 mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
             }
-            val bgChars = charColorsFor(textElement.text.length, textElement.bgColorArgb, textElement.bgColorRanges)
-            val hasBg = bgChars.any { it != null }
-            val borderChars = charColorsFor(textElement.text.length, textElement.borderColorArgb, textElement.borderRanges)
-            val hasBorder = borderChars.any { it != null }
+            val bgChars = remember(textElement.text.length, textElement.bgColorArgb, textElement.bgColorRanges) {
+                charColorsFor(textElement.text.length, textElement.bgColorArgb, textElement.bgColorRanges)
+            }
+            val hasBg = remember(bgChars) { bgChars.any { it != null } }
+            val bgKeep = remember(textElement.text.length, textElement.bgColorRanges) {
+                bgKeepMask(textElement.text.length, textElement.bgColorRanges)
+            }
+            // Background rects computed once per layout / colors, not on every draw frame.
+            val bgRuns = remember(textLayout, bgChars, bgKeep, hasBg) {
+                val lay = textLayout
+                if (lay == null || !hasBg) null else computeTextBgRuns(lay, bgChars, bgKeep)
+            }
+            val borderChars = remember(textElement.text.length, textElement.borderColorArgb, textElement.borderRanges) {
+                charColorsFor(textElement.text.length, textElement.borderColorArgb, textElement.borderRanges)
+            }
+            val hasBorder = remember(borderChars) { borderChars.any { it != null } }
             val borderMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
             val borderLayout = remember(
                 textLayout, hasBorder, textElement.text, textElement.borderColorArgb,
@@ -1279,8 +1364,12 @@ private fun PageTextOverlay(
                     )
                 }
             }
-            val spreadChars = charColorsFor(textElement.text.length, textElement.spreadColorArgb, textElement.spreadRanges)
-            val hasSpread = textElement.spreadDp > 0.01f && spreadChars.any { it != null }
+            val spreadChars = remember(textElement.text.length, textElement.spreadColorArgb, textElement.spreadRanges) {
+                charColorsFor(textElement.text.length, textElement.spreadColorArgb, textElement.spreadRanges)
+            }
+            val hasSpread = remember(spreadChars, textElement.spreadDp) {
+                textElement.spreadDp > 0.01f && spreadChars.any { it != null }
+            }
             val spreadLayout = remember(
                 textLayout, hasSpread, textElement.text, textElement.spreadColorArgb,
                 textElement.spreadRanges, textElement.spreadDp
@@ -1437,13 +1526,13 @@ private fun PageTextOverlay(
                         }
                     }
                 }
-                val fontFamily = FontCatalog.resolveComposeFontFamily(
-                    textElement.fontId,
-                    customFonts
-                )
+                val fontFamily = fitFamily // cached (custom fonts load from file)
                 Box(
                     contentAlignment = Alignment.TopStart,
                     modifier = Modifier
+                        // Own layer: the animated selection border no longer re-runs the
+                        // text / background / glow drawing on every frame.
+                        .graphicsLayer { }
                         .width(boxWidthDp)
                         .then(
                             if (textElement.boxHeightFrac > 0.01f) {
@@ -1462,23 +1551,7 @@ private fun PageTextOverlay(
                         fieldValue = newValue
                         onTextValueChange(textElement.id, newValue.text, newValue.selection)
                     },
-                    visualTransformation = TextStyleRangesVisualTransformation(
-                        boldRanges = textElement.boldRanges,
-                        italicRanges = textElement.italicRanges,
-                        underlineRanges = textElement.underlineRanges,
-                        strikeRanges = textElement.strikeRanges,
-                        quoteRanges = textElement.quoteRanges,
-                        fontRanges = textElement.fontRanges,
-                        fontFamilies = (listOf(textElement.fontId) + textElement.fontRanges.map { it.fontId })
-                            .distinct()
-                            .associateWith { FontCatalog.resolveComposeFontFamily(it, customFonts) },
-                        colorRanges = textElement.colorRanges,
-                        // Backgrounds are drawn in drawBehind (rounded + opacity).
-                        bgColorRanges = emptyList(),
-                        wholeBgColorArgb = null,
-                        linkRanges = textElement.linkRanges,
-                        shadowRanges = textElement.shadowRanges
-                    ),
+                    visualTransformation = visualTx,
                     textStyle = TextStyle(
                         color = Color(textElement.textColorArgb),
                         fontSize = textElement.fontSizeSp.sp,
@@ -1514,17 +1587,16 @@ private fun PageTextOverlay(
                         .wrapContentHeight(Alignment.Top, unbounded = true)
                         .drawBehind {
                             val lay = textLayout
-                            if (lay != null && hasBg) {
+                            val runs = bgRuns
+                            if (lay != null && hasBg && runs != null) {
                                 drawTextBackgrounds(
-                                    lay,
-                                    bgChars,
+                                    runs,
                                     textElement.bgCornerDp.dp.toPx(),
                                     textElement.bgAlpha,
                                     textElement.bgPadLeftDp.dp.toPx(),
                                     textElement.bgPadTopDp.dp.toPx(),
                                     textElement.bgPadRightDp.dp.toPx(),
-                                    textElement.bgPadBottomDp.dp.toPx(),
-                                    bgKeepMask(textElement.text.length, textElement.bgColorRanges)
+                                    textElement.bgPadBottomDp.dp.toPx()
                                 )
                             }
                             val sLay = spreadLayout
@@ -1535,6 +1607,19 @@ private fun PageTextOverlay(
                             }
                             val bLay = borderLayout
                             if (bLay != null) drawText(textLayoutResult = bLay)
+                        }
+                        .drawWithContent {
+                            // Last safety: glyphs never leave the box / page room. Background,
+                            // padding, glow and outline (drawBehind above) are not clipped.
+                            if (fitPageW > 0 && fitPageH > 0) {
+                                val clipH = minOf(size.height, fitClipHpx) + 2f
+                                drawContext.canvas.save()
+                                drawContext.canvas.clipRect(-2f, -2f, size.width + 2f, clipH)
+                                drawContent()
+                                drawContext.canvas.restore()
+                            } else {
+                                drawContent()
+                            }
                         }
                         .focusRequester(focusRequester)
                         .onFocusChanged { state ->

@@ -377,6 +377,36 @@ object PdfGenerator {
                 textPaint.textSize = te.fontSizeSp * (pageWidth / 360f)
                 val baseTf = FontCatalog.resolveTypeface(context, te.fontId)
                 textPaint.typeface = baseTf
+                // Fit inside the box's real height in the PDF too (tablet wrapScale can make
+                // more lines than the preview): shrink the PDF font only when needed.
+                val pdfFitRoomFrac = (1f - te.xFraction).coerceIn(0.02f, 1f)
+                val pdfRoomH = ((1f - te.yFraction) * thisPageHeight - 4f).coerceAtLeast(1f)
+                val pdfAvailH = if (te.boxHeightFrac > 0.01f) {
+                    minOf(pdfRoomH, (te.boxHeightFrac * thisPageHeight).coerceAtLeast(1f))
+                } else {
+                    pdfRoomH
+                }
+                if (te.text.isNotEmpty()) {
+                    var fitGuard = 0
+                    while (fitGuard < 12) {
+                        val fitWrap = (
+                            if (te.boxWidthFrac > 0.01f) {
+                                minOf(minOf(te.boxWidthFrac, pdfFitRoomFrac) * pageWidth * wrapScale * 0.90f, pdfFitRoomFrac * pageWidth * 0.98f)
+                            } else {
+                                minOf(pdfFitRoomFrac * pageWidth * wrapScale * 0.90f, pdfFitRoomFrac * pageWidth * 0.98f)
+                            }
+                            ).coerceAtLeast(textPaint.textSize)
+                        val fmFit = textPaint.fontMetrics
+                        var lhFit = fmFit.descent - fmFit.ascent + fmFit.leading
+                        if (lhFit < textPaint.textSize * 0.8f) lhFit = textPaint.textSize * 1.2f
+                        val nFit = wrapTextLines(te.text, textPaint, fitWrap).size.coerceAtLeast(1)
+                        val needH = textPaint.textSize + (nFit - 1) * lhFit + fmFit.descent
+                        if (needH <= pdfAvailH || textPaint.textSize <= 1f || needH <= 0f) break
+                        textPaint.textSize = (textPaint.textSize * (pdfAvailH / needH).coerceIn(0.5f, 0.97f))
+                            .coerceAtLeast(1f)
+                        fitGuard++
+                    }
+                }
                 val baseX = te.xFraction * pageWidth
                 val firstBaseline = te.yFraction * thisPageHeight + textPaint.textSize
                 val fullText = te.text
@@ -498,6 +528,11 @@ object PdfGenerator {
                 val bgPieceColors = ArrayList<Long>()
                 val textOps = ArrayList<() -> Unit>()
                 val glowOps = ArrayList<() -> Unit>()
+                // Measured once per element (was once per line = O(lines^2)).
+                val pdfMinBox = textPaint.measureText("000000000000000")
+                val pdfLongestW = lines.maxOfOrNull { lr ->
+                    textPaint.measureText(fullText.substring(lr.first, lr.last + 1))
+                } ?: 0f
                 lines.forEachIndexed { lineNo, range ->
                     val y = firstBaseline + lineNo * lineH
                     if (y > boxBottom) return@forEachIndexed
@@ -511,11 +546,7 @@ object PdfGenerator {
                     while (lineTs < lineEnd && fullText[lineTs].isWhitespace() && !bgKeep[lineTs]) lineTs++
                     var lineTe = lineEnd
                     while (lineTe > lineTs && fullText[lineTe - 1].isWhitespace() && !bgKeep[lineTe - 1]) lineTe--
-                    val minBox = textPaint.measureText("000000000000000")
-                    val longestW = lines.maxOf { lr ->
-                        textPaint.measureText(fullText.substring(lr.first, lr.last + 1))
-                    }
-                    val boxW = if (fullText.isEmpty()) minBox else longestW
+                    val boxW = if (fullText.isEmpty()) pdfMinBox else pdfLongestW
                     val align = te.textAlign.uppercase()
                     if (align == "CENTER") x = baseX + ((boxW - lineW) / 2f)
                     else if (align == "RIGHT") x = baseX + (boxW - lineW)
@@ -667,7 +698,16 @@ object PdfGenerator {
                     pi = pj
                 }
                 glowOps.forEach { op -> op() }
+                // Last safety: glyphs never leave the box (background and glow are not clipped).
+                canvas.save()
+                canvas.clipRect(
+                    baseX - 12f * scale,
+                    te.yFraction * thisPageHeight - textPaint.textSize * 0.3f,
+                    baseX + wrapW + textPaint.textSize,
+                    te.yFraction * thisPageHeight + pdfAvailH + textPaint.textSize * 0.3f
+                )
                 textOps.forEach { op -> op() }
+                canvas.restore()
 
                 if (kotlin.math.abs(rotDeg) > 0.05f) canvas.restore()
 
