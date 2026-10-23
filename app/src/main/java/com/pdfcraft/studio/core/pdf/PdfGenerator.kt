@@ -373,7 +373,18 @@ object PdfGenerator {
 
             // Text: only elements for this page index (supports partial color + bg ranges)
             // Newlines are drawn as separate lines (editor multiline must match PDF).
-            textElements.filter { docPage >= 0 && it.pageIndex == docPage }.forEach { te ->
+            textElements.filter { docPage >= 0 && it.pageIndex == docPage }.forEach { teRaw ->
+                // Same position clamp as the editor: 8dp margin left / top, room for the
+                // minimum box (24x20dp) right / bottom. Range never empty (maxOf).
+                val pdfDp = pageWidth / 360f
+                val pdfLoX = (8f * pdfDp / pageWidth.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
+                val pdfLoY = (8f * pdfDp / thisPageHeight.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
+                val pdfHiX = maxOf(pdfLoX, 1f - 32f * pdfDp / pageWidth.toFloat().coerceAtLeast(1f))
+                val pdfHiY = maxOf(pdfLoY, 1f - 28f * pdfDp / thisPageHeight.toFloat().coerceAtLeast(1f))
+                val te = if (teRaw.xFraction.isNaN() || teRaw.yFraction.isNaN()) teRaw else teRaw.copy(
+                    xFraction = teRaw.xFraction.coerceIn(pdfLoX, pdfHiX),
+                    yFraction = teRaw.yFraction.coerceIn(pdfLoY, pdfHiY)
+                )
                 textPaint.textSize = te.fontSizeSp * (pageWidth / 360f)
                 val baseTf = FontCatalog.resolveTypeface(context, te.fontId)
                 textPaint.typeface = baseTf

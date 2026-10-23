@@ -674,6 +674,38 @@ private fun charColorsFor(len: Int, whole: Long?, ranges: List<ColorRange>): Arr
     return out
 }
 
+/**
+ * Clamp a text box's top-left position (fractions) so its VISUAL edge (rotation around the box
+ * center included) stays edgePx inside the page on the left / top, and leaves room for the
+ * minimum box on the right / bottom. Page size unknown: position is returned unchanged.
+ */
+private fun clampTextBoxPos(
+    xf: Float,
+    yf: Float,
+    pw: Float,
+    ph: Float,
+    wPx: Float,
+    hPx: Float,
+    rotDeg: Float,
+    edgePx: Float,
+    minWPx: Float,
+    minHPx: Float
+): FloatArray {
+    if (pw <= 0f || ph <= 0f || xf.isNaN() || yf.isNaN()) return floatArrayOf(xf, yf)
+    val w = wPx.coerceAtLeast(0f)
+    val h = hPx.coerceAtLeast(0f)
+    val rad = rotDeg * (Math.PI.toFloat() / 180f)
+    val c = kotlin.math.abs(kotlin.math.cos(rad))
+    val s = kotlin.math.abs(kotlin.math.sin(rad))
+    val exX = ((w * c + h * s) / 2f - w / 2f).coerceAtLeast(0f)
+    val exY = ((w * s + h * c) / 2f - h / 2f).coerceAtLeast(0f)
+    val loX = ((edgePx + exX) / pw).coerceIn(0f, 1f)
+    val loY = ((edgePx + exY) / ph).coerceIn(0f, 1f)
+    val hiX = maxOf(loX, 1f - (edgePx + minWPx) / pw)
+    val hiY = maxOf(loY, 1f - (edgePx + minHPx) / ph)
+    return floatArrayOf(xf.coerceIn(loX, hiX), yf.coerceIn(loY, hiY))
+}
+
 /** Cached background runs (no padding yet): rects = left, top, right, bottom; one color each. */
 private class BgRuns(val rects: List<FloatArray>, val colors: List<Long>)
 
@@ -1084,7 +1116,7 @@ private fun PageTextOverlay(
             // gets ONE commit when the drag ends (no store update per drag event).
             val liveBox = remember(committedText.id) { mutableStateOf<FloatArray?>(null) }
             val liveVals = liveBox.value
-            val sizedText = if (liveVals == null || liveVals.size < 3) {
+            val sizedText0 = if (liveVals == null || liveVals.size < 3) {
                 committedText
             } else {
                 val k = if (committedText.fontSizeSp > 0.01f) liveVals[2] / committedText.fontSizeSp else 1f
@@ -1096,6 +1128,27 @@ private fun PageTextOverlay(
                     borderWidthDp = (committedText.borderWidthDp * k).coerceIn(0.5f, 8f),
                     bgCornerDp = (committedText.bgCornerDp * k).coerceIn(0f, 24f)
                 )
+            }
+            // Position clamp (render time): old projects, undo, new boxes, resize and pinch all
+            // keep the box inside the page on every side (8dp margin, rotated visual edge).
+            val posRowSize = remember(committedText.id) { mutableStateOf(IntSize.Zero) }
+            val posDensity = LocalDensity.current
+            val posXY = clampTextBoxPos(
+                sizedText0.xFraction,
+                sizedText0.yFraction,
+                sizePx.width.toFloat(),
+                sizePx.height.toFloat(),
+                posRowSize.value.width.toFloat(),
+                posRowSize.value.height.toFloat(),
+                sizedText0.rotationDeg,
+                with(posDensity) { 8.dp.toPx() },
+                with(posDensity) { 24.dp.toPx() },
+                with(posDensity) { 20.dp.toPx() }
+            )
+            val sizedText = if (posXY[0] == sizedText0.xFraction && posXY[1] == sizedText0.yFraction) {
+                sizedText0
+            } else {
+                sizedText0.copy(xFraction = posXY[0], yFraction = posXY[1])
             }
             // Auto-fit: font = min(user font, largest size whose text fits inside the box).
             // Recomputed only when text, box size, user font or font family change.
@@ -1423,7 +1476,10 @@ private fun PageTextOverlay(
             Row(
                 verticalAlignment = Alignment.Top,
                 modifier = Modifier
-                    .onSizeChanged { rowMeasured = it }
+                    .onSizeChanged {
+                        rowMeasured = it
+                        posRowSize.value = it
+                    }
                     .then(
                         if (selected) {
                             Modifier.drawWithContent {
@@ -1492,8 +1548,21 @@ private fun PageTextOverlay(
                                         val sin = kotlin.math.sin(rad)
                                         val dx = delta.x * cos - delta.y * sin
                                         val dy = delta.x * sin + delta.y * cos
-                                        xf = (xf + dx / sz.width).coerceIn(-1.2f, 1.2f)
-                                        yf = (yf + dy / sz.height).coerceIn(-1.2f, 1.2f)
+                                        // Live clamp on all four sides (visual edge, 8dp margin).
+                                        val cl = clampTextBoxPos(
+                                            xf + dx / sz.width,
+                                            yf + dy / sz.height,
+                                            sz.width.toFloat(),
+                                            sz.height.toFloat(),
+                                            bw,
+                                            bh,
+                                            rotState.value,
+                                            8.dp.toPx(),
+                                            24.dp.toPx(),
+                                            20.dp.toPx()
+                                        )
+                                        xf = cl[0]
+                                        yf = cl[1]
                                         onTextDrag(textElement.id, xf, yf)
                                     }
                                 }
