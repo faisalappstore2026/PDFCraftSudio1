@@ -1235,28 +1235,32 @@ private fun TextToolsMenu(
             HorizontalDivider(color = Color.LightGray)
             val hintSel = stringResource(R.string.text_hint_select_text_short)
             BloggerToolRow(kind = "bullet", label = stringResource(R.string.text_tool_bullet_list)) {
-                if (!hasTextRangeSelection) onNeedHint(hintSel) else {
+                // Range selected: only that range; box only: whole box text.
+                if (!hasFocusedText && !hasTextRangeSelection) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onBulletListClick()
                 }
             }
             HorizontalDivider(color = Color.LightGray)
             BloggerToolRow(kind = "number", label = stringResource(R.string.text_tool_numbered_list)) {
-                if (!hasTextRangeSelection) onNeedHint(hintSel) else {
+                // Range selected: only that range; box only: whole box text.
+                if (!hasFocusedText && !hasTextRangeSelection) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onNumberedListClick()
                 }
             }
             HorizontalDivider(color = Color.LightGray)
             BloggerToolRow(kind = "quote", label = stringResource(R.string.text_tool_quote)) {
-                if (!hasTextRangeSelection) onNeedHint(hintSel) else {
+                // Range selected: only that range; box only: whole box text.
+                if (!hasFocusedText && !hasTextRangeSelection) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onQuoteClick()
                 }
             }
             HorizontalDivider(color = Color.LightGray)
             BloggerToolRow(kind = "divider", label = stringResource(R.string.text_tool_divider)) {
-                if (!hasTextRangeSelection) onNeedHint(hintSel) else {
+                // Range selected: only that range; box only: whole box text.
+                if (!hasFocusedText && !hasTextRangeSelection) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onDividerClick()
                 }

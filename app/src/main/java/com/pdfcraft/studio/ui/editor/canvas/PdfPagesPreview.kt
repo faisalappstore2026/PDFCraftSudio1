@@ -1145,6 +1145,30 @@ private fun PageTextOverlay(
                 with(posDensity) { 24.dp.toPx() },
                 with(posDensity) { 20.dp.toPx() }
             )
+            // Left / top dynamic cap: the stored (virtual) position may be left of / above the
+            // margin. The box is drawn at the margin and loses that overflow from its width /
+            // height, so its right / bottom edge stays put (same feel as the right / bottom cap).
+            // Rotated boxes: plain clamp (no cap), as in fix12.
+            // Rotated boxes too: the visual (AABB) overflow is turned into a cut of the box's own
+            // width / height via cos / sin (near 90 deg the axes swap). posOverL = width cut,
+            // posOverT = height cut. posExX / posExY = extra AABB reach on the right / bottom.
+            val posRad = (if (sizedText0.rotationDeg.isNaN()) 0f else sizedText0.rotationDeg) * (Math.PI.toFloat() / 180f)
+            val posC = kotlin.math.abs(kotlin.math.cos(posRad))
+            val posS = kotlin.math.abs(kotlin.math.sin(posRad))
+            val posUnrot = kotlin.math.abs(sizedText0.rotationDeg) <= 0.5f
+            val posOvX = if (sizePx.width > 0) ((posXY[0] - sizedText0.xFraction) * sizePx.width).coerceAtLeast(0f) else 0f
+            val posOvY = if (sizePx.height > 0) ((posXY[1] - sizedText0.yFraction) * sizePx.height).coerceAtLeast(0f) else 0f
+            val posSwap = !posUnrot && posS > posC
+            val posK = if (posUnrot) 1f else maxOf(if (posSwap) posS else posC, 0.35f)
+            val posOverL = (if (posSwap) posOvY else posOvX) / posK
+            val posOverT = (if (posSwap) posOvX else posOvY) / posK
+            val posRw = posRowSize.value.width.toFloat()
+            val posRh = posRowSize.value.height.toFloat()
+            val posExX = if (posUnrot || posRw <= 0f) 0f else ((posRw * posC + posRh * posS - posRw) / 2f).coerceAtLeast(0f)
+            val posExY = if (posUnrot || posRh <= 0f) 0f else ((posRw * posS + posRh * posC - posRh) / 2f).coerceAtLeast(0f)
+            val posOverLi = posOverL.toInt()
+            val posOverTi = posOverT.toInt()
+            val posOverState = rememberUpdatedState(floatArrayOf(posOverL, posOverT))
             val sizedText = if (posXY[0] == sizedText0.xFraction && posXY[1] == sizedText0.yFraction) {
                 sizedText0
             } else {
@@ -1162,24 +1186,26 @@ private fun PageTextOverlay(
             val fitMinW = with(fitDensity) { 24.dp.toPx() }
             val fitMinH = with(fitDensity) { 20.dp.toPx() }
             val fitQuoteW = if (sizedText.quoteRanges.isNotEmpty()) with(fitDensity) { 9.dp.toPx() } else 0f
-            val fitCapW = (fitPageW * (1f - sizedText.xFraction) - fitEdge).coerceAtLeast(fitMinW)
-            val fitCapH = (fitPageH * (1f - sizedText.yFraction) - fitEdge).coerceAtLeast(fitMinH)
+            val fitCapW = (fitPageW * (1f - sizedText.xFraction) - fitEdge - posExX).coerceAtLeast(fitMinW)
+            val fitCapH = (fitPageH * (1f - sizedText.yFraction) - fitEdge - posExY).coerceAtLeast(fitMinH)
             val fitWrapPx = (
                 if (sizedText.boxWidthFrac > 0.01f) {
-                    (sizedText.boxWidthFrac * fitPageW).coerceIn(fitMinW, maxOf(fitCapW, fitMinW))
+                    ((sizedText.boxWidthFrac * fitPageW).coerceIn(fitMinW, maxOf(fitCapW, fitMinW)) - posOverL)
+                        .coerceAtLeast(fitMinW)
                 } else {
                     fitCapW
                 } - fitQuoteW
                 ).coerceAtLeast(1f)
             val fitAvailH = if (sizedText.boxHeightFrac > 0.01f) {
-                (sizedText.boxHeightFrac * fitPageH).coerceIn(fitMinH, maxOf(fitCapH, fitMinH))
+                ((sizedText.boxHeightFrac * fitPageH).coerceIn(fitMinH, maxOf(fitCapH, fitMinH)) - posOverT)
+                    .coerceAtLeast(fitMinH)
             } else {
                 fitCapH
             }
             // Real room left on the page (raw, no 24x20dp minimum) so tiny boxes near the
             // edge get a smaller font instead of overflowing.
-            val fitRoomW = (fitPageW * (1f - sizedText.xFraction) - fitEdge - fitQuoteW).coerceAtLeast(1f)
-            val fitRoomH = (fitPageH * (1f - sizedText.yFraction) - fitEdge).coerceAtLeast(1f)
+            val fitRoomW = (fitPageW * (1f - sizedText.xFraction) - fitEdge - fitQuoteW - posExX).coerceAtLeast(1f)
+            val fitRoomH = (fitPageH * (1f - sizedText.yFraction) - fitEdge - posExY).coerceAtLeast(1f)
             val fitClipHpx = minOf(fitAvailH, fitRoomH)
             val fitMaxWi = (minOf(fitWrapPx, fitRoomW) * 0.99f).toInt().coerceAtLeast(1)
             val fitMaxHi = (fitClipHpx * 0.99f).toInt().coerceAtLeast(1)
@@ -1215,7 +1241,7 @@ private fun PageTextOverlay(
                 )
             }
             val lastFit = remember(committedText.id) { floatArrayOf(0f) }
-            val fitInfo = remember(sizedText.text, fitMaxWi, fitMaxHi, fitUserSp, visualTx, fitFamily, fitPageW, fitPageH) {
+            val fitInfo = remember(sizedText.text, fitMaxWi, fitMaxHi, fitUserSp, visualTx, fitFamily, fitPageW, fitPageH, posOverLi, posOverTi) {
                 if (fitPageW <= 0 || fitPageH <= 0) {
                     floatArrayOf(sizedText.fontSizeSp, -1f)
                 } else {
@@ -1225,15 +1251,32 @@ private fun PageTextOverlay(
                         fontFamily = fitFamily,
                         platformStyle = PlatformTextStyle(includeFontPadding = true)
                     )
+                    // Effective limits (auto boxes lose the left / top overflow inside here).
+                    val fitWi = intArrayOf(fitMaxWi)
+                    val fitHi = intArrayOf(fitMaxHi)
                     fun measureAt(spv: Float) = autoFitMeasurer.measure(
                         text = styled,
                         style = fitStyle.copy(fontSize = spv.sp),
                         softWrap = true,
-                        constraints = androidx.compose.ui.unit.Constraints(maxWidth = fitMaxWi),
+                        constraints = androidx.compose.ui.unit.Constraints(maxWidth = fitWi[0].coerceAtLeast(1)),
                         density = fitDensity
                     )
+                    val autoWBox = sizedText.boxWidthFrac <= 0.01f
+                    val autoHBox = sizedText.boxHeightFrac <= 0.01f
+                    if ((posOverLi > 0 && autoWBox) || (posOverTi > 0 && autoHBox)) {
+                        // Natural size (no cap) at the user font, minus the overflow.
+                        val nat = measureAt(fitUserSp)
+                        if (posOverLi > 0 && autoWBox) {
+                            fitWi[0] = minOf(fitMaxWi, nat.size.width - posOverLi)
+                                .coerceAtLeast(maxOf(1, (fitMinW * 0.5f).toInt()))
+                        }
+                        if (posOverTi > 0 && autoHBox) {
+                            fitHi[0] = minOf(fitMaxHi, nat.size.height - posOverTi)
+                                .coerceAtLeast(maxOf(1, (fitMinH * 0.5f).toInt()))
+                        }
+                    }
                     val atUser = measureAt(fitUserSp)
-                    val res: FloatArray = if (atUser.size.height <= fitMaxHi) {
+                    val res: FloatArray = if (atUser.size.height <= fitHi[0]) {
                         floatArrayOf(fitUserSp, atUser.size.width.toFloat())
                     } else {
                         // Fast path: the previous fitted size is still right (2 measures, no search).
@@ -1241,8 +1284,8 @@ private fun PageTextOverlay(
                         var quick: FloatArray? = null
                         if (prev >= 0.5f && prev < fitUserSp) {
                             val atPrev = measureAt(prev)
-                            if (atPrev.size.height <= fitMaxHi &&
-                                measureAt(minOf(fitUserSp, prev * 1.02f)).size.height > fitMaxHi
+                            if (atPrev.size.height <= fitHi[0] &&
+                                measureAt(minOf(fitUserSp, prev * 1.02f)).size.height > fitHi[0]
                             ) {
                                 quick = floatArrayOf(prev, atPrev.size.width.toFloat())
                             }
@@ -1252,7 +1295,7 @@ private fun PageTextOverlay(
                             var hi = fitUserSp
                             repeat(12) {
                                 val mid = (lo + hi) / 2f
-                                if (measureAt(mid).size.height <= fitMaxHi) lo = mid else hi = mid
+                                if (measureAt(mid).size.height <= fitHi[0]) lo = mid else hi = mid
                             }
                             floatArrayOf(lo, measureAt(lo).size.width.toFloat())
                         }
@@ -1322,13 +1365,13 @@ private fun PageTextOverlay(
             // Box stays inside the page: from its position to the right / bottom page border.
             val pageEdgePx = with(density) { 8.dp.toPx() }
             val capW = if (sizePx.width > 0) {
-                (sizePx.width * (1f - textElement.xFraction) - pageEdgePx)
+                (sizePx.width * (1f - textElement.xFraction) - pageEdgePx - posExX)
                     .coerceAtLeast(with(density) { 24.dp.toPx() })
             } else {
                 (sizePx.width.toFloat() * 3f).coerceAtLeast(minBoxPx)
             }
             val capH = if (sizePx.height > 0) {
-                (sizePx.height * (1f - textElement.yFraction) - pageEdgePx)
+                (sizePx.height * (1f - textElement.yFraction) - pageEdgePx - posExY)
                     .coerceAtLeast(with(density) { 20.dp.toPx() })
             } else {
                 (sizePx.height.toFloat() * 3f).coerceAtLeast(fontPx)
@@ -1341,14 +1384,16 @@ private fun PageTextOverlay(
             val pageWpx = sizePx.width.toFloat().coerceAtLeast(1f)
             val pageHpx = sizePx.height.toFloat().coerceAtLeast(1f)
             val boxWpx = if (textElement.boxWidthFrac > 0.01f) {
-                (textElement.boxWidthFrac * pageWpx).coerceIn(with(density) { 24.dp.toPx() }, maxOf(capW, with(density) { 24.dp.toPx() }))
+                ((textElement.boxWidthFrac * pageWpx).coerceIn(with(density) { 24.dp.toPx() }, maxOf(capW, with(density) { 24.dp.toPx() })) - posOverL)
+                    .coerceAtLeast(with(density) { 24.dp.toPx() })
             } else {
                 autoW
             }
             val lineCount = 1 + fieldValue.text.count { it == '\n' }
             val autoH = (lineCount * fontPx * 1.35f + padPx).coerceAtMost(capH)
             val boxHpx = if (textElement.boxHeightFrac > 0.01f) {
-                (textElement.boxHeightFrac * pageHpx).coerceIn(with(density) { 20.dp.toPx() }, maxOf(capH, with(density) { 20.dp.toPx() }))
+                ((textElement.boxHeightFrac * pageHpx).coerceIn(with(density) { 20.dp.toPx() }, maxOf(capH, with(density) { 20.dp.toPx() })) - posOverT)
+                    .coerceAtLeast(with(density) { 20.dp.toPx() })
             } else {
                 autoH
             }
@@ -1356,8 +1401,9 @@ private fun PageTextOverlay(
             val boxHeightDp = with(density) { boxHpx.toDp() }
             var boxMeasured by remember(textElement.id) { mutableStateOf(IntSize.Zero) }
             var rowMeasured by remember(textElement.id) { mutableStateOf(IntSize.Zero) }
-            val xFracState = rememberUpdatedState(textElement.xFraction)
-            val yFracState = rememberUpdatedState(textElement.yFraction)
+            // Drag works on the stored (virtual) position; the drawn one is clamped.
+            val xFracState = rememberUpdatedState(sizedText0.xFraction)
+            val yFracState = rememberUpdatedState(sizedText0.yFraction)
             val rotState = rememberUpdatedState(textElement.rotationDeg)
             val sizeSpState = rememberUpdatedState(textElement.fontSizeSp)
             // User's own size (handle / pinch scale this, not the auto-fitted size).
@@ -1375,6 +1421,51 @@ private fun PageTextOverlay(
             val selectedNow = rememberUpdatedState(selected)
             var textLayout by remember(textElement.id) {
                 mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
+            }
+            // Real preview line breaks for the PDF (only when the layout matches the saved box).
+            val cacheLay = textLayout
+            LaunchedEffect(cacheLay, committedText, posXY[0], posXY[1], posRowSize.value, sizePx) {
+                val lay = cacheLay
+                val pw = sizePx.width.toFloat()
+                val ph = sizePx.height.toFloat()
+                val fs = lay?.layoutInput?.style?.fontSize
+                if (lay != null && pw > 0f && ph > 0f && fs != null && fs.isSp &&
+                    kotlin.math.abs(fs.value - committedText.fontSizeSp) < 0.01f &&
+                    lay.layoutInput.text.text == committedText.text
+                ) {
+                    val txt = committedText.text
+                    val n = lay.lineCount
+                    val st = IntArray(n)
+                    val en = IntArray(n)
+                    for (l in 0 until n) {
+                        val s = lay.getLineStart(l).coerceIn(0, txt.length)
+                        var e = lay.getLineEnd(l, visibleEnd = false).coerceIn(s, txt.length)
+                        while (e > s && (txt[e - 1] == '\n' || txt[e - 1] == '\r')) e--
+                        st[l] = s
+                        en[l] = e
+                    }
+                    val fontPx = with(density) { fs.toPx() }
+                    com.pdfcraft.studio.core.pdf.PdfTextLineCache.put(
+                        committedText.id,
+                        com.pdfcraft.studio.core.pdf.PdfTextLineCache.Entry(
+                            text = txt,
+                            fontSp = committedText.fontSizeSp,
+                            boxWFrac = committedText.boxWidthFrac,
+                            boxHFrac = committedText.boxHeightFrac,
+                            rawX = committedText.xFraction,
+                            rawY = committedText.yFraction,
+                            rotDeg = committedText.rotationDeg,
+                            effX = posXY[0],
+                            effY = posXY[1],
+                            fontPerPageW = fontPx / pw,
+                            textHFrac = lay.size.height / ph,
+                            rowWFrac = posRowSize.value.width / pw,
+                            rowHFrac = posRowSize.value.height / ph,
+                            starts = st,
+                            ends = en
+                        )
+                    )
+                }
             }
             val bgChars = remember(textElement.text.length, textElement.bgColorArgb, textElement.bgColorRanges) {
                 charColorsFor(textElement.text.length, textElement.bgColorArgb, textElement.bgColorRanges)
@@ -1561,8 +1652,22 @@ private fun PageTextOverlay(
                                             24.dp.toPx(),
                                             20.dp.toPx()
                                         )
-                                        xf = cl[0]
-                                        yf = cl[1]
+                                        val nx = xf + dx / sz.width
+                                        val ny = yf + dy / sz.height
+                                        // Virtual position for rotated boxes too (fix14).
+                                        if (!rotState.value.isNaN()) {
+                                            // Past the left / top margin: keep a virtual position so the
+                                            // right / bottom edge stays put; box keeps at least 24x20dp.
+                                            val natW = bw + ((cl[0] - xf) * sz.width).coerceAtLeast(0f)
+                                            val natH = bh + ((cl[1] - yf) * sz.height).coerceAtLeast(0f)
+                                            val minXv = cl[0] - ((natW - 24.dp.toPx()) / sz.width).coerceAtLeast(0f)
+                                            val minYv = cl[1] - ((natH - 20.dp.toPx()) / sz.height).coerceAtLeast(0f)
+                                            xf = if (nx < cl[0]) nx.coerceIn(minOf(minXv, cl[0]), cl[0]) else cl[0]
+                                            yf = if (ny < cl[1]) ny.coerceIn(minOf(minYv, cl[1]), cl[1]) else cl[1]
+                                        } else {
+                                            xf = cl[0]
+                                            yf = cl[1]
+                                        }
                                         onTextDrag(textElement.id, xf, yf)
                                     }
                                 }
@@ -1782,13 +1887,13 @@ private fun PageTextOverlay(
                         liveW[0] = if (widthFracState.value > 0.01f) {
                             widthFracState.value * pageW
                         } else {
-                            boxWState.value
+                            boxWState.value + posOverState.value[0]
                         }
                         val pad = with(density) { 8.dp.toPx() }
                         liveH[0] = if (heightFracState.value > 0.01f) {
                             maxOf(heightFracState.value * pageH, rowMeasured.height.toFloat() - pad)
                         } else {
-                            (rowMeasured.height.toFloat() - pad).coerceAtLeast(with(density) { 20.dp.toPx() })
+                            (rowMeasured.height.toFloat() - pad + posOverState.value[1]).coerceAtLeast(with(density) { 20.dp.toPx() })
                         }
                         startBox[0] = liveW[0].coerceAtLeast(1f)
                         startBox[1] = liveH[0].coerceAtLeast(1f)

@@ -3881,9 +3881,10 @@ fun isSelectionStrike(): Boolean {
         if (index < 0) return false
         val element = textElements[index]
         val selection = selectionForEdit()
-        if (selection.collapsed) return false
         val text = element.text
-        val (ls, le) = lineBounds(text, selection.min, selection.max)
+        if (text.isEmpty()) return false
+        // No range selected: the list covers the whole box text.
+        val (ls, le) = if (selection.collapsed) 0 to text.length else lineBounds(text, selection.min, selection.max)
         val chunk = if (ls < le) text.substring(ls, le) else ""
         val rawLines = chunk.split('\n')
         val nonempty = rawLines.filter { it.isNotEmpty() }
@@ -3891,7 +3892,15 @@ fun isSelectionStrike(): Boolean {
         val numRe = Regex("^\\d+\\.\\s?")
         val allNum = nonempty.isNotEmpty() && nonempty.all { numRe.containsMatchIn(it) }
         val stripOnly = if (numbered) allNum else allBullet
-        val newLines = rawLines.mapIndexed { i, line ->
+        // Numbers count only non-empty lines (1, 2, 3 even with blank lines between).
+        val listNums = IntArray(rawLines.size)
+        var listN = 0
+        rawLines.forEachIndexed { k, l ->
+            if (l.isNotEmpty()) listN++
+            listNums[k] = (listN - 1).coerceAtLeast(0)
+        }
+        val newLines = rawLines.mapIndexed { iRaw, line ->
+            val i = listNums[iRaw]
             val body = stripListPrefix(line)
             if (line.isEmpty()) line
             else if (stripOnly) body
@@ -3908,8 +3917,13 @@ fun isSelectionStrike(): Boolean {
         if (index < 0) return false
         val element = textElements[index]
         val selection = selectionForEdit()
-        if (selection.collapsed) return false
-        val (ls, le) = lineBounds(element.text, selection.min, selection.max)
+        if (element.text.isEmpty()) return false
+        // No range selected: the quote covers the whole box text.
+        val (ls, le) = if (selection.collapsed) {
+            0 to element.text.length
+        } else {
+            lineBounds(element.text, selection.min, selection.max)
+        }
         if (ls >= le) return false
         val newQuotes = toggleStyleRange(element.quoteRanges, ls, le, element.text.length)
         textElements[index] = element.copy(quoteRanges = newQuotes)
@@ -3925,10 +3939,13 @@ fun isSelectionStrike(): Boolean {
         if (index < 0) return false
         val element = textElements[index]
         val selection = selectionForEdit()
-        if (selection.collapsed) return false
         val text = element.text
-        val a = selection.min.coerceIn(0, text.length)
-        val b = selection.max.coerceIn(0, text.length)
+        // No range selected: whole box. A box that is only a divider gets it removed (toggle),
+        // otherwise the divider goes on a new line at the end of the text.
+        val noSel = selection.collapsed
+        if (noSel && text.isEmpty()) return false
+        val a = if (noSel) 0 else selection.min.coerceIn(0, text.length)
+        val b = if (noSel) text.length else selection.max.coerceIn(0, text.length)
         val selected = if (a < b) text.substring(a, b) else ""
         val onlyLine = selected.isNotBlank() && selected.trim().all { it == '─' || it == '-' || it == '—' || it == '\n' }
         if (onlyLine) {

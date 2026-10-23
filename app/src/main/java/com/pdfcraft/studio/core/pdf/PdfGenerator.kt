@@ -381,23 +381,77 @@ object PdfGenerator {
                 val pdfLoY = (8f * pdfDp / thisPageHeight.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
                 val pdfHiX = maxOf(pdfLoX, 1f - 32f * pdfDp / pageWidth.toFloat().coerceAtLeast(1f))
                 val pdfHiY = maxOf(pdfLoY, 1f - 28f * pdfDp / thisPageHeight.toFloat().coerceAtLeast(1f))
-                val te = if (teRaw.xFraction.isNaN() || teRaw.yFraction.isNaN()) teRaw else teRaw.copy(
+                var te = if (teRaw.xFraction.isNaN() || teRaw.yFraction.isNaN()) teRaw else teRaw.copy(
                     xFraction = teRaw.xFraction.coerceIn(pdfLoX, pdfHiX),
                     yFraction = teRaw.yFraction.coerceIn(pdfLoY, pdfHiY)
                 )
                 textPaint.textSize = te.fontSizeSp * (pageWidth / 360f)
+                // Preview line breaks (exact). Same font / page ratio and drawn position as the
+                // preview; no own wrap / fit then. Missing or stale: fallback wrap below.
+                val pdfLineCache = PdfTextLineCache.matching(
+                    teRaw.id, teRaw.text, teRaw.fontSizeSp, teRaw.boxWidthFrac, teRaw.boxHeightFrac,
+                    teRaw.xFraction, teRaw.yFraction, teRaw.rotationDeg
+                )
+                if (pdfLineCache != null) {
+                    textPaint.textSize = (pdfLineCache.fontPerPageW * pageWidth).coerceIn(1f, 2000f)
+                    te = te.copy(
+                        xFraction = pdfLineCache.effX.coerceIn(0f, 1f),
+                        yFraction = pdfLineCache.effY.coerceIn(0f, 1f)
+                    )
+                }
                 val baseTf = FontCatalog.resolveTypeface(context, te.fontId)
                 textPaint.typeface = baseTf
+                // Left / top dynamic cap (same as the editor): overflow past the margin is taken
+                // off the box width / height so the right / bottom edge stays put. Rotated: no cap.
+                if (pdfLineCache == null && kotlin.math.abs(te.rotationDeg) <= 0.5f && !teRaw.xFraction.isNaN() && !teRaw.yFraction.isNaN()) {
+                    val ovL = (te.xFraction - teRaw.xFraction).coerceAtLeast(0f)
+                    val ovT = (te.yFraction - teRaw.yFraction).coerceAtLeast(0f)
+                    val minWf = 24f * pdfDp / pageWidth.toFloat().coerceAtLeast(1f)
+                    val minHf = 20f * pdfDp / thisPageHeight.toFloat().coerceAtLeast(1f)
+                    if (ovL > 0f && te.text.isNotEmpty()) {
+                        val wrapK = (pageWidth * wrapScale * 0.90f).coerceAtLeast(1f)
+                        val natWf = if (te.boxWidthFrac > 0.01f) {
+                            te.boxWidthFrac
+                        } else {
+                            val roomF = (1f - te.xFraction).coerceIn(0.02f, 1f)
+                            val natLines = wrapTextLines(te.text, textPaint, (roomF * wrapK).coerceAtLeast(textPaint.textSize))
+                            (natLines.maxOfOrNull { lr ->
+                                textPaint.measureText(te.text.substring(lr.first, lr.last + 1))
+                            } ?: 0f) / wrapK + 0.002f
+                        }
+                        te = te.copy(boxWidthFrac = (natWf - ovL).coerceAtLeast(minWf))
+                    }
+                    if (ovT > 0f && te.text.isNotEmpty()) {
+                        val natHf = if (te.boxHeightFrac > 0.01f) {
+                            te.boxHeightFrac
+                        } else {
+                            val fmN = textPaint.fontMetrics
+                            var lhN = fmN.descent - fmN.ascent + fmN.leading
+                            if (lhN < textPaint.textSize * 0.8f) lhN = textPaint.textSize * 1.2f
+                            val roomF = (1f - te.xFraction).coerceIn(0.02f, 1f)
+                            val wN = if (te.boxWidthFrac > 0.01f) {
+                                minOf(te.boxWidthFrac, roomF) * pageWidth * wrapScale * 0.90f
+                            } else {
+                                roomF * pageWidth * wrapScale * 0.90f
+                            }
+                            val nN = wrapTextLines(te.text, textPaint, wN.coerceAtLeast(textPaint.textSize)).size.coerceAtLeast(1)
+                            (textPaint.textSize + (nN - 1) * lhN + fmN.descent) / thisPageHeight.toFloat().coerceAtLeast(1f)
+                        }
+                        te = te.copy(boxHeightFrac = (natHf - ovT).coerceAtLeast(minHf))
+                    }
+                }
                 // Fit inside the box's real height in the PDF too (tablet wrapScale can make
                 // more lines than the preview): shrink the PDF font only when needed.
                 val pdfFitRoomFrac = (1f - te.xFraction).coerceIn(0.02f, 1f)
                 val pdfRoomH = ((1f - te.yFraction) * thisPageHeight - 4f).coerceAtLeast(1f)
-                val pdfAvailH = if (te.boxHeightFrac > 0.01f) {
+                val pdfAvailH = if (pdfLineCache != null) {
+                    (pdfLineCache.textHFrac * thisPageHeight * 1.05f + textPaint.textSize * 0.2f).coerceAtLeast(1f)
+                } else if (te.boxHeightFrac > 0.01f) {
                     minOf(pdfRoomH, (te.boxHeightFrac * thisPageHeight).coerceAtLeast(1f))
                 } else {
                     pdfRoomH
                 }
-                if (te.text.isNotEmpty()) {
+                if (te.text.isNotEmpty() && pdfLineCache == null) {
                     var fitGuard = 0
                     while (fitGuard < 12) {
                         val fitWrap = (
@@ -501,8 +555,9 @@ object PdfGenerator {
                     canvas.save()
                     canvas.rotate(
                         rotDeg,
-                        baseX + approxW / 2f,
-                        te.yFraction * thisPageHeight + approxH / 2f
+                        baseX + (if (pdfLineCache != null && pdfLineCache.rowWFrac > 0f) pdfLineCache.rowWFrac * pageWidth else approxW) / 2f,
+                        te.yFraction * thisPageHeight +
+                            (if (pdfLineCache != null && pdfLineCache.rowHFrac > 0f) pdfLineCache.rowHFrac * thisPageHeight else approxH) / 2f
                     )
                 }
 
@@ -516,7 +571,7 @@ object PdfGenerator {
                     minOf(pageRoomFrac * pageWidth * wrapScale * 0.90f, pageRoomPx)
                         .coerceAtLeast(textPaint.textSize)
                 }
-                val lines = wrapTextLines(fullText, textPaint, wrapW)
+                val lines = pdfLineCache?.ranges(fullText.length) ?: wrapTextLines(fullText, textPaint, wrapW)
                 // Box grows with its content: never cut lines off at the set height.
                 val boxBottom = 1e20f
 
@@ -714,7 +769,7 @@ object PdfGenerator {
                 canvas.clipRect(
                     baseX - 12f * scale,
                     te.yFraction * thisPageHeight - textPaint.textSize * 0.3f,
-                    baseX + wrapW + textPaint.textSize,
+                    baseX + maxOf(wrapW, pdfLongestW) + textPaint.textSize,
                     te.yFraction * thisPageHeight + pdfAvailH + textPaint.textSize * 0.3f
                 )
                 textOps.forEach { op -> op() }
