@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.res.stringResource
 import com.pdfcraft.studio.R
+import com.pdfcraft.studio.ui.common.colorpicker.OldColorSelectionDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -221,10 +222,21 @@ fun ColorPickerDialog(
     onNone: (() -> Unit)? = null
 ) {
     var selectedColor by remember { mutableStateOf(initialColor) }
+    var showOldPicker by remember { mutableStateOf(false) }
     val initialIdx = GRID_COLORS.indexOfFirst { it == (initialColor and 0xFFFFFFFFL) }
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(
         initialFirstVisibleItemIndex = (initialIdx - 12).coerceAtLeast(0)
     )
+    if (showOldPicker) {
+        OldColorSelectionDialog(
+            initialColor = selectedColor,
+            onConfirm = { picked ->
+                selectedColor = picked
+                onConfirm(picked)
+            },
+            onDismiss = { showOldPicker = false }
+        )
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -322,6 +334,20 @@ fun ColorPickerDialog(
                     }
                 }
 
+                OutlinedButton(
+                    onClick = { showOldPicker = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Old Color Selection",
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1976D2)
+                    )
+                }
                 // Fixed OK button at bottom
                 Box(
                     modifier = Modifier

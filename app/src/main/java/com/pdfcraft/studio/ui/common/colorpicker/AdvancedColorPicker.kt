@@ -9,6 +9,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -80,6 +82,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlin.math.min
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -780,6 +784,106 @@ private fun GalleryEyedropper(
                     drawLine(Color(0xFF1976D2), Offset(cx, 8f), Offset(cx, size.height - 8f), 1.4f)
                     drawLine(Color(0xFF1976D2), Offset(8f, cy), Offset(size.width - 8f, cy), 1.4f)
                     drawCircle(Color.White, 5f, Offset(cx, cy), style = Stroke(width = 2.4f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OldColorSelectionDialog(
+    initialColor: Long,
+    onConfirm: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var tab by remember { mutableStateOf("SOLID") }
+    var color by remember { mutableStateOf(initialColor) }
+    var color2 by remember { mutableStateOf(0xFFFFFFFFL) }
+    var stop by remember { mutableStateOf(1) }
+    val scroll = rememberScrollState()
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(16.dp)
+        ) {
+            Text(
+                "Old Color Selection",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                color = Color.Black
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = { tab = "SOLID" }, modifier = Modifier.weight(1f)) {
+                    Text("Solid Color", color = if (tab == "SOLID") Color(0xFF1976D2) else Color.Black)
+                }
+                OutlinedButton(onClick = { tab = "GRADIENT" }, modifier = Modifier.weight(1f)) {
+                    Text("Gradient", color = if (tab == "GRADIENT") Color(0xFF1976D2) else Color.Black)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(scroll)
+            ) {
+                if (tab == "SOLID") {
+                    AdvancedColorPicker(argb = color, onArgbChange = { color = it })
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(onClick = { stop = 1 }, modifier = Modifier.weight(1f)) {
+                            Text("Color 1", color = if (stop == 1) Color(0xFF1976D2) else Color.Black)
+                        }
+                        OutlinedButton(onClick = { stop = 2 }, modifier = Modifier.weight(1f)) {
+                            Text("Color 2", color = if (stop == 2) Color(0xFF1976D2) else Color.Black)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    AdvancedColorPicker(
+                        argb = if (stop == 1) color else color2,
+                        onArgbChange = { next -> if (stop == 1) color = next else color2 = next }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(gradientBrush(color, color2, GradientDir.LTR))
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                GalleryColorPickSection(
+                    onColor = { picked ->
+                        if (tab == "GRADIENT" && stop == 2) color2 = picked else color = picked
+                    },
+                    scrollState = scroll
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = {
+                    val picked = if (tab == "GRADIENT" && stop == 2) color2 else color
+                    onConfirm(picked)
+                }) {
+                    Text("OK", color = Color(0xFF1976D2), fontWeight = FontWeight.SemiBold)
                 }
             }
         }
