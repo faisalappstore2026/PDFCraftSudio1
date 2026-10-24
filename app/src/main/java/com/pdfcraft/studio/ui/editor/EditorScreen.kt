@@ -1423,8 +1423,17 @@ if (showFontTools) {
         }
 
         
+    val openOldColorWindow = {
+        viewModel.endCoalescedEdit()
+        showTextColorPicker = false
+        showTextBgColorPicker = false
+        showTextSpreadPicker = false
+        showTextBorderPicker = false
+        showAdvancedBgEditor = true
+    }
     if (showTextColorPicker) {
         ColorPickerDialog(
+            onOpenOldWindow = openOldColorWindow,
             initialColor = viewModel.selectedTextColorArgb(),
             onConfirm = {
                 viewModel.updateSelectedTextColor(it)
@@ -1439,6 +1448,7 @@ if (showFontTools) {
     }
     if (showTextBgColorPicker) {
         ColorPickerDialog(
+            onOpenOldWindow = openOldColorWindow,
             initialColor = viewModel.selectedTextBgColorArgb() ?: 0xFFFFFF00,
             onConfirm = {
                 viewModel.updateSelectedTextBgColor(it)
@@ -1466,6 +1476,7 @@ if (showFontTools) {
     }
     if (showTextSpreadPicker) {
         ColorPickerDialog(
+            onOpenOldWindow = openOldColorWindow,
             initialColor = viewModel.selectedTextSpreadColorArgb() ?: 0xFFFFD54FL,
             onConfirm = {
                 viewModel.updateSelectedTextSpreadColor(it)
@@ -1484,6 +1495,7 @@ if (showFontTools) {
     }
     if (showTextBorderPicker) {
         ColorPickerDialog(
+            onOpenOldWindow = openOldColorWindow,
             initialColor = viewModel.selectedTextBorderColorArgb(),
             onConfirm = {
                 viewModel.updateSelectedTextBorder(it)
