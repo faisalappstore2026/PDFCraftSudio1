@@ -23,6 +23,7 @@ import com.pdfcraft.studio.ui.editor.packPageSource
 import com.pdfcraft.studio.ui.editor.TextElement
 import com.pdfcraft.studio.core.text.FontCatalog
 import com.pdfcraft.studio.ui.editor.ShadowRange
+import com.pdfcraft.studio.ui.editor.TextGradient
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
@@ -600,6 +601,27 @@ object PdfGenerator {
                 val pdfLongestW = lines.maxOfOrNull { lr ->
                     textPaint.measureText(fullText.substring(lr.first, lr.last + 1))
                 } ?: 0f
+                // Gradient text / border colors: one LinearGradient over the whole text box.
+                val gradL = baseX
+                val gradT = te.yFraction * thisPageHeight
+                val gradW = (
+                    if (pdfLineCache != null && pdfLineCache.rowWFrac > 0f) pdfLineCache.rowWFrac * pageWidth
+                    else pdfLongestW
+                    ).coerceAtLeast(1f)
+                val gradH = (
+                    if (pdfLineCache != null && pdfLineCache.rowHFrac > 0f) pdfLineCache.rowHFrac * thisPageHeight
+                    else lines.size.coerceAtLeast(1) * lineH
+                    ).coerceAtLeast(1f)
+                fun gradShader(c: Long): Shader? {
+                    if (!TextGradient.isGradient(c)) return null
+                    val gl = TextGradient.line(c)
+                    return LinearGradient(
+                        gradL + gl[0] * gradW, gradT + gl[1] * gradH,
+                        gradL + gl[2] * gradW, gradT + gl[3] * gradH,
+                        TextGradient.opaque1(c).toInt(), TextGradient.opaque2(c).toInt(),
+                        Shader.TileMode.CLAMP
+                    )
+                }
                 lines.forEachIndexed { lineNo, range ->
                     val y = firstBaseline + lineNo * lineH
                     if (y > boxBottom) return@forEachIndexed
@@ -627,6 +649,7 @@ object PdfGenerator {
                         val bar = Paint(textPaint).apply {
                             color = 0xFF1976D2.toInt()
                             style = Paint.Style.FILL
+                            shader = null
                         }
                         val top = y + fm.ascent
                         val bot = y + fm.descent
@@ -664,6 +687,7 @@ object PdfGenerator {
                             }
                         }
                         textPaint.color = cFg.toInt()
+                        textPaint.shader = gradShader(cFg)
                         val italic = isI[i] || isQ[i]
                         val st = when {
                             isB[i] && italic -> Typeface.BOLD_ITALIC
@@ -687,10 +711,13 @@ object PdfGenerator {
                         val cSp = spr[i]
                         if (cSp != null) {
                             val glowPaint = Paint(textPaint)
-                            glowPaint.color = cSp.toInt()
+                            // A glow cannot be a gradient: gradient spread uses the middle color.
+                            val cSpSolid = TextGradient.solid(cSp).toInt()
+                            glowPaint.shader = null
+                            glowPaint.color = cSpSolid
                             glowPaint.isUnderlineText = false
                             glowPaint.isStrikeThruText = false
-                            glowPaint.setShadowLayer((te.spreadDp * scale).coerceAtLeast(0.01f), 0f, 0f, cSp.toInt())
+                            glowPaint.setShadowLayer((te.spreadDp * scale).coerceAtLeast(0.01f), 0f, 0f, cSpSolid)
                             val gx = x
                             glowOps.add {
                                 canvas.drawText(segment, gx, y, glowPaint)
@@ -705,6 +732,7 @@ object PdfGenerator {
                             strokePaint.strokeJoin = Paint.Join.ROUND
                             strokePaint.strokeWidth = (te.borderWidthDp * scale).coerceAtLeast(0.5f)
                             strokePaint.color = cBd.toInt()
+                            strokePaint.shader = gradShader(cBd)
                             strokePaint.isUnderlineText = false
                             strokePaint.isStrikeThruText = false
                             val sx = x
@@ -753,6 +781,21 @@ object PdfGenerator {
                     val rTop = t - te.bgPadTopDp * scale
                     val rBottom = b + te.bgPadBottomDp * scale
                     val rR = (te.bgCornerDp * scale).coerceIn(0f, ((rBottom - rTop) / 2f).coerceAtLeast(0f))
+                    bgPaint.shader = if (TextGradient.isGradient(col)) {
+                        // Gradient background: one linear gradient across this rounded rect.
+                        val gl = TextGradient.line(col)
+                        val rl = l - te.bgPadLeftDp * scale
+                        val rw = (r + te.bgPadRightDp * scale) - rl
+                        val rh = rBottom - rTop
+                        LinearGradient(
+                            rl + gl[0] * rw, rTop + gl[1] * rh,
+                            rl + gl[2] * rw, rTop + gl[3] * rh,
+                            TextGradient.opaque1(col).toInt(), TextGradient.opaque2(col).toInt(),
+                            Shader.TileMode.CLAMP
+                        )
+                    } else {
+                        null
+                    }
                     canvas.drawRoundRect(
                         l - te.bgPadLeftDp * scale,
                         rTop,
@@ -779,6 +822,7 @@ object PdfGenerator {
                 if (kotlin.math.abs(rotDeg) > 0.05f) canvas.restore()
 
                 textPaint.clearShadowLayer()
+                textPaint.shader = null
 
                 te.linkRanges.forEach { lr ->
                     val url = lr.url.trim().takeIf { it.isNotEmpty() } ?: return@forEach

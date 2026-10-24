@@ -1423,35 +1423,43 @@ if (showFontTools) {
         }
 
         
-    val openOldColorWindow = {
-        viewModel.endCoalescedEdit()
-        showTextColorPicker = false
-        showTextBgColorPicker = false
-        showTextSpreadPicker = false
-        showTextBorderPicker = false
-        showAdvancedBgEditor = true
-    }
+    // Text tools (text / background / border / spread color): same window as Page Background
+    // (Color Templates, Solid Color, Gradient). No Image tab. One undo step per OK.
     if (showTextColorPicker) {
-        ColorPickerDialog(
-            onOpenOldWindow = openOldColorWindow,
-            initialColor = viewModel.selectedTextColorArgb(),
-            onConfirm = {
-                viewModel.updateSelectedTextColor(it)
+        PageBackgroundEditorDialog(
+            initial = textColorToSpec(viewModel.selectedTextColorArgb(), 0xFF000000L),
+            initialBitmap = null,
+            onPickImage = {},
+            pendingBitmap = null,
+            textTarget = "TEXT",
+            title = "Text Color",
+            onCancel = {
                 viewModel.endCoalescedEdit()
                 showTextColorPicker = false
             },
-            onDismiss = {
+            onOk = { spec, _ ->
+                viewModel.endCoalescedEdit()
+                viewModel.updateSelectedTextColor(textColorFromSpec(spec))
                 viewModel.endCoalescedEdit()
                 showTextColorPicker = false
             }
         )
     }
     if (showTextBgColorPicker) {
-        ColorPickerDialog(
-            onOpenOldWindow = openOldColorWindow,
-            initialColor = viewModel.selectedTextBgColorArgb() ?: 0xFFFFFF00,
-            onConfirm = {
-                viewModel.updateSelectedTextBgColor(it)
+        PageBackgroundEditorDialog(
+            initial = textColorToSpec(viewModel.selectedTextBgColorArgb(), 0xFFFFFF00L),
+            initialBitmap = null,
+            onPickImage = {},
+            pendingBitmap = null,
+            textTarget = "BG",
+            title = "Background Color",
+            onCancel = {
+                viewModel.endCoalescedEdit()
+                showTextBgColorPicker = false
+            },
+            onOk = { spec, _ ->
+                viewModel.endCoalescedEdit()
+                viewModel.updateSelectedTextBgColor(textColorFromSpec(spec))
                 viewModel.endCoalescedEdit()
                 showTextBgColorPicker = false
                 textBorderSliderOpen = false
@@ -1459,11 +1467,6 @@ if (showFontTools) {
                 textBgSliderOpen = true
                 revealTextSignal++
             },
-            onDismiss = {
-                viewModel.endCoalescedEdit()
-                showTextBgColorPicker = false
-            },
-            previewAsBackground = true,
             onNone = {
                 // Own undo step: selection -> only that part, no selection -> whole box.
                 viewModel.endCoalescedEdit()
@@ -1475,39 +1478,49 @@ if (showFontTools) {
         )
     }
     if (showTextSpreadPicker) {
-        ColorPickerDialog(
-            onOpenOldWindow = openOldColorWindow,
-            initialColor = viewModel.selectedTextSpreadColorArgb() ?: 0xFFFFD54FL,
-            onConfirm = {
-                viewModel.updateSelectedTextSpreadColor(it)
+        PageBackgroundEditorDialog(
+            initial = textColorToSpec(viewModel.selectedTextSpreadColorArgb(), 0xFFFFD54FL),
+            initialBitmap = null,
+            onPickImage = {},
+            pendingBitmap = null,
+            textTarget = "SPREAD",
+            title = "Spread Color",
+            onCancel = {
+                viewModel.endCoalescedEdit()
+                showTextSpreadPicker = false
+            },
+            onOk = { spec, _ ->
+                viewModel.endCoalescedEdit()
+                viewModel.updateSelectedTextSpreadColor(textColorFromSpec(spec))
                 viewModel.endCoalescedEdit()
                 showTextSpreadPicker = false
                 textBorderSliderOpen = false
                 textBgSliderOpen = false
                 textSpreadSliderOpen = true
                 revealTextSignal++
-            },
-            onDismiss = {
-                viewModel.endCoalescedEdit()
-                showTextSpreadPicker = false
             }
         )
     }
     if (showTextBorderPicker) {
-        ColorPickerDialog(
-            onOpenOldWindow = openOldColorWindow,
-            initialColor = viewModel.selectedTextBorderColorArgb(),
-            onConfirm = {
-                viewModel.updateSelectedTextBorder(it)
+        PageBackgroundEditorDialog(
+            initial = textColorToSpec(viewModel.selectedTextBorderColorArgb(), 0xFF000000L),
+            initialBitmap = null,
+            onPickImage = {},
+            pendingBitmap = null,
+            textTarget = "BORDER",
+            title = "Border Color",
+            onCancel = {
+                viewModel.endCoalescedEdit()
+                showTextBorderPicker = false
+            },
+            onOk = { spec, _ ->
+                viewModel.endCoalescedEdit()
+                viewModel.updateSelectedTextBorder(textColorFromSpec(spec))
                 viewModel.endCoalescedEdit()
                 showTextBorderPicker = false
                 textBgSliderOpen = false
                 textSpreadSliderOpen = false
                 textBorderSliderOpen = true
-            },
-            onDismiss = {
-                viewModel.endCoalescedEdit()
-                showTextBorderPicker = false
             }
         )
     }

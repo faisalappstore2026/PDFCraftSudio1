@@ -95,12 +95,18 @@ fun PageBackgroundEditorDialog(
     previewPages: List<TemplatePreviewPage> = emptyList(),
     initialPreviewPageIndex: Int = -1,
     onCancel: () -> Unit,
-    onOk: (PageBackgroundSpec, Bitmap?) -> Unit
+    onOk: (PageBackgroundSpec, Bitmap?) -> Unit,
+    /** Text tools: "TEXT", "BG", "BORDER" or "SPREAD". Set = no Image tab and no image logic. */
+    textTarget: String? = null,
+    title: String = "Page Background",
+    /** When set, a "None" button is shown (text background: remove it). */
+    onNone: (() -> Unit)? = null
 ) {
+    val textMode = textTarget != null
     var tab by remember {
         mutableStateOf(
             when (initial.kind) {
-                PageBgKind.IMAGE -> "IMAGE"
+                PageBgKind.IMAGE -> if (textMode) "TEMPLATES" else "IMAGE"
                 PageBgKind.GRADIENT -> "GRADIENT"
                 else -> "TEMPLATES"
             }
@@ -124,7 +130,7 @@ fun PageBackgroundEditorDialog(
     }
     var previewPageIndex by remember { mutableStateOf(initialPreviewPageIndex) }
     var editingStop by remember { mutableStateOf(1) }
-    var localBmp by remember { mutableStateOf(pendingBitmap ?: initialBitmap) }
+    var localBmp by remember { mutableStateOf(if (textMode) null else (pendingBitmap ?: initialBitmap)) }
     var blur by remember { mutableStateOf(initial.blur) }
     var imgOpacity by remember { mutableStateOf(initial.imgOpacity) }
     var brightness by remember { mutableStateOf(initial.brightness) }
@@ -139,7 +145,7 @@ fun PageBackgroundEditorDialog(
     var colorAmount by remember { mutableStateOf(100f) }
     fun tuned(c: Long) = tuneArgb(c, colorOpacity, colorAmount)
     LaunchedEffect(pendingBitmap) {
-        if (pendingBitmap != null) {
+        if (pendingBitmap != null && !textMode) {
             localBmp = pendingBitmap
             kind = PageBgKind.IMAGE
             tab = "IMAGE"
@@ -192,10 +198,20 @@ fun PageBackgroundEditorDialog(
                 .background(Color.White)
                 .padding(16.dp)
         ) {
-            Text("Page Background", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = Color.Black)
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = Color.Black)
             Spacer(Modifier.height(8.dp))
-            var previewAspect by remember { mutableStateOf(16f / 9f) }
-            ColorTemplatePreview(
+            var previewAspect by remember { mutableStateOf(if (textMode) 3f else 16f / 9f) }
+            if (textTarget != null) {
+                TextColorSamplePreview(
+                    target = textTarget,
+                    c1 = liveC1,
+                    c2 = liveC2,
+                    gx0 = gx0,
+                    gy0 = gy0,
+                    gx1 = gx1,
+                    gy1 = gy1
+                )
+            } else ColorTemplatePreview(
                 selectedArgb = liveC1,
                 pages = previewPages,
                 color2Argb = liveC2,
@@ -229,9 +245,11 @@ fun PageBackgroundEditorDialog(
                     tab = "GRADIENT"
                     kind = PageBgKind.GRADIENT
                 }
-                KindChip("Image", tab == "IMAGE", Modifier.weight(1f)) {
-                    tab = "IMAGE"
-                    kind = PageBgKind.IMAGE
+                if (!textMode) {
+                    KindChip("Image", tab == "IMAGE", Modifier.weight(1f)) {
+                        tab = "IMAGE"
+                        kind = PageBgKind.IMAGE
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -332,6 +350,10 @@ fun PageBackgroundEditorDialog(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (onNone != null) {
+                    TextButton(onClick = onNone) { Text("None") }
+                    Spacer(Modifier.width(8.dp))
+                }
                 TextButton(onClick = onCancel) { Text("Cancel") }
                 Spacer(Modifier.width(8.dp))
                 Button(
@@ -367,6 +389,91 @@ fun PageBackgroundEditorDialog(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
                 ) { Text("OK") }
+            }
+        }
+    }
+}
+
+/** Text tools: live sample of the picked color / gradient (text, background, border or spread). */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+@Composable
+private fun TextColorSamplePreview(
+    target: String,
+    c1: Long,
+    c2: Long?,
+    gx0: Float,
+    gy0: Float,
+    gx1: Float,
+    gy1: Float
+) {
+    val o1 = (c1 and 0xFFFFFFFFL) or 0xFF000000L
+    val o2 = if (c2 != null) ((c2 and 0xFFFFFFFFL) or 0xFF000000L) else o1
+    val a = (((c1 ushr 24) and 0xFFL).toFloat() / 255f).coerceIn(0f, 1f)
+    val brush: androidx.compose.ui.graphics.Brush = if (c2 != null) {
+        gradientBrush(o1, o2, gx0, gy0, gx1, gy1)
+    } else {
+        androidx.compose.ui.graphics.SolidColor(Color(o1.toInt()))
+    }
+    val mid = Color(
+        red = (Color(o1.toInt()).red + Color(o2.toInt()).red) / 2f,
+        green = (Color(o1.toInt()).green + Color(o2.toInt()).green) / 2f,
+        blue = (Color(o1.toInt()).blue + Color(o2.toInt()).blue) / 2f,
+        alpha = a
+    )
+    val sample = "Aa Text"
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(110.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFEDEDED)),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .height(86.dp)
+                .aspectRatio(3f, matchHeightConstraintsFirst = true)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White)
+                .then(
+                    if (target == "BG") Modifier.background(brush, alpha = a) else Modifier
+                )
+                .border(1.dp, Color(0x33000000), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            when (target) {
+                "TEXT", "BORDER" -> {
+                    val b = androidx.compose.ui.text.AnnotatedString.Builder()
+                    b.pushStyle(
+                        if (target == "BORDER") {
+                            androidx.compose.ui.text.SpanStyle(
+                                brush = brush,
+                                alpha = a,
+                                drawStyle = Stroke(width = 4f)
+                            )
+                        } else {
+                            androidx.compose.ui.text.SpanStyle(brush = brush, alpha = a)
+                        }
+                    )
+                    b.append(sample)
+                    b.pop()
+                    Text(b.toAnnotatedString(), fontSize = 40.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+                "SPREAD" -> Text(
+                    sample,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    style = androidx.compose.ui.text.TextStyle(
+                        color = Color.Black,
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = mid,
+                            offset = Offset.Zero,
+                            blurRadius = 24f
+                        )
+                    )
+                )
+                else -> Text(sample, fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
             }
         }
     }

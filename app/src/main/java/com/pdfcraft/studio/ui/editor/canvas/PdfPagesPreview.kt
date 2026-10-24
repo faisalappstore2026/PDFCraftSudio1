@@ -142,6 +142,7 @@ import com.pdfcraft.studio.core.text.AppFont
 import com.pdfcraft.studio.core.text.FontCatalog
 import com.pdfcraft.studio.ui.editor.ImportedImage
 import com.pdfcraft.studio.ui.editor.ColorRange
+import com.pdfcraft.studio.ui.editor.TextGradient
 import com.pdfcraft.studio.ui.editor.FontRange
 import com.pdfcraft.studio.ui.editor.TextElement
 import com.pdfcraft.studio.ui.common.colorpicker.GradientDir
@@ -815,7 +816,26 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
         val bottom = rc[3] + padBottomPx
         val h = (bottom - top).coerceAtLeast(0f)
         val rad = radiusPx.coerceIn(0f, maxOf(0f, h / 2f))
-        val col = Color(runs.colors[idx])
+        val raw = runs.colors[idx]
+        if (TextGradient.isGradient(raw)) {
+            // Gradient background: one linear gradient across this rounded rect.
+            val gl = TextGradient.line(raw)
+            val rw = (right - left).coerceAtLeast(0f)
+            if (rw <= 0.5f || h <= 0.5f) continue
+            drawRoundRect(
+                brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = listOf(Color(TextGradient.opaque1(raw)), Color(TextGradient.opaque2(raw))),
+                    start = Offset(left + gl[0] * rw, top + gl[1] * h),
+                    end = Offset(left + gl[2] * rw, top + gl[3] * h)
+                ),
+                topLeft = Offset(left, top),
+                size = androidx.compose.ui.geometry.Size(rw, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(rad, rad),
+                alpha = (TextGradient.alpha(raw) * alpha).coerceIn(0f, 1f)
+            )
+            continue
+        }
+        val col = Color(raw)
         drawRoundRect(
             color = col.copy(alpha = (col.alpha * alpha).coerceIn(0f, 1f)),
             topLeft = Offset(left, top),
@@ -825,9 +845,27 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTextBackgrounds
     }
 }
 
+/** Brush for a gradient color value (TextGradient), spread over the whole text layout. */
+private fun textGradientBrush(c: Long): androidx.compose.ui.graphics.Brush {
+    val l = TextGradient.line(c)
+    return com.pdfcraft.studio.ui.common.colorpicker.gradientBrush(
+        TextGradient.opaque1(c), TextGradient.opaque2(c), l[0], l[1], l[2], l[3]
+    )
+}
+
+/** Base text without gradient (shader) spans: the outline / glow copies set their own paint. */
+private fun withoutShaderBrushes(base: AnnotatedString): AnnotatedString {
+    if (base.spanStyles.none { it.item.brush is androidx.compose.ui.graphics.ShaderBrush }) return base
+    return AnnotatedString(
+        base.text,
+        base.spanStyles.filter { it.item.brush !is androidx.compose.ui.graphics.ShaderBrush },
+        base.paragraphStyles
+    )
+}
+
 /** Same text and spans; spread characters drawn in the spread color with a zero-offset blur (glow). */
 private fun buildSpreadText(base: AnnotatedString, spread: Array<Long?>, blurPx: Float): AnnotatedString {
-    val b = AnnotatedString.Builder(base)
+    val b = AnnotatedString.Builder(withoutShaderBrushes(base))
     val len = minOf(base.text.length, spread.size)
     if (base.text.isNotEmpty()) {
         b.addStyle(
@@ -850,10 +888,12 @@ private fun buildSpreadText(base: AnnotatedString, spread: Array<Long?>, blurPx:
         }
         var j = i + 1
         while (j < len && spread[j] == c) j++
+        // A glow cannot be a gradient: gradient spread uses the middle color of the two.
+        val sc = Color(TextGradient.solid(c))
         b.addStyle(
             SpanStyle(
-                color = Color(c),
-                shadow = Shadow(color = Color(c), offset = Offset.Zero, blurRadius = blurPx)
+                color = sc,
+                shadow = Shadow(color = sc, offset = Offset.Zero, blurRadius = blurPx)
             ),
             i,
             j
@@ -866,7 +906,7 @@ private fun buildSpreadText(base: AnnotatedString, spread: Array<Long?>, blurPx:
 /** Same text and spans, glyph fill hidden, outline (stroke) on bordered characters. */
 @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
 private fun buildBorderText(base: AnnotatedString, border: Array<Long?>, strokePx: Float): AnnotatedString {
-    val b = AnnotatedString.Builder(base)
+    val b = AnnotatedString.Builder(withoutShaderBrushes(base))
     val len = minOf(base.text.length, border.size)
     if (base.text.isNotEmpty()) {
         b.addStyle(
@@ -890,7 +930,16 @@ private fun buildBorderText(base: AnnotatedString, border: Array<Long?>, strokeP
         var j = i + 1
         while (j < len && border[j] == c) j++
         b.addStyle(
-            SpanStyle(
+            if (TextGradient.isGradient(c)) {
+                SpanStyle(
+                    brush = textGradientBrush(c),
+                    alpha = TextGradient.alpha(c),
+                    drawStyle = Stroke(
+                        width = strokePx,
+                        join = androidx.compose.ui.graphics.StrokeJoin.Round
+                    )
+                )
+            } else SpanStyle(
                 color = Color(c),
                 drawStyle = Stroke(
                     width = strokePx,
@@ -917,7 +966,9 @@ private class TextStyleRangesVisualTransformation(
     private val bgColorRanges: List<ColorRange> = emptyList(),
     private val wholeBgColorArgb: Long? = null,
     private val linkRanges: List<LinkRange> = emptyList(),
-    private val shadowRanges: List<ShadowRange> = emptyList()
+    private val shadowRanges: List<ShadowRange> = emptyList(),
+    /** Whole-box text color (only used here for gradient colors). */
+    private val wholeTextColorArgb: Long? = null
 ) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val builder = AnnotatedString.Builder(text.text)
@@ -990,9 +1041,23 @@ private class TextStyleRangesVisualTransformation(
         colorRanges.forEach { cr ->
             val start = cr.range.first.coerceIn(0, text.text.length)
             val end = (cr.range.last + 1).coerceIn(0, text.text.length)
-            if (start < end) {
+            if (start < end && !TextGradient.isGradient(cr.colorArgb)) {
                 builder.addStyle(SpanStyle(color = Color(cr.colorArgb)), start, end)
             }
+        }
+        // Gradient text color (whole box or ranges): one brush span per run, spread over the box.
+        val fgChars = charColorsFor(len, wholeTextColorArgb, colorRanges)
+        var gi = 0
+        while (gi < len) {
+            val gc = fgChars[gi]
+            if (gc == null || !TextGradient.isGradient(gc)) {
+                gi++
+                continue
+            }
+            var gj = gi + 1
+            while (gj < len && fgChars[gj] == gc) gj++
+            builder.addStyle(SpanStyle(brush = textGradientBrush(gc), alpha = TextGradient.alpha(gc)), gi, gj)
+            gi = gj
         }
         bgColorRanges.forEach { cr ->
             val start = cr.range.first.coerceIn(0, text.text.length)
@@ -1226,7 +1291,8 @@ private fun PageTextOverlay(
             val visualTx = remember(
                 sizedText.boldRanges, sizedText.italicRanges, sizedText.underlineRanges,
                 sizedText.strikeRanges, sizedText.quoteRanges, sizedText.fontRanges,
-                fitRangeFamilies, sizedText.colorRanges, sizedText.linkRanges, sizedText.shadowRanges
+                fitRangeFamilies, sizedText.colorRanges, sizedText.linkRanges, sizedText.shadowRanges,
+                sizedText.textColorArgb
             ) {
                 TextStyleRangesVisualTransformation(
                     boldRanges = sizedText.boldRanges,
@@ -1241,7 +1307,8 @@ private fun PageTextOverlay(
                     bgColorRanges = emptyList(),
                     wholeBgColorArgb = null,
                     linkRanges = sizedText.linkRanges,
-                    shadowRanges = sizedText.shadowRanges
+                    shadowRanges = sizedText.shadowRanges,
+                    wholeTextColorArgb = sizedText.textColorArgb
                 )
             }
             val lastFit = remember(committedText.id) { floatArrayOf(0f) }
