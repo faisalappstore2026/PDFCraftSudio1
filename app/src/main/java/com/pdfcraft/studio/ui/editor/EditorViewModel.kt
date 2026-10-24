@@ -1485,7 +1485,14 @@ private fun beginCoalescedEdit(key: String = "edit") {
         textElements[index] = textElements[index].copy(fontSizeSp = sizeSp.coerceIn(6f, 96f), userFontSp = sizeSp.coerceIn(6f, 96f))
     }
 
-    fun setTextBoxSize(id: String, boxWidthFrac: Float, boxHeightFrac: Float, fontSizeSp: Float) {
+    fun setTextBoxSize(
+        id: String,
+        boxWidthFrac: Float,
+        boxHeightFrac: Float,
+        fontSizeSp: Float,
+        xFraction: Float = Float.NaN,
+        yFraction: Float = Float.NaN
+    ) {
         beginCoalescedEdit("textBox")
         val index = textElements.indexOfFirst { it.id == id }
         if (index < 0) return
@@ -1498,7 +1505,10 @@ private fun beginCoalescedEdit(key: String = "edit") {
             fontSizeSp = newSp,
             userFontSp = newSp,
             borderWidthDp = (cur.borderWidthDp * k).coerceIn(0.5f, 8f),
-            bgCornerDp = (cur.bgCornerDp * k).coerceIn(0f, 24f)
+            bgCornerDp = (cur.bgCornerDp * k).coerceIn(0f, 24f),
+            // Rotated resize: the opposite corner stays put, so the stored position moves too.
+            xFraction = if (xFraction.isNaN()) cur.xFraction else xFraction,
+            yFraction = if (yFraction.isNaN()) cur.yFraction else yFraction
         )
     }
 

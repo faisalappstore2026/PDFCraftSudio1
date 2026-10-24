@@ -114,6 +114,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -212,7 +213,7 @@ fun PdfPagesPreview(
     onDeselectText: () -> Unit = {},
     onTextRotate: (String, Float) -> Unit = { _, _ -> },
     onTextScale: (String, Float) -> Unit = { _, _ -> },
-    onTextBoxResize: (String, Float, Float, Float) -> Unit = { _, _, _, _ -> },
+    onTextBoxResize: (String, Float, Float, Float, Float, Float) -> Unit = { _, _, _, _, _, _ -> },
     onTextAutoFit: (String, Float) -> Unit = { _, _ -> },
     onImageClick: (String) -> Unit = {},
     onImageLongPress: (String) -> Unit = {},
@@ -1119,7 +1120,7 @@ private fun PageTextOverlay(
     onDeselect: () -> Unit,
     onTextRotate: (String, Float) -> Unit = { _, _ -> },
     onTextScale: (String, Float) -> Unit = { _, _ -> },
-    onTextBoxResize: (String, Float, Float, Float) -> Unit = { _, _, _, _ -> },
+    onTextBoxResize: (String, Float, Float, Float, Float, Float) -> Unit = { _, _, _, _, _, _ -> },
     onTextAutoFit: (String, Float) -> Unit = { _, _ -> }
 ) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
@@ -1195,7 +1196,10 @@ private fun PageTextOverlay(
                     fontSizeSp = liveVals[2],
                     userFontSp = liveVals[2],
                     borderWidthDp = (committedText.borderWidthDp * k).coerceIn(0.5f, 8f),
-                    bgCornerDp = (committedText.bgCornerDp * k).coerceIn(0f, 24f)
+                    bgCornerDp = (committedText.bgCornerDp * k).coerceIn(0f, 24f),
+                    // Rotated resize also moves the box (fixed opposite corner).
+                    xFraction = if (liveVals.size >= 5) liveVals[3] else committedText.xFraction,
+                    yFraction = if (liveVals.size >= 5) liveVals[4] else committedText.yFraction
                 )
             }
             // Position clamp (render time): old projects, undo, new boxes, resize and pinch all
@@ -1623,8 +1627,13 @@ private fun PageTextOverlay(
             )
 
             val handlePadPx = with(density) { 16.dp.toPx() }
+            // Box layout coords: its center = rotation pivot (page frame via pageRef).
+            val outerRef = remember(committedText.id) { arrayOfNulls<LayoutCoordinates>(1) }
             Box(
                 modifier = Modifier
+                    // Selected box is on top: it gets every touch inside it, so a box
+                    // underneath (or on top in list order) can never steal the selection.
+                    .zIndex(if (selected) 1f else 0f)
                     .offset {
                         val pw = sizePx.width.toFloat().coerceAtLeast(1f)
                         val ph = sizePx.height.toFloat().coerceAtLeast(1f)
@@ -1634,6 +1643,7 @@ private fun PageTextOverlay(
                         )
                     }
                     .onSizeChanged { boxMeasured = it }
+                    .onGloballyPositioned { outerRef[0] = it }
                     .graphicsLayer { rotationZ = textElement.rotationDeg }
             ) {
             Box(Modifier.padding(16.dp)) {
@@ -1938,24 +1948,9 @@ private fun PageTextOverlay(
             if (selected) {
                 val spinView = androidx.compose.ui.platform.LocalView.current
                 val lastSnap = remember(textElement.id) { floatArrayOf(Float.NaN) }
-                TextHandle(
-                    symbol = "\u21bb",
-                    modifier = Modifier.align(Alignment.TopEnd),
-                    onDragStart = {
-                        rotHud = true
-                        rawRot = rotState.value
-                        lastSnap[0] = Float.NaN
-                    },
-                    onDragEnd = { rotHud = false }
-                ) { drag ->
-                    onTextSelect(textElement.id)
-                    val halfW = (if (rowMeasured.width > 0) rowMeasured.width else boxMeasured.width) / 2f
-                    val halfH = (if (rowMeasured.height > 0) rowMeasured.height else boxMeasured.height) / 2f
-                    val vx = (halfW + handlePadPx).coerceAtLeast(12f)
-                    val vy = -(halfH + handlePadPx).coerceAtLeast(12f)
-                    val r2 = (vx * vx + vy * vy).coerceAtLeast(1f)
-                    val dDeg = ((vx * drag.y - vy * drag.x) / r2) * (180f / 3.14159265f)
-                    rawRot += dDeg
+                // Rotation drag: start angle, pivot (page frame), unwrapped angle sum, last angle.
+                val rotG = remember(textElement.id) { floatArrayOf(0f, Float.NaN, Float.NaN, 0f, Float.NaN) }
+                fun rotApply() {
                     val snapped = snapRotationDeg(rawRot)
                     var shown = ((snapped % 360f) + 360f) % 360f
                     if (shown > 180f) shown -= 360f
@@ -1968,11 +1963,84 @@ private fun PageTextOverlay(
                     lastSnap[0] = snapped
                     onTextRotate(textElement.id, snapped)
                 }
+                fun rotCenter(): Offset? {
+                    val pr = pageRef[0] ?: return null
+                    val orr = outerRef[0] ?: return null
+                    if (!pr.isAttached || !orr.isAttached) return null
+                    return try {
+                        pr.localPositionOf(orr, Offset(orr.size.width / 2f, orr.size.height / 2f))
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                TextHandle(
+                    symbol = "\u21bb",
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    onDragStart = {
+                        rotHud = true
+                        rawRot = rotState.value
+                        lastSnap[0] = Float.NaN
+                        rotG[0] = rawRot
+                        val c = rotCenter()
+                        rotG[1] = c?.x ?: Float.NaN
+                        rotG[2] = c?.y ?: Float.NaN
+                        rotG[3] = 0f
+                        rotG[4] = Float.NaN
+                    },
+                    onDragEnd = { rotHud = false },
+                    pageRef = pageRef,
+                    onPagePos = { start, now ->
+                        // Finger angle around the box center in the fixed page frame:
+                        // works anywhere, also when the finger passes over the box.
+                        onTextSelect(textElement.id)
+                        if (rotG[1].isNaN()) {
+                            val c = rotCenter()
+                            if (c != null) {
+                                rotG[1] = c.x
+                                rotG[2] = c.y
+                            }
+                        }
+                        val cx = rotG[1]
+                        val cy = rotG[2]
+                        if (!cx.isNaN() && !cy.isNaN()) {
+                            val toDeg = 180f / Math.PI.toFloat()
+                            if (rotG[4].isNaN()) {
+                                rotG[4] = kotlin.math.atan2(start.y - cy, start.x - cx) * toDeg
+                            }
+                            val dx = now.x - cx
+                            val dy = now.y - cy
+                            // Too close to the pivot: angle is noise, wait for the finger.
+                            if (dx * dx + dy * dy > handlePadPx * handlePadPx * 0.0625f) {
+                                val a = kotlin.math.atan2(dy, dx) * toDeg
+                                var d = a - rotG[4]
+                                while (d > 180f) d -= 360f
+                                while (d < -180f) d += 360f
+                                rotG[3] += d
+                                rotG[4] = a
+                                rawRot = rotG[0] + rotG[3]
+                                rotApply()
+                            }
+                        }
+                    }
+                ) { drag ->
+                    // Fallback (no page frame): old local-delta rotation.
+                    onTextSelect(textElement.id)
+                    val halfW = (if (rowMeasured.width > 0) rowMeasured.width else boxMeasured.width) / 2f
+                    val halfH = (if (rowMeasured.height > 0) rowMeasured.height else boxMeasured.height) / 2f
+                    val vx = (halfW + handlePadPx).coerceAtLeast(12f)
+                    val vy = -(halfH + handlePadPx).coerceAtLeast(12f)
+                    val r2 = (vx * vx + vy * vy).coerceAtLeast(1f)
+                    val dDeg = ((vx * drag.y - vy * drag.x) / r2) * (180f / 3.14159265f)
+                    rawRot += dDeg
+                    rotApply()
+                }
                 val liveW = remember(textElement.id) { floatArrayOf(0f) }
                 val liveH = remember(textElement.id) { floatArrayOf(0f) }
                 val startBox = remember(textElement.id) { floatArrayOf(1f, 1f, 16f) }
                 // Total finger travel (box axes) since drag start; size = start + travel.
                 val accWH = remember(textElement.id) { floatArrayOf(0f, 0f) }
+                // Stored (virtual) top-left at drag start; rotated boxes keep the opposite corner.
+                val startXY = remember(textElement.id) { floatArrayOf(0f, 0f) }
                 val widthFracState = rememberUpdatedState(textElement.boxWidthFrac)
                 val heightFracState = rememberUpdatedState(textElement.boxHeightFrac)
                 val resizeState = rememberUpdatedState(onTextBoxResize)
@@ -1997,6 +2065,8 @@ private fun PageTextOverlay(
                         startBox[0] = liveW[0].coerceAtLeast(1f)
                         startBox[1] = liveH[0].coerceAtLeast(1f)
                         startBox[2] = userSpState.value
+                        startXY[0] = xFracState.value
+                        startXY[1] = yFracState.value
                         accWH[0] = 0f
                         accWH[1] = 0f
                     },
@@ -2005,7 +2075,11 @@ private fun PageTextOverlay(
                         val lb = liveBox.value
                         if (lb != null && lb.size >= 3) {
                             // Single commit to the ViewModel (one undo step).
-                            resizeState.value(textElement.id, lb[0], lb[1], lb[2])
+                            resizeState.value(
+                                textElement.id, lb[0], lb[1], lb[2],
+                                if (lb.size >= 5) lb[3] else Float.NaN,
+                                if (lb.size >= 5) lb[4] else Float.NaN
+                            )
                         }
                         liveBox.value = null
                     },
@@ -2030,11 +2104,19 @@ private fun PageTextOverlay(
                     val scaledSp = (startBox[2] * kotlin.math.sqrt((fw * fh).coerceAtLeast(0.0001f)))
                         .coerceIn(6f, 96f)
                     // Continuous float values, local only (smooth, no rounding).
-                    liveBox.value = floatArrayOf(
-                        (liveW[0] / pageW).coerceIn(0.02f, 1.8f),
-                        (liveH[0] / pageH).coerceIn(0.02f, 1.8f),
-                        scaledSp
-                    )
+                    val wFr = (liveW[0] / pageW).coerceIn(0.02f, 1.8f)
+                    val hFr = (liveH[0] / pageH).coerceIn(0.02f, 1.8f)
+                    if (kotlin.math.abs(rr) < 0.0087f) {
+                        liveBox.value = floatArrayOf(wFr, hFr, scaledSp)
+                    } else {
+                        // Rotated (pivot = center): keep the opposite corner fixed on the page.
+                        // center moves by R * (dW / 2, dH / 2); top-left = center - (W / 2, H / 2).
+                        val dW = wFr * pageW - startBox[0]
+                        val dH = hFr * pageH - startBox[1]
+                        val nx = startXY[0] + ((dW / 2f) * (rc - 1f) - (dH / 2f) * rs) / pageW
+                        val ny = startXY[1] + ((dW / 2f) * rs + (dH / 2f) * (rc - 1f)) / pageH
+                        liveBox.value = floatArrayOf(wFr, hFr, scaledSp, nx, ny)
+                    }
                 }
             }
             }
@@ -2059,7 +2141,7 @@ private fun PageTextOverlay(
                     modifier = Modifier.offset {
                         val hudY = if (boxTop > 72) 10 else (sizePx.height - 72).coerceAtLeast(10)
                         IntOffset((sizePx.width / 2) - 48, hudY)
-                    }
+                    }.zIndex(2f)
                 ) {
                     Column(
                         modifier = Modifier
@@ -3273,9 +3355,12 @@ private fun TextHandle(
     onDragEnd: () -> Unit = {},
     /** Set: drag deltas are measured in this fixed page frame (handle may move). */
     pageRef: Array<LayoutCoordinates?>? = null,
+    /** Set (with pageRef): finger point at down and now, both in the fixed page frame. */
+    onPagePos: ((Offset, Offset) -> Unit)? = null,
     onDrag: (Offset) -> Unit
 ) {
     val startCb = rememberUpdatedState(onDragStart)
+    val pageCb = rememberUpdatedState(onPagePos)
     val endCb = rememberUpdatedState(onDragEnd)
     val dragCb = rememberUpdatedState(onDrag)
     val selfRef = remember { arrayOfNulls<LayoutCoordinates>(1) }
@@ -3305,6 +3390,7 @@ private fun TextHandle(
                     var moved = false
                     var endSent = false
                     var prevPage: Offset? = pagePos(down.position)
+                    val startPage = prevPage
                     try {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -3318,8 +3404,9 @@ private fun TextHandle(
                         if (!moved && (change.position - down.position).getDistance() > slop) {
                             moved = true
                         }
+                        // The handle owns this finger until it lifts: nothing else sees it.
+                        change.consume()
                         if (moved) {
-                            change.consume()
                             val pp = prevPage
                             val pNow = if (pp != null) pagePos(change.position) else null
                             if (pp != null && pNow != null) {
@@ -3327,7 +3414,12 @@ private fun TextHandle(
                                 // (first step includes the slop distance).
                                 val d = pNow - pp
                                 prevPage = pNow
-                                if (d.x != 0f || d.y != 0f) dragCb.value(d)
+                                val absCb = pageCb.value
+                                if (absCb != null && startPage != null) {
+                                    if (d.x != 0f || d.y != 0f) absCb(startPage, pNow)
+                                } else if (d.x != 0f || d.y != 0f) {
+                                    dragCb.value(d)
+                                }
                             } else if (delta.x != 0f || delta.y != 0f) {
                                 dragCb.value(delta)
                             }
