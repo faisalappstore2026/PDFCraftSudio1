@@ -433,6 +433,7 @@
     <string name="tt_hud_box">Box</string>
     <string name="tt_hud_size">Size</string>
     <string name="update_store_unavailable">Could not open Google Play. Please update PDFCraft Studio from the Play Store.</string>
+    <string name="export_pdf_saving">Saving PDF...</string>
     <string name="export_pdf_out_of_memory">Not enough memory to save this PDF. Try fewer or smaller images.</string>
 </resources>
 

@@ -150,7 +150,8 @@ object PdfGenerator {
         pageBackgroundBitmapForPage: ((Int) -> android.graphics.Bitmap?)? = null,
         pageBackgroundKindForPage: ((Int) -> String)? = null,
         pageBackgroundColor2ForPage: ((Int) -> Long)? = null,
-        pageBackgroundDirForPage: ((Int) -> String)? = null
+        pageBackgroundDirForPage: ((Int) -> String)? = null,
+        onProgress: ((Int, Int) -> Unit)? = null
     ): Result {
         val hasPageRaster = (0 until minPageCount.coerceAtLeast(1)).any {
             pageBackgroundBitmapForPage?.invoke(it) != null
@@ -222,6 +223,7 @@ object PdfGenerator {
         // Drawing can run out of memory on big documents: fail with a message, never crash.
         // Same label as before, so every return@forEachIndexed keeps its meaning.
         val drawError = pages.forEachIndexedGuarded forEachIndexed@{ pageIndex, pageImages ->
+            onProgress?.invoke(pageIndex + 1, pages.size)
             val docPage = if (pageIndex < pageSrc.size) pageSrc[pageIndex] else pageIndex
             val aspect = (if (docPage < 0) pageAspectRatio else (pageAspectRatioForPage?.invoke(docPage) ?: pageAspectRatio)).coerceAtLeast(0.1f)
             val thisPageHeight = (pageWidth / aspect).roundToInt().coerceAtLeast(1)

@@ -153,6 +153,7 @@ import com.pdfcraft.studio.ui.editor.ShadowRange
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collectLatest
 
 private const val PAGE_ASPECT_RATIO = 9f / 16f
 private const val PAGE_INNER_PADDING_DP = 10f
@@ -301,9 +302,19 @@ fun PdfPagesPreview(
     LaunchedEffect(pageListState) {
         snapshotFlow { pageListState.firstVisibleItemIndex to pageListState.firstVisibleItemScrollOffset }
             .distinctUntilChanged()
-            .collect { pair ->
+            .collectLatest { pair ->
+                // Save only when scrolling settles, not on every frame.
+                kotlinx.coroutines.delay(400)
                 if (scrollRestoreDone) onScrollChanged(pair.first, pair.second)
             }
+    }
+    androidx.compose.runtime.DisposableEffect(pageListState) {
+        onDispose {
+            // Leaving the editor: store the last position right away.
+            if (scrollRestoreDone) {
+                onScrollChanged(pageListState.firstVisibleItemIndex, pageListState.firstVisibleItemScrollOffset)
+            }
+        }
     }
     val scaleState = remember { mutableStateOf(1f) }
     val panState = remember { mutableStateOf(Offset.Zero) }

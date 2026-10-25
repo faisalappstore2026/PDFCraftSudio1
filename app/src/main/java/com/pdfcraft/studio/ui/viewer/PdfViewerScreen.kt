@@ -80,6 +80,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collectLatest
 
 private class PdfSession(
     val pfd: ParcelFileDescriptor,
@@ -373,7 +374,16 @@ fun PdfViewerScreen(
                     LaunchedEffect(viewerListState) {
                         snapshotFlow { viewerListState.firstVisibleItemIndex to viewerListState.firstVisibleItemScrollOffset }
                             .distinctUntilChanged()
-                            .collect { onScrollChanged(it.first, it.second) }
+                            .collectLatest {
+                                // Save only when scrolling settles, not on every frame.
+                                delay(400)
+                                onScrollChanged(it.first, it.second)
+                            }
+                    }
+                    DisposableEffect(viewerListState) {
+                        onDispose {
+                            onScrollChanged(viewerListState.firstVisibleItemIndex, viewerListState.firstVisibleItemScrollOffset)
+                        }
                     }
                     val scaleState = remember { mutableStateOf(1f) }
                     val panState = remember { mutableStateOf(Offset.Zero) }

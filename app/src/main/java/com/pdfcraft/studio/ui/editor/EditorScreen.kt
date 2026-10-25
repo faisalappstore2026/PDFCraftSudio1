@@ -611,6 +611,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                     var savedFileName by remember { mutableStateOf("") }
                     var linkWarning by remember { mutableStateOf<String?>(null) }
                     var savedUri by remember { mutableStateOf<android.net.Uri?>(null) }
+                    // null = no export running; otherwise (page done, total pages)
+                    var exportProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
                     var nameField by remember {
                         val n = sessionSnap.nameField.ifBlank { "Project.pdf" }
                         val end = n.substringBefore(".").length.coerceAtLeast(0)
@@ -684,6 +686,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.export_pdf)) },
+                                enabled = exportProgress == null,
                                 onClick = {
                                     menuExpanded = false
                                     if (!viewModel.hasExportableContent()) {
@@ -724,38 +727,57 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                 TextButton(onClick = {
                                     showNameDialog = false
                                     val raw = nameField.text.trim().ifEmpty { "Project.pdf" }
-                                    val result = PdfGenerator.export(
-                                        context = context,
-                                        fileName = raw,
-                                        images = viewModel.importedImages.toList(),
-                                        textElements = viewModel.textElements.toList(),
-                                        imagesPerRow = viewModel.imagesPerRow,
-                                        pageAspectRatio = viewModel.pageAspectRatio,
-                                        pageBackgroundColor = viewModel.pageBackgroundColor,
-                                        imageSpacingDp = viewModel.imageSpacingDp,
-                                        imageCellAspectRatio = viewModel.layoutCellAspectRatio,
-                                        pageMarginDp = viewModel.pageMarginDp,
-                                        minPageCount = viewModel.minPageCount,
-                                        pageAspectRatioForPage = viewModel::aspectRatioForPage,
-                                        pageBackgroundColorForPage = viewModel::backgroundColorForPage,
-                                        pageBackgroundBitmapForPage = viewModel::backgroundBitmapForPage,
-                                        pageBackgroundKindForPage = viewModel::resolvedKind,
-                                        pageBackgroundColor2ForPage = viewModel::backgroundColor2ForPage,
-                                        pageBackgroundDirForPage = viewModel::backgroundDirForPage
-                                    )
-                                    if (result.success) {
-                                        savedFileName = result.fileName
-                                        linkWarning = result.linkWarning
-                                        savedUri = result.savedUri
-                                        showSuccessDialog = true
-                                    } else {
-                                        errorMessage = if (result.message == "empty")
-                                            context.getString(R.string.export_pdf_empty)
-                                        else if (result.message == "out_of_memory")
-                                            context.getString(R.string.export_pdf_out_of_memory)
-                                        else
-                                            context.getString(R.string.export_pdf_failed)
-                                        showErrorDialog = true
+                                    if (exportProgress == null) {
+                                    // Take a snapshot of the lists on the main thread, then draw/save in background.
+                                    val exportImages = viewModel.importedImages.toList()
+                                    val exportTexts = viewModel.textElements.toList()
+                                    exportProgress = 0 to 0
+                                    coroutineScope.launch {
+                                        val result = try {
+                                            withContext(Dispatchers.IO) {
+                                                PdfGenerator.export(
+                                                context = context,
+                                                fileName = raw,
+                                                images = exportImages,
+                                                textElements = exportTexts,
+                                                imagesPerRow = viewModel.imagesPerRow,
+                                                pageAspectRatio = viewModel.pageAspectRatio,
+                                                pageBackgroundColor = viewModel.pageBackgroundColor,
+                                                imageSpacingDp = viewModel.imageSpacingDp,
+                                                imageCellAspectRatio = viewModel.layoutCellAspectRatio,
+                                                pageMarginDp = viewModel.pageMarginDp,
+                                                minPageCount = viewModel.minPageCount,
+                                                pageAspectRatioForPage = viewModel::aspectRatioForPage,
+                                                pageBackgroundColorForPage = viewModel::backgroundColorForPage,
+                                                pageBackgroundBitmapForPage = viewModel::backgroundBitmapForPage,
+                                                pageBackgroundKindForPage = viewModel::resolvedKind,
+                                                pageBackgroundColor2ForPage = viewModel::backgroundColor2ForPage,
+                                                pageBackgroundDirForPage = viewModel::backgroundDirForPage,
+                                                onProgress = { done, total -> exportProgress = done to total }
+                                                )
+                                            }
+                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                            throw e
+                                        } catch (e: Throwable) {
+                                            PdfGenerator.Result(false, message = if (e is OutOfMemoryError) "out_of_memory" else "error")
+                                        } finally {
+                                            exportProgress = null
+                                        }
+                                        if (result.success) {
+                                            savedFileName = result.fileName
+                                            linkWarning = result.linkWarning
+                                            savedUri = result.savedUri
+                                            showSuccessDialog = true
+                                        } else {
+                                            errorMessage = if (result.message == "empty")
+                                                context.getString(R.string.export_pdf_empty)
+                                            else if (result.message == "out_of_memory")
+                                                context.getString(R.string.export_pdf_out_of_memory)
+                                            else
+                                                context.getString(R.string.export_pdf_failed)
+                                            showErrorDialog = true
+                                        }
+                                    }
                                     }
                                 }) {
                                     Text(stringResource(R.string.ok))
@@ -764,6 +786,28 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                             dismissButton = {
                                 TextButton(onClick = { showNameDialog = false }) {
                                     Text(stringResource(R.string.cancel))
+                                }
+                            }
+                        )
+                    }
+
+                    // --- Export progress (cannot be dismissed while saving) ---
+                    val runningExport = exportProgress
+                    if (runningExport != null) {
+                        AlertDialog(
+                            onDismissRequest = {},
+                            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+                            confirmButton = {},
+                            title = { Text(stringResource(R.string.export_pdf_saving)) },
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text(
+                                        if (runningExport.second > 0)
+                                            runningExport.first.toString() + " / " + runningExport.second.toString()
+                                        else "..."
+                                    )
                                 }
                             }
                         )
