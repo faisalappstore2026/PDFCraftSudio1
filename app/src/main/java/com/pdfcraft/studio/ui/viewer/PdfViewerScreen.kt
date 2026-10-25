@@ -296,7 +296,8 @@ fun PdfViewerScreen(
                     withContext(Dispatchers.IO) {
                         PdfLinkExtractor.extract(context, uri, pair.second, pair.first.readWidths().orEmpty())
                     }
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     android.util.Log.e("PdfViewerScreen", "Link extract failed", e)
                     emptyList()
                 }

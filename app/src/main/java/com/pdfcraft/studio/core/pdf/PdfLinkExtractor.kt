@@ -27,6 +27,9 @@ object PdfLinkExtractor {
     // Must match PdfGenerator's fixed logical page width.
     private const val PAGE_WIDTH_POINTS = 1080f
 
+    /** Bigger PDFs are not loaded into PDFBox for links (memory). The viewer still opens. */
+    private const val MAX_LINK_SCAN_BYTES = 30L * 1024L * 1024L
+
     /**
      * [pageHeightsPoints] must be the authoritative per-page height (in points)
      * as reported by android.graphics.pdf.PdfRenderer — NOT page.mediaBox, which
@@ -40,6 +43,15 @@ object PdfLinkExtractor {
         pageWidthsPoints: List<Float> = emptyList()
     ): List<PdfLinkRegion> {
         val regions = mutableListOf<PdfLinkRegion>()
+        val size = try {
+            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+        } catch (_: Throwable) {
+            -1L
+        }
+        if (size > MAX_LINK_SCAN_BYTES) {
+            android.util.Log.i("PdfLinkExtractor", "Skip links, file too big: " + size)
+            return regions
+        }
         try {
             PDFBoxResourceLoader.init(context)
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -72,8 +84,10 @@ object PdfLinkExtractor {
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Includes OutOfMemoryError: no links, but the viewer keeps working.
             android.util.Log.e("PdfLinkExtractor", "Failed to extract link annotations", e)
+            regions.clear()
         }
         return regions
     }

@@ -498,6 +498,13 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
             }
         }
 
+    LaunchedEffect(viewModel.pdfImportFailed) {
+        if (viewModel.pdfImportFailed) {
+            viewModel.consumePdfImportFailed()
+            snackbarHostState.showSnackbar(context.getString(R.string.pdf_import_failed))
+        }
+    }
+
     LaunchedEffect(viewModel.lastFontImportMessage) {
         val msg = viewModel.lastFontImportMessage
         if (msg != null) {
@@ -739,6 +746,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                     } else {
                                         errorMessage = if (result.message == "empty")
                                             context.getString(R.string.export_pdf_empty)
+                                        else if (result.message == "out_of_memory")
+                                            context.getString(R.string.export_pdf_out_of_memory)
                                         else
                                             context.getString(R.string.export_pdf_failed)
                                         showErrorDialog = true

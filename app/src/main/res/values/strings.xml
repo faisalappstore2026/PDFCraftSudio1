@@ -245,6 +245,7 @@
     <string name="view_pdf_button">View PDF</string>
     <string name="export_pdf_failed">Failed to export PDF. Please try again.</string>
     <string name="export_pdf_empty">Nothing to export. Add images or text first.</string>
+    <string name="pdf_import_failed">Could not open this PDF (it may be password protected or damaged).</string>
     <string name="cancel">Cancel</string>
     <string name="ok">OK</string>
 
@@ -432,5 +433,6 @@
     <string name="tt_hud_box">Box</string>
     <string name="tt_hud_size">Size</string>
     <string name="update_store_unavailable">Could not open Google Play. Please update PDFCraft Studio from the Play Store.</string>
+    <string name="export_pdf_out_of_memory">Not enough memory to save this PDF. Try fewer or smaller images.</string>
 </resources>
 

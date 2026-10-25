@@ -219,7 +219,9 @@ object PdfGenerator {
             style = Paint.Style.FILL
         }
 
-        pages.forEachIndexed { pageIndex, pageImages ->
+        // Drawing can run out of memory on big documents: fail with a message, never crash.
+        // Same label as before, so every return@forEachIndexed keeps its meaning.
+        val drawError = pages.forEachIndexedGuarded forEachIndexed@{ pageIndex, pageImages ->
             val docPage = if (pageIndex < pageSrc.size) pageSrc[pageIndex] else pageIndex
             val aspect = (if (docPage < 0) pageAspectRatio else (pageAspectRatioForPage?.invoke(docPage) ?: pageAspectRatio)).coerceAtLeast(0.1f)
             val thisPageHeight = (pageWidth / aspect).roundToInt().coerceAtLeast(1)
@@ -859,6 +861,14 @@ object PdfGenerator {
 
             pdf.finishPage(page)
         }
+        if (drawError != null) {
+            android.util.Log.e("PdfGenerator", "Export drawing failed", drawError)
+            try { pdf.close() } catch (_: Throwable) {}
+            return Result(
+                false,
+                message = if (drawError is OutOfMemoryError) "out_of_memory" else (drawError.message ?: "error")
+            )
+        }
 
         return try {
             val baos = ByteArrayOutputStream()
@@ -867,7 +877,13 @@ object PdfGenerator {
             var bytes = baos.toByteArray()
             var linkWarning: String? = null
             if (linkRects.isNotEmpty()) {
-                val stamped = addLinkAnnotations(bytes, linkRects, context)
+                val plain = bytes
+                val stamped = try {
+                    addLinkAnnotations(plain, linkRects, context)
+                } catch (oom: OutOfMemoryError) {
+                    // Not enough memory for the link pass: save the PDF without clickable links.
+                    plain to "OutOfMemoryError: links were skipped"
+                }
                 bytes = stamped.first
                 linkWarning = stamped.second
             }
@@ -877,10 +893,24 @@ object PdfGenerator {
             } else {
                 Result(false, message = "save_failed")
             }
-        } catch (e: Exception) {
-            try { pdf.close() } catch (_: Exception) {}
-            Result(false, message = e.message ?: "error")
+        } catch (e: Throwable) {
+            android.util.Log.e("PdfGenerator", "Export save failed", e)
+            try { pdf.close() } catch (_: Throwable) {}
+            Result(
+                false,
+                message = if (e is OutOfMemoryError) "out_of_memory" else (e.message ?: "error")
+            )
         }
+    }
+
+    /** forEachIndexed that stops at the first Throwable (incl. OutOfMemoryError) and returns it. */
+    private inline fun <T> List<T>.forEachIndexedGuarded(action: (Int, T) -> Unit): Throwable? {
+        try {
+            for (i in indices) action(i, this[i])
+        } catch (t: Throwable) {
+            return t
+        }
+        return null
     }
 
     private fun saveBytesToDocuments(context: Context, fileName: String, bytes: ByteArray): Uri? {

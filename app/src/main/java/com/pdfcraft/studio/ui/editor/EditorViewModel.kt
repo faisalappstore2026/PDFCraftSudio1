@@ -869,6 +869,14 @@ private fun beginCoalescedEdit(key: String = "edit") {
     var importingPdf: Boolean by mutableStateOf(false)
         private set
 
+    /** True once when an Edit PDF import could not open the file (screen shows a message). */
+    var pdfImportFailed: Boolean by mutableStateOf(false)
+        private set
+
+    fun consumePdfImportFailed() {
+        pdfImportFailed = false
+    }
+
     val selectedImageIds: SnapshotStateList<String> = mutableStateListOf()
 
     var selectionMode: Boolean by mutableStateOf(false)
@@ -1228,11 +1236,18 @@ private fun beginCoalescedEdit(key: String = "edit") {
         minPageCount = 1
         importingPdf = true
         isImporting = true
+        pdfImportFailed = false
         viewModelScope.launch {
             try {
             val uri = Uri.parse(uriString)
-            val pages = withContext(Dispatchers.IO) { renderPdfPages(context, uri) }
+            val rendered = withContext(Dispatchers.IO) { renderPdfPages(context, uri) }
             if (gen != pdfImportGen) return@launch
+            if (rendered == null) {
+                // Password protected, damaged, or no access: keep an empty editor, tell the user.
+                pdfImportFailed = true
+                return@launch
+            }
+            val pages: List<ImportedImage> = rendered
             importedImages.clear()
             textElements.clear()
             pageBackgroundBitmapOverrides.clear()
@@ -1269,6 +1284,11 @@ private fun beginCoalescedEdit(key: String = "edit") {
             currentProjectFile = null
             currentProjectName = null
             lastDraftStamp = contentStamp()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                android.util.Log.e("EditorViewModel", "PDF import failed", e)
+                if (gen == pdfImportGen) pdfImportFailed = true
             } finally {
                 if (gen == pdfImportGen) {
                     isImporting = false
@@ -1278,11 +1298,22 @@ private fun beginCoalescedEdit(key: String = "edit") {
         }
     }
 
-    private fun renderPdfPages(context: Context, uri: Uri): List<ImportedImage> {
-        val pfd: ParcelFileDescriptor = context.contentResolver.openFileDescriptor(uri, "r")
-            ?: return emptyList()
-        val renderer = PdfRenderer(pfd)
-        val out = ArrayList<ImportedImage>(renderer.pageCount)
+    /** Pages of the PDF, or null when it cannot be opened (password, damaged, no access). */
+    private fun renderPdfPages(context: Context, uri: Uri): List<ImportedImage>? {
+        var pfd: ParcelFileDescriptor? = null
+        var opened: PdfRenderer? = null
+        try {
+            pfd = context.contentResolver.openFileDescriptor(uri, "r")
+            if (pfd != null) opened = PdfRenderer(pfd)
+        } catch (e: Throwable) {
+            android.util.Log.w("EditorViewModel", "Cannot open PDF", e)
+        }
+        val renderer = opened
+        if (renderer == null) {
+            try { pfd?.close() } catch (_: Throwable) {}
+            return null
+        }
+        val out = ArrayList<ImportedImage>()
         try {
             for (i in 0 until renderer.pageCount) {
                 renderer.openPage(i).use { page ->
@@ -1305,10 +1336,11 @@ private fun beginCoalescedEdit(key: String = "edit") {
         } catch (_: OutOfMemoryError) {
         } catch (_: Exception) {
         } finally {
-            renderer.close()
-            pfd.close()
+            try { renderer.close() } catch (_: Throwable) {}
+            try { pfd?.close() } catch (_: Throwable) {}
         }
-        return out
+        // Not even the first page could be drawn: treat as a failed open.
+        return if (out.isEmpty()) null else out
     }
 
     fun enterAddTextMode() {

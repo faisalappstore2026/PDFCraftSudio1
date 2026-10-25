@@ -76,14 +76,21 @@ fun textColorToSpec(c: Long?, fallback: Long): PageBackgroundSpec {
     val v = c ?: fallback
     if (TextGradient.isGradient(v)) {
         val l = TextGradient.line(v)
+        // line() can reach past 0..1 (e.g. 30 deg). Shrink around the centre so the
+        // window gets valid points; the angle stays exactly the same.
+        val hx = kotlin.math.abs(l[2] - 0.5f)
+        val hy = kotlin.math.abs(l[3] - 0.5f)
+        val kx = if (hx > 0.5f) 0.5f / hx else 1f
+        val ky = if (hy > 0.5f) 0.5f / hy else 1f
+        val k = minOf(kx, ky)
         return PageBackgroundSpec(
             kind = PageBgKind.GRADIENT,
             color = TextGradient.color1(v),
             color2 = TextGradient.color2(v),
-            gx0 = l[0],
-            gy0 = l[1],
-            gx1 = l[2],
-            gy1 = l[3]
+            gx0 = (0.5f + (l[0] - 0.5f) * k).coerceIn(0f, 1f),
+            gy0 = (0.5f + (l[1] - 0.5f) * k).coerceIn(0f, 1f),
+            gx1 = (0.5f + (l[2] - 0.5f) * k).coerceIn(0f, 1f),
+            gy1 = (0.5f + (l[3] - 0.5f) * k).coerceIn(0f, 1f)
         )
     }
     return PageBackgroundSpec(kind = PageBgKind.SOLID, color = TextGradient.color1(v))

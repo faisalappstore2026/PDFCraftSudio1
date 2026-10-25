@@ -46,6 +46,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,17 +58,21 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
     var offsetY by remember { mutableStateOf(0f) }
     var scale by remember { mutableStateOf(1f) }
     var copied by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val bmp = context.contentResolver.openInputStream(uri).use { stream ->
-            if (stream == null) null else BitmapFactory.decodeStream(stream)
-        }
-        if (bmp != null) {
-            bitmap = bmp
-            offsetX = 0f
-            offsetY = 0f
-            scale = 1f
-            copied = false
+        scope.launch {
+            // Off the main thread, downscaled, never throws.
+            val bmp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                decodeIconSafely(context, uri)
+            }
+            if (bmp != null) {
+                bitmap = bmp
+                offsetX = 0f
+                offsetY = 0f
+                scale = 1f
+                copied = false
+            }
         }
     }
     val report = buildIconReport(offsetX, offsetY, scale)
@@ -187,6 +192,21 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
                 Text(if (copied) "Copied" else "Copy details")
             }
         }
+    }
+}
+
+private fun decodeIconSafely(context: android.content.Context, uri: Uri): android.graphics.Bitmap? {
+    return try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        val longest = maxOf(bounds.outWidth, bounds.outHeight)
+        while (longest > 0 && longest / (sample * 2) >= 1024) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
+    } catch (e: Throwable) {
+        android.util.Log.w("IconCenter", "Image decode failed", e)
+        null
     }
 }
 

@@ -614,7 +614,8 @@ private fun PsMenuBar(scroll: androidx.compose.foundation.ScrollState) {
     ) {
         val track = constraints.maxHeight.toFloat().coerceAtLeast(1f)
         val maxv = scroll.maxValue.coerceAtLeast(1)
-        val thumb = (track * track / (track + maxv)).coerceIn(28f, track * 0.55f)
+        val thumbMax = track * 0.55f
+        val thumb = (track * track / (track + maxv)).coerceIn(minOf(28f, thumbMax), thumbMax)
         val y = ((track - thumb) * scroll.value / maxv.toFloat()).toInt().coerceAtLeast(0)
         Box(
             modifier = Modifier

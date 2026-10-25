@@ -845,8 +845,9 @@ private fun GradientDirectionCanvas(
                                         val maxX = kotlin.math.max(o0x, o1x)
                                         val minY = kotlin.math.min(o0y, o1y)
                                         val maxY = kotlin.math.max(o0y, o1y)
-                                        dx = dx.coerceIn(-minX, 1f - maxX)
-                                        dy = dy.coerceIn(-minY, 1f - maxY)
+                                        // Guard: a line wider than the box would make an empty range (crash).
+                                        dx = if (-minX <= 1f - maxX) dx.coerceIn(-minX, 1f - maxX) else 0f
+                                        dy = if (-minY <= 1f - maxY) dy.coerceIn(-minY, 1f - maxY) else 0f
                                         onLineChange(o0x + dx, o0y + dy, o1x + dx, o1y + dy)
                                     }
                                 }
