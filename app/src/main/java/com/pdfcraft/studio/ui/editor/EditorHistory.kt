@@ -24,6 +24,7 @@ data class EditorMemento(
     val pageBackgroundGradientDirOverrides: Map<Int, String>,
     val pageBackgroundImageUri: Uri?,
     val pdfPageRasterIndices: Set<Int>,
+    val pdfPageRasters: Map<Int, Bitmap> = emptyMap(),
     val imagesPerRow: Int,
     val imageSpacingDp: Int,
     val imageCellAspectRatio: Float,

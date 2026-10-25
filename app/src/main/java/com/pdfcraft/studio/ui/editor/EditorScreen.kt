@@ -332,8 +332,12 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     LaunchedEffect(projectPath) {
         val path = projectPath?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
         openedProjectPath = path
+        // Screen recreated (rotate, dark mode, font size...): the ViewModel still has this
+        // project with all edits and undo history, so do not load it again.
+        if (viewModel.loadedSourcePath == path) return@LaunchedEffect
         if (path.startsWith("pdf|")) {
-            viewModel.importPdfFromUri(context, path.substring(4))
+            viewModel.loadedSourcePath = path
+            viewModel.importPdfFromUri(context.applicationContext, path.substring(4))
             return@LaunchedEffect
         }
         val result = withContext(Dispatchers.IO) {
@@ -342,6 +346,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         val data = result.data
         if (result.success && data != null) {
             viewModel.applyLoadedProject(data, java.io.File(path))
+            viewModel.loadedSourcePath = path
             val warn = result.warning
             if (!warn.isNullOrBlank()) snackbarHostState.showSnackbar(warn)
         } else {
@@ -380,7 +385,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         projectPath
     ) {
         val f = viewModel.currentProjectFile ?: viewModel.currentDraftFile
-        val path = f?.absolutePath ?: projectPath
+        val path = f?.absolutePath ?: projectPath?.takeUnless { viewModel.pdfSourceBroken }
         if (!path.isNullOrBlank()) SessionStore.setEditor(sessionContext, path)
     }
     LaunchedEffect(
@@ -661,7 +666,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                             ) defaultName
                                             else viewModel.currentProjectName ?: defaultName
                                         val result = withContext(Dispatchers.IO) {
-                                            ProjectStore.save(context, viewModel, saveName)
+                                            synchronized(viewModel) { ProjectStore.save(context, viewModel, saveName) }
                                         }
                                         projectSaving = false
                                         if (result.success && result.path.isNotBlank()) {

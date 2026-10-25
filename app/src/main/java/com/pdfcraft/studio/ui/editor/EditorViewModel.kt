@@ -652,6 +652,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         pageBackgroundGradientDirOverrides = pageBackgroundGradientDirOverrides.toMap(),
         pageBackgroundImageUri = pageBackgroundImageUri,
         pdfPageRasterIndices = pdfPageRasterIndices.toSet(),
+        pdfPageRasters = pdfPageRasters.toMap(),
         imagesPerRow = imagesPerRow,
         imageSpacingDp = imageSpacingDp,
         imageCellAspectRatio = imageCellAspectRatio,
@@ -699,6 +700,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         pageBackgroundImageUri = m.pageBackgroundImageUri
         pdfPageRasterIndices.clear()
         pdfPageRasterIndices.addAll(m.pdfPageRasterIndices)
+        pdfPageRasters.clear()
+        pdfPageRasters.putAll(m.pdfPageRasters)
         imagesPerRow = m.imagesPerRow
         imageSpacingDp = m.imageSpacingDp
         imageCellAspectRatio = m.imageCellAspectRatio
@@ -1076,6 +1079,22 @@ private fun beginCoalescedEdit(key: String = "edit") {
         if (suppressDraftSave) return
         if (isEmptyEditor()) return
         val stamp = contentStamp()
+        val project = currentProjectFile
+        val inProjects = project != null && !ProjectStore.isDraftFile(project) && runCatching {
+            project.parentFile?.canonicalPath == ProjectStore.projectsDir(appContext).canonicalPath
+        }.getOrDefault(false)
+        if (project != null && inProjects) {
+            // A saved project is open: keep changes in that same project file
+            // (no extra "Draft Project N", session keeps pointing at this project).
+            if (stamp == lastDraftStamp && project.exists()) return
+            val name = currentProjectName?.ifBlank { null } ?: project.nameWithoutExtension
+            val saved = ProjectStore.save(appContext, this, name, overwriteFile = project)
+            if (saved.success && saved.path.isNotBlank()) {
+                lastDraftStamp = stamp
+                SessionStore.setEditor(appContext, saved.path)
+            }
+            return
+        }
         if (stamp == lastDraftStamp && currentDraftFile?.exists() == true) return
         val result = ProjectStore.saveDraft(appContext, this, currentDraftFile)
         if (result.success && result.path.isNotBlank()) {
@@ -1093,6 +1112,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
     }
 
     /** Back from editor: keep work in My Projects, no recover popup. */
+    @Synchronized
     fun leaveEditorAndKeepWork(appContext: Context) {
         suppressDraftSave = true
         val ctx = appContext.applicationContext
@@ -1213,6 +1233,18 @@ private fun beginCoalescedEdit(key: String = "edit") {
     }
 
 
+    /** Source (project path or pdf|uri) already loaded into this ViewModel; survives screen recreate. */
+    var loadedSourcePath: String? = null
+
+    /** True when the opened PDF could not be read; the app must not resume into it. */
+    var pdfSourceBroken: Boolean = false
+        private set
+
+    private fun markPdfSourceBroken(context: Context) {
+        pdfSourceBroken = true
+        runCatching { SessionStore.setHome(context.applicationContext) }
+    }
+
     private var pdfImportGen: Int = 0
 
     fun importPdfFromUri(context: Context, uriString: String) {
@@ -1237,6 +1269,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
         importingPdf = true
         isImporting = true
         pdfImportFailed = false
+        pdfSourceBroken = false
         viewModelScope.launch {
             try {
             val uri = Uri.parse(uriString)
@@ -1245,6 +1278,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
             if (rendered == null) {
                 // Password protected, damaged, or no access: keep an empty editor, tell the user.
                 pdfImportFailed = true
+                markPdfSourceBroken(context)
                 return@launch
             }
             val pages: List<ImportedImage> = rendered
@@ -1288,7 +1322,10 @@ private fun beginCoalescedEdit(key: String = "edit") {
                 throw e
             } catch (e: Throwable) {
                 android.util.Log.e("EditorViewModel", "PDF import failed", e)
-                if (gen == pdfImportGen) pdfImportFailed = true
+                if (gen == pdfImportGen) {
+                    pdfImportFailed = true
+                    markPdfSourceBroken(context)
+                }
             } finally {
                 if (gen == pdfImportGen) {
                     isImporting = false
@@ -2566,6 +2603,7 @@ fun isSelectionStrike(): Boolean {
     fun cutSingle(id: String) {
         val image = importedImages.firstOrNull { it.id == id }
         if (image != null) {
+            recordEdit()
             clipboardImages = listOf(image)
             importedImages.remove(image)
         }
@@ -2583,7 +2621,13 @@ fun isSelectionStrike(): Boolean {
     fun pasteImages() {
         recordEdit()
         if (clipboardImages.isNotEmpty()) {
-            importedImages.addAll(clipboardImages)
+            // Every paste gets fresh ids, so pasting twice never makes duplicate ids.
+            val stamp = System.nanoTime()
+            val fresh = clipboardImages.mapIndexed { i, img ->
+                val prefix = if (img.id.startsWith("spacer_")) "spacer_" else "paste_"
+                img.copy(id = prefix + stamp + "_" + i)
+            }
+            importedImages.addAll(fresh)
         }
         singleMenuImageId = null
     }
@@ -2658,6 +2702,7 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun cutSelected() {
+        if (selectedImageIds.isNotEmpty()) recordEdit()
         clipboardImages = getSelectedImages()
         importedImages.removeAll { it.id in selectedImageIds }
         multipleActionsVisible = false
@@ -2671,6 +2716,7 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun deleteSelected() {
+        if (selectedImageIds.isNotEmpty()) recordEdit()
         importedImages.removeAll { it.id in selectedImageIds }
         multipleActionsVisible = false
         cancelSelection()
@@ -2765,6 +2811,7 @@ fun isSelectionStrike(): Boolean {
 
     fun deleteLastPage() {
         if (minPageCount <= 1) return
+        recordEdit()
         minPageCount = minPageCount - 1
     }
 
@@ -3004,6 +3051,25 @@ fun isSelectionStrike(): Boolean {
         remapFloat(pageAspectOverrides)
         remapLong(pageBackgroundColorOverrides)
         remapBmp(pageBackgroundBitmapOverrides)
+        fun remapStr(map: MutableMap<Int, String>) {
+            val old = map.toMap()
+            map.clear()
+            old.forEach { (k, v) ->
+                val nk = oldToNew[k]
+                if (nk != null) map[nk] = v
+            }
+        }
+        // Gradient/kind settings and original PDF page images move with their page too
+        remapStr(pageBackgroundKindOverrides)
+        remapLong(pageBackgroundColor2Overrides)
+        remapStr(pageBackgroundGradientDirOverrides)
+        remapBmp(pdfPageRasters)
+        val oldRasterIdx = pdfPageRasterIndices.toList()
+        pdfPageRasterIndices.clear()
+        oldRasterIdx.forEach { k ->
+            val nk = oldToNew[k]
+            if (nk != null) pdfPageRasterIndices.add(nk)
+        }
 
         // Keep document page count stable
         minPageCount = maxOf(minPageCount, total)
@@ -3028,6 +3094,8 @@ fun isSelectionStrike(): Boolean {
             pageBackgroundKindOverrides.clear()
             pageBackgroundColor2Overrides.clear()
             pageBackgroundGradientDirOverrides.clear()
+            pdfPageRasters.clear()
+            pdfPageRasterIndices.clear()
             pageDeleteSelection.clear()
             return
         }
@@ -3104,6 +3172,19 @@ fun isSelectionStrike(): Boolean {
         shiftStr(pageBackgroundKindOverrides)
         shiftLong(pageBackgroundColor2Overrides)
         shiftStr(pageBackgroundGradientDirOverrides)
+        // Original PDF page images shift with the remaining pages
+        val oldRasters = pdfPageRasters.toMap()
+        pdfPageRasters.clear()
+        for ((k, v) in oldRasters) {
+            if (k in deleteDoc) continue
+            pdfPageRasters[k - deleteDoc.count { it < k }] = v
+        }
+        val oldRasterIdx = pdfPageRasterIndices.toList()
+        pdfPageRasterIndices.clear()
+        for (k in oldRasterIdx) {
+            if (k in deleteDoc) continue
+            pdfPageRasterIndices.add(k - deleteDoc.count { it < k })
+        }
         minPageCount = maxOf(1, minPageCount - toDelete.size)
         pageDeleteSelection.clear()
     }
