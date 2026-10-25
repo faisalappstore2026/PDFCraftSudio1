@@ -121,6 +121,7 @@
     <string name="selected_images_actions">Select an Action</string>
     <string name="image_saved_message">Image saved to DCIM/Camera</string>
     <string name="image_save_failed">Could not save image</string>
+    <string name="storage_permission_needed">Storage permission is needed to save files. Please allow it and try again.</string>
     <string name="image_import_instructions">Choose an image size before importing.</string>
     <string name="image_import_instructions_secondary">Smaller sizes save space. Original keeps the best quality.</string>
     <string name="original_image_size_label">Keep Original Size</string>
@@ -246,6 +247,7 @@
     <string name="export_pdf_failed">Failed to export PDF. Please try again.</string>
     <string name="export_pdf_empty">Nothing to export. Add images or text first.</string>
     <string name="pdf_import_failed">Could not open this PDF (it may be password protected or damaged).</string>
+    <string name="pdf_import_partial">Only %1$d of %2$d pages were imported (not enough memory for the rest).</string>
     <string name="cancel">Cancel</string>
     <string name="ok">OK</string>
 
@@ -434,6 +436,7 @@
     <string name="tt_hud_size">Size</string>
     <string name="update_store_unavailable">Could not open Google Play. Please update PDFCraft Studio from the Play Store.</string>
     <string name="export_pdf_saving">Saving PDF...</string>
+    <string name="image_import_some_failed">%1$d picture(s) could not be opened.</string>
     <string name="export_pdf_out_of_memory">Not enough memory to save this PDF. Try fewer or smaller images.</string>
 </resources>
 

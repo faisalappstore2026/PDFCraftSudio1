@@ -263,7 +263,10 @@ object ProjectStore {
                 )
                 json.getJSONObject("page").put("rasterFiles", rasterFiles)
 
-                val usedFontIds = vm.textElements.map { it.fontId }.toSet()
+                // Fonts used only on part of a text (font ranges) are bundled too.
+                val usedFontIds = vm.textElements.flatMap { t ->
+                    listOf(t.fontId) + t.fontRanges.map { it.fontId }
+                }.toSet()
                 val fontsArr = JSONArray()
                 vm.availableFonts.filter { it.isCustom && it.id in usedFontIds }.forEach { font ->
                     val src = font.filePath?.let { File(it) }

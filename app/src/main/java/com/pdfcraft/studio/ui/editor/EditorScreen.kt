@@ -457,6 +457,41 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     val imageSavedMessage =
         stringResource(R.string.image_saved_message)
 
+    // H7: Android 8/9 need the storage permission at runtime before saving to public folders.
+    val pendingStorageAction = remember { java.util.concurrent.atomic.AtomicReference<(() -> Unit)?>(null) }
+    val storagePermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            val action = pendingStorageAction.getAndSet(null)
+            if (granted) {
+                action?.invoke()
+            } else {
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(context.getString(R.string.storage_permission_needed))
+                }
+            }
+        }
+    fun withStorageWrite(action: () -> Unit) {
+        val granted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ||
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            action()
+        } else {
+            pendingStorageAction.set(action)
+            try {
+                storagePermissionLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            } catch (e: Exception) {
+                pendingStorageAction.set(null)
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(context.getString(R.string.storage_permission_needed))
+                }
+            }
+        }
+    }
+
     val imagePickerLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -506,7 +541,34 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     LaunchedEffect(viewModel.pdfImportFailed) {
         if (viewModel.pdfImportFailed) {
             viewModel.consumePdfImportFailed()
-            snackbarHostState.showSnackbar(context.getString(R.string.pdf_import_failed))
+            // Shown outside this effect: consuming the flag restarts the effect and would hide it at once.
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.pdf_import_failed))
+            }
+        }
+    }
+
+    LaunchedEffect(viewModel.pdfImportPartial) {
+        val partial = viewModel.pdfImportPartial
+        if (partial != null) {
+            viewModel.consumePdfImportPartial()
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.pdf_import_partial, partial.first, partial.second)
+                )
+            }
+        }
+    }
+
+    LaunchedEffect(viewModel.imageImportFailedCount) {
+        val failedCount = viewModel.imageImportFailedCount
+        if (failedCount > 0) {
+            viewModel.consumeImageImportFailed()
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.image_import_some_failed, failedCount)
+                )
+            }
         }
     }
 
@@ -727,7 +789,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                 TextButton(onClick = {
                                     showNameDialog = false
                                     val raw = nameField.text.trim().ifEmpty { "Project.pdf" }
-                                    if (exportProgress == null) {
+                                    if (exportProgress == null) withStorageWrite {
                                     // Take a snapshot of the lists on the main thread, then draw/save in background.
                                     val exportImages = viewModel.importedImages.toList()
                                     val exportTexts = viewModel.textElements.toList()
@@ -2161,7 +2223,7 @@ Column(
                     onSaveSingle = { id ->
                         val image = viewModel.getImage(id)
                         val bmp = image?.bitmap
-                        coroutineScope.launch {
+                        withStorageWrite { coroutineScope.launch {
                             if (bmp == null || bmp.isRecycled) {
                                 snackbarHostState.showSnackbar(
                                     context.getString(R.string.image_save_failed)
@@ -2178,7 +2240,7 @@ Column(
                                 if (ok) imageSavedMessage
                                 else context.getString(R.string.image_save_failed)
                             )
-                        }
+                        } }
                     },
 
                     onCropImage = { id ->
@@ -2242,11 +2304,19 @@ Column(
 
                     onMultipleSave = {
                         val bitmaps = viewModel.getSelectedImages().mapNotNull { it.bitmap }
-                        coroutineScope.launch {
-                            withContext(Dispatchers.IO) {
-                                bitmaps.forEach { bitmap ->
-                                    saveBitmapToGallery(context, bitmap)
+                        withStorageWrite {
+                            coroutineScope.launch {
+                                val allOk = withContext(Dispatchers.IO) {
+                                    var ok = true
+                                    bitmaps.forEach { bitmap ->
+                                        if (!saveBitmapToGallery(context, bitmap)) ok = false
+                                    }
+                                    ok
                                 }
+                                snackbarHostState.showSnackbar(
+                                    if (allOk && bitmaps.isNotEmpty()) imageSavedMessage
+                                    else context.getString(R.string.image_save_failed)
+                                )
                             }
                         }
 

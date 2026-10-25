@@ -160,7 +160,10 @@ object PdfGenerator {
             return Result(false, message = "empty")
         }
 
-        val safeName = if (fileName.lowercase().endsWith(".pdf")) fileName else "$fileName.pdf"
+        // Characters like / : * ? " < > | are not allowed in file names.
+        val cleanName = fileName.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_")
+            .trim().trimStart('.').ifBlank { "Project" }
+        val safeName = if (cleanName.lowercase().endsWith(".pdf")) cleanName else "$cleanName.pdf"
 
         // Use a fixed logical width; height follows editor page aspect ratio
         val pageWidth = 1080

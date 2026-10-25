@@ -872,6 +872,14 @@ private fun beginCoalescedEdit(key: String = "edit") {
     var importingPdf: Boolean by mutableStateOf(false)
         private set
 
+    /** Pictures from the last import that could not be opened (screen shows a message). */
+    var imageImportFailedCount: Int by mutableStateOf(0)
+        private set
+
+    fun consumeImageImportFailed() {
+        imageImportFailedCount = 0
+    }
+
     /** True once when an Edit PDF import could not open the file (screen shows a message). */
     var pdfImportFailed: Boolean by mutableStateOf(false)
         private set
@@ -879,6 +887,17 @@ private fun beginCoalescedEdit(key: String = "edit") {
     fun consumePdfImportFailed() {
         pdfImportFailed = false
     }
+
+    /** Set once when Edit PDF imported only part of the pages (imported, total). */
+    var pdfImportPartial: Pair<Int, Int>? by mutableStateOf<Pair<Int, Int>?>(null)
+        private set
+
+    fun consumePdfImportPartial() {
+        pdfImportPartial = null
+    }
+
+    /** Pages left out by the last renderPdfPages call (memory budget / errors). */
+    private var lastPdfSkippedPages: Int = 0
 
     val selectedImageIds: SnapshotStateList<String> = mutableStateListOf()
 
@@ -1269,6 +1288,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
         importingPdf = true
         isImporting = true
         pdfImportFailed = false
+        pdfImportPartial = null
         pdfSourceBroken = false
         viewModelScope.launch {
             try {
@@ -1318,6 +1338,9 @@ private fun beginCoalescedEdit(key: String = "edit") {
             currentProjectFile = null
             currentProjectName = null
             lastDraftStamp = contentStamp()
+            if (lastPdfSkippedPages > 0) {
+                pdfImportPartial = pages.size to (pages.size + lastPdfSkippedPages)
+            }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -1351,24 +1374,50 @@ private fun beginCoalescedEdit(key: String = "edit") {
             return null
         }
         val out = ArrayList<ImportedImage>()
+        val total = renderer.pageCount
+        lastPdfSkippedPages = 0
+        // H10: all page pictures together must stay inside a memory budget. With many pages
+        // each page is drawn a bit smaller (not below ~540px wide); pages that still do not
+        // fit are left out and the user is told how many were imported.
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+        val memClassMb = (am?.memoryClass ?: 128).toLong()
+        val budget = (memClassMb * 1024L * 1024L * 3L / 4L)
+            .coerceIn(64L * 1024L * 1024L, 256L * 1024L * 1024L)
+        val perPage = budget / total.coerceAtLeast(1)
+        var used = 0L
         try {
-            for (i in 0 until renderer.pageCount) {
+            for (i in 0 until total) {
+                var stop = false
                 renderer.openPage(i).use { page ->
-                    val maxW = 1080
-                    val scale = (maxW.toFloat() / page.width.coerceAtLeast(1)).coerceAtMost(3f)
-                    val w = (page.width * scale).toInt().coerceAtLeast(1)
-                    val h = (page.height * scale).toInt().coerceAtLeast(1)
-                    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                    bmp.eraseColor(android.graphics.Color.WHITE)
-                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    out.add(
-                        ImportedImage(
-                            id = "pdfpage_" + i + "_" + System.nanoTime(),
-                            imageUri = uri,
-                            bitmap = bmp
+                    val pw = page.width.coerceAtLeast(1)
+                    val ph = page.height.coerceAtLeast(1)
+                    var scale = (1080f / pw).coerceAtMost(3f)
+                    val fullBytes = (pw * scale).toLong().coerceAtLeast(1L) *
+                        (ph * scale).toLong().coerceAtLeast(1L) * 4L
+                    if (fullBytes > perPage) {
+                        val fit = scale * kotlin.math.sqrt(perPage.toDouble() / fullBytes.toDouble()).toFloat()
+                        scale = maxOf(fit, minOf(scale, 540f / pw))
+                    }
+                    val w = (pw * scale).toInt().coerceAtLeast(1)
+                    val h = (ph * scale).toInt().coerceAtLeast(1)
+                    val bytes = w.toLong() * h.toLong() * 4L
+                    if (used + bytes > budget) {
+                        stop = true
+                    } else {
+                        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                        bmp.eraseColor(android.graphics.Color.WHITE)
+                        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        used += bytes
+                        out.add(
+                            ImportedImage(
+                                id = "pdfpage_" + i + "_" + System.nanoTime(),
+                                imageUri = uri,
+                                bitmap = bmp
+                            )
                         )
-                    )
+                    }
                 }
+                if (stop) break
             }
         } catch (_: OutOfMemoryError) {
         } catch (_: Exception) {
@@ -1376,6 +1425,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
             try { renderer.close() } catch (_: Throwable) {}
             try { pfd?.close() } catch (_: Throwable) {}
         }
+        lastPdfSkippedPages = (total - out.size).coerceAtLeast(0)
         // Not even the first page could be drawn: treat as a failed open.
         return if (out.isEmpty()) null else out
     }
@@ -2206,12 +2256,13 @@ fun isSelectionStrike(): Boolean {
         pendingReplaceImageId = null
 
         val imageIds = mutableListOf<String>()
+        var replacedImage: ImportedImage? = null
 
         if (replaceId != null) {
             // Replace one existing image in-place (no reflow).
             val idx = importedImages.indexOfFirst { it.id == replaceId }
             val placeAt = if (idx >= 0) {
-                importedImages.removeAt(idx)
+                replacedImage = importedImages.removeAt(idx)
                 idx
             } else {
                 importedImages.size
@@ -2249,11 +2300,24 @@ fun isSelectionStrike(): Boolean {
         }
 
         viewModelScope.launch {
+            var failed = 0
             uris.forEachIndexed { index, uri ->
                 if (index >= imageIds.size) return@forEachIndexed
                 val imageId = imageIds[index]
                 val decoded = imageHandler.decode(uri)
                 val imageIndex = importedImages.indexOfFirst { it.id == imageId }
+
+                if (decoded == null && imageIndex >= 0) {
+                    // Picture could not be read: no blank image left behind. A replaced
+                    // picture comes back; a new one becomes an empty slot again.
+                    failed++
+                    val back = if (index == 0) replacedImage else null
+                    importedImages[imageIndex] = back ?: ImportedImage(
+                        id = "spacer_" + System.nanoTime() + "_" + imageIndex,
+                        imageUri = null,
+                        bitmap = null
+                    )
+                }
 
                 if (decoded != null && imageIndex >= 0) {
                     if (targetBytes == null) {
@@ -2269,6 +2333,7 @@ fun isSelectionStrike(): Boolean {
                     }
                 }
             }
+            if (failed > 0) imageImportFailedCount = failed
             isImporting = false
         }
     }
@@ -2331,9 +2396,9 @@ fun isSelectionStrike(): Boolean {
 
     
     fun replaceImageBitmap(id: String, newBitmap: android.graphics.Bitmap, sizeBytes: Int? = null) {
-        recordEdit()
         val idx = importedImages.indexOfFirst { it.id == id }
         if (idx < 0) return
+        recordEdit()
         val old = importedImages[idx]
         val bytes = sizeBytes ?: run {
             try {
@@ -2352,7 +2417,7 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun rotateImageBitmap(id: String, degrees: Float): Boolean {
-        recordEdit()
+        // Undo step is recorded by replaceImageBitmap only when the rotation really happens.
         val img = getImage(id) ?: return false
         val src = img.bitmap ?: return false
         if (src.isRecycled) return false
@@ -2372,7 +2437,7 @@ fun isSelectionStrike(): Boolean {
         rightFrac: Float,
         bottomFrac: Float
     ): Boolean {
-        recordEdit()
+        // Undo step is recorded by replaceImageBitmap only when the crop really happens.
         val img = getImage(id) ?: return false
         val src = img.bitmap ?: return false
         if (src.isRecycled) return false
@@ -2390,7 +2455,6 @@ fun isSelectionStrike(): Boolean {
 
     
     fun setImageLinkUrl(id: String, url: String?) {
-        recordEdit()
         val idx = importedImages.indexOfFirst { it.id == id }
         if (idx < 0) return
         val cleaned = url?.trim()?.takeIf { it.isNotEmpty() }
@@ -2399,7 +2463,10 @@ fun isSelectionStrike(): Boolean {
             else "https://$it"
         }
         val old = importedImages[idx]
-        importedImages[idx] = old.copy(linkUrl = normalized)
+        if (old.linkUrl != normalized) {
+            recordEdit()
+            importedImages[idx] = old.copy(linkUrl = normalized)
+        }
         singleMenuImageId = null
     }
 

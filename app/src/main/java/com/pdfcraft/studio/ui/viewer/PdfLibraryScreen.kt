@@ -173,6 +173,18 @@ fun PdfLibraryScreen(
         }
     }
 
+    // System back first leaves select mode / an open folder, like the top-bar arrow.
+    androidx.activity.compose.BackHandler(
+        enabled = selectMode || (tab == LibraryTab.Folders && selectedFolder != null)
+    ) {
+        if (selectMode) {
+            selectMode = false
+            selectedUris = emptySet()
+        } else {
+            selectedFolder = null
+        }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->

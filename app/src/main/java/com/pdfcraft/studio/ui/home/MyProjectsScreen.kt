@@ -69,10 +69,12 @@ fun MyProjectsScreen(
     var renameTarget by remember { mutableStateOf<ProjectStore.ProjectListItem?>(null) }
     var renameText by remember { mutableStateOf("") }
     var menuFor by remember { mutableStateOf<ProjectStore.ProjectListItem?>(null) }
+    var projectsLoaded by remember { mutableStateOf(false) }
 
     fun reload() {
         scope.launch {
             projects = withContext(Dispatchers.IO) { ProjectStore.listProjects(context) }
+            projectsLoaded = true
         }
     }
     LaunchedEffect(Unit) { reload() }
@@ -101,7 +103,10 @@ fun MyProjectsScreen(
             )
         }
     ) { inner ->
-        if (projects.isEmpty()) {
+        if (!projectsLoaded) {
+            // Still reading the list: do not flash "No saved projects".
+            Spacer(Modifier.fillMaxSize().padding(inner))
+        } else if (projects.isEmpty()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
