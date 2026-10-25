@@ -11,8 +11,7 @@ import android.content.Intent
 import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Environment
-import android.provider.Settings
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -139,13 +138,39 @@ fun PdfLibraryScreen(
     var actionMessage by remember { mutableStateOf<String?>(null) }
 
     fun hasStorageAccess(): Boolean {
-        return if (Build.VERSION.SDK_INT >= 30) {
-            Environment.isExternalStorageManager()
+        // API 33+: no all-files / READ for PDFs. MediaStore + SAF picker instead.
+        return if (Build.VERSION.SDK_INT >= 33) {
+            true
         } else {
             ContextCompat.checkSelfPermission(
                 context, Manifest.permission.READ_EXTERNAL_STORAGE
             ) == PackageManager.PERMISSION_GRANTED
         }
+    }
+
+    fun pdfItemFromUri(uri: Uri): PdfLibraryStore.PdfItem {
+        var name = "PDF"
+        var size = 0L
+        try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    val ni = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val si = c.getColumnIndex(OpenableColumns.SIZE)
+                    if (ni >= 0) name = c.getString(ni).orEmpty().ifBlank { name }
+                    if (si >= 0) size = c.getLong(si).coerceAtLeast(0L)
+                }
+            }
+        } catch (_: Exception) {
+        }
+        if (!name.endsWith(".pdf", true)) name = name + ".pdf"
+        return PdfLibraryStore.PdfItem(
+            uri = uri.toString(),
+            name = name,
+            sizeBytes = size,
+            folder = "Picked",
+            lastModifiedMillis = System.currentTimeMillis(),
+            location = "Picked"
+        )
     }
 
     fun reload(showSpinner: Boolean = false) {
@@ -197,20 +222,50 @@ fun PdfLibraryScreen(
         }
     }
 
-    fun openSystemAccess() {
-        if (Build.VERSION.SDK_INT >= 30) {
+    val pdfPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNullOrEmpty()) return@rememberLauncherForActivityResult
+        askedPermission = true
+        val added = ArrayList<PdfLibraryStore.PdfItem>()
+        for (uri in uris) {
             try {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                intent.data = Uri.fromParts("package", context.packageName, null)
-                context.startActivity(intent)
+                context.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             } catch (_: Exception) {
-                try {
-                    context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                } catch (_: Exception) {
-                }
             }
+            val item = pdfItemFromUri(uri)
+            PdfLibraryStore.addRecent(context, item)
+            added.add(item)
+        }
+        if (added.isNotEmpty()) {
+            val byUri = LinkedHashMap<String, PdfLibraryStore.PdfItem>()
+            (added + allPdfs).forEach { byUri[it.uri] = it }
+            allPdfs = byUri.values.toList()
+            recent = PdfLibraryStore.listRecent(context)
+            permissionDenied = false
             loading = false
-            permissionDenied = true
+            actionMessage = context.getString(R.string.pdf_library_added_count, added.size)
+        }
+    }
+
+    fun openPdfPicker() {
+        try {
+            pdfPickerLauncher.launch(arrayOf("application/pdf"))
+        } catch (_: Exception) {
+            try {
+                pdfPickerLauncher.launch(arrayOf("*/*"))
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    fun openSystemAccess() {
+        askedPermission = true
+        if (Build.VERSION.SDK_INT >= 33) {
+            openPdfPicker()
+            loading = false
         } else {
             permissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
@@ -308,6 +363,13 @@ fun PdfLibraryScreen(
                         }
                         DropdownMenu(expanded = showTopMenu, onDismissRequest = { showTopMenu = false }) {
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.pdf_library_add_pdfs)) },
+                                onClick = {
+                                    showTopMenu = false
+                                    openPdfPicker()
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.pdf_library_select)) },
                                 onClick = {
                                     showTopMenu = false
@@ -368,16 +430,31 @@ fun PdfLibraryScreen(
                     Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Button(
-                        onClick = { openSystemAccess() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
-                    ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            stringResource(R.string.pdf_library_allow_permission),
-                            color = Color.White,
-                            fontSize = 14.sp
+                            stringResource(
+                                if (Build.VERSION.SDK_INT >= 33) R.string.pdf_library_pick_hint
+                                else R.string.pdf_library_access_needed
+                            ),
+                            color = Color(0xFF8A8A8A),
+                            modifier = Modifier.padding(horizontal = 32.dp),
+                            textAlign = TextAlign.Center
                         )
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = { openSystemAccess() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (Build.VERSION.SDK_INT >= 33) R.string.pdf_library_add_pdfs
+                                    else R.string.pdf_library_allow_permission
+                                ),
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                        }
                     }
                 }
                 tab == LibraryTab.Folders && selectedFolder == null && q.isEmpty() -> {

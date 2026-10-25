@@ -3078,11 +3078,22 @@ fun isSelectionStrike(): Boolean {
         }
 
         val rebuilt = newOrder.flatMap { oldPos -> pageSlots[oldPos] }
-        importedImages.clear()
-        importedImages.addAll(rebuilt)
 
         // newOrder[newPos] = oldPos  =>  old page index maps to new page index
         val oldToNew = newOrder.mapIndexed { newPos, oldPos -> oldPos to newPos }.toMap()
+
+        // M1 remaining: absolute (ownerPageIndex) and pinned/rowExempt images follow their page.
+        val remapped = rebuilt.map { img ->
+            val newOwner = img.ownerPageIndex?.let { oldToNew[it] }
+            val newPin = oldToNew[img.pinnedPage] ?: img.pinnedPage
+            if (newOwner != img.ownerPageIndex || newPin != img.pinnedPage) {
+                img.copy(ownerPageIndex = newOwner, pinnedPage = newPin)
+            } else {
+                img
+            }
+        }
+        importedImages.clear()
+        importedImages.addAll(remapped)
 
         // Text elements (and their links/styles) follow their page
         val newTexts = textElements.map { te ->

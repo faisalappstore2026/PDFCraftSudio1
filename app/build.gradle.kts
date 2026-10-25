@@ -19,12 +19,32 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        create("release") {
+            val ksPath = System.getenv("PDFCRAFT_KEYSTORE_PATH") ?: ""
+            val ksPass = System.getenv("PDFCRAFT_KEYSTORE_PASSWORD") ?: ""
+            val alias = System.getenv("PDFCRAFT_KEY_ALIAS") ?: ""
+            val keyPass = System.getenv("PDFCRAFT_KEY_PASSWORD") ?: ""
+            if (ksPath.isNotBlank() && ksPass.isNotBlank() && alias.isNotBlank() && keyPass.isNotBlank()) {
+                storeFile = file(ksPath)
+                storePassword = ksPass
+                keyAlias = alias
+                keyPassword = keyPass
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            val rel = signingConfigs.getByName("release")
+            signingConfig = if (rel.storeFile != null && rel.storeFile!!.isFile) {
+                rel
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 

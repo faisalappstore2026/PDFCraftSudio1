@@ -48,6 +48,9 @@
     <string name="pdf_library_details_modified">Last Modified</string>
     <string name="pdf_library_edit">Edit PDF</string>
     <string name="pdf_library_more">More</string>
+    <string name="pdf_library_add_pdfs">Add PDF files</string>
+    <string name="pdf_library_pick_hint">Choose PDF files to view. Full device scan needs older Android storage access.</string>
+    <string name="pdf_library_added_count">Added %1$d PDF(s).</string>
     <string name="open_pdf_failed">Unable to open this PDF. The file may be invalid or damaged.</string>
     <string name="open_pdf_empty">This PDF has no pages.</string>
     <string name="editor_title">New Document</string>

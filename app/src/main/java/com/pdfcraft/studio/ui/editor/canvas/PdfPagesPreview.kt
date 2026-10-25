@@ -1723,7 +1723,6 @@ private fun PageTextOverlay(
                                 if (pinching) break
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                 if (change.changedToUpIgnoreConsumed() || !change.pressed) break
-                                val delta = change.positionChange()
                                 if (!dragging) {
                                     if ((change.position - down.position).getDistance() > slop) {
                                         dragging = true
@@ -1742,51 +1741,43 @@ private fun PageTextOverlay(
                                     if (sz.width > 0 && sz.height > 0) {
                                         val bw = if (rowMeasured.width > 0) rowMeasured.width.toFloat() else boxWState.value
                                         val bh = if (rowMeasured.height > 0) rowMeasured.height.toFloat() else boxHState.value
-                                        val rad = rotState.value * (Math.PI.toFloat() / 180f)
-                                        val cos = kotlin.math.cos(rad)
-                                        val sin = kotlin.math.sin(rad)
+                                        // Fixed page-frame only (fix18/fix20 style). Skip if the
+                                        // frame is not ready — never fall back to rotated local
+                                        // deltas (those caused drag drift).
                                         val sp0 = startPage
                                         val pNow = if (sp0 != null) pagePos(change.position) else null
-                                        val dx: Float
-                                        val dy: Float
                                         if (sp0 != null && pNow != null) {
-                                            // Absolute: box start + finger travel on the page.
-                                            dx = (startXf + (pNow.x - sp0.x) / sz.width - xf) * sz.width
-                                            dy = (startYf + (pNow.y - sp0.y) / sz.height - yf) * sz.height
-                                        } else {
-                                            dx = delta.x * cos - delta.y * sin
-                                            dy = delta.x * sin + delta.y * cos
+                                            val nx = startXf + (pNow.x - sp0.x) / sz.width
+                                            val ny = startYf + (pNow.y - sp0.y) / sz.height
+                                            // Live clamp on all four sides (visual edge, 8dp margin).
+                                            val cl = clampTextBoxPos(
+                                                nx,
+                                                ny,
+                                                sz.width.toFloat(),
+                                                sz.height.toFloat(),
+                                                bw,
+                                                bh,
+                                                rotState.value,
+                                                8.dp.toPx(),
+                                                24.dp.toPx(),
+                                                20.dp.toPx()
+                                            )
+                                            // Virtual position for rotated boxes too (fix14).
+                                            if (!rotState.value.isNaN()) {
+                                                // Past the left / top margin: keep a virtual position so the
+                                                // right / bottom edge stays put; box keeps at least 24x20dp.
+                                                val natW = bw + ((cl[0] - xf) * sz.width).coerceAtLeast(0f)
+                                                val natH = bh + ((cl[1] - yf) * sz.height).coerceAtLeast(0f)
+                                                val minXv = cl[0] - ((natW - 24.dp.toPx()) / sz.width).coerceAtLeast(0f)
+                                                val minYv = cl[1] - ((natH - 20.dp.toPx()) / sz.height).coerceAtLeast(0f)
+                                                xf = if (nx < cl[0]) nx.coerceIn(minOf(minXv, cl[0]), cl[0]) else cl[0]
+                                                yf = if (ny < cl[1]) ny.coerceIn(minOf(minYv, cl[1]), cl[1]) else cl[1]
+                                            } else {
+                                                xf = cl[0]
+                                                yf = cl[1]
+                                            }
+                                            onTextDrag(textElement.id, xf, yf)
                                         }
-                                        // Live clamp on all four sides (visual edge, 8dp margin).
-                                        val cl = clampTextBoxPos(
-                                            xf + dx / sz.width,
-                                            yf + dy / sz.height,
-                                            sz.width.toFloat(),
-                                            sz.height.toFloat(),
-                                            bw,
-                                            bh,
-                                            rotState.value,
-                                            8.dp.toPx(),
-                                            24.dp.toPx(),
-                                            20.dp.toPx()
-                                        )
-                                        val nx = xf + dx / sz.width
-                                        val ny = yf + dy / sz.height
-                                        // Virtual position for rotated boxes too (fix14).
-                                        if (!rotState.value.isNaN()) {
-                                            // Past the left / top margin: keep a virtual position so the
-                                            // right / bottom edge stays put; box keeps at least 24x20dp.
-                                            val natW = bw + ((cl[0] - xf) * sz.width).coerceAtLeast(0f)
-                                            val natH = bh + ((cl[1] - yf) * sz.height).coerceAtLeast(0f)
-                                            val minXv = cl[0] - ((natW - 24.dp.toPx()) / sz.width).coerceAtLeast(0f)
-                                            val minYv = cl[1] - ((natH - 20.dp.toPx()) / sz.height).coerceAtLeast(0f)
-                                            xf = if (nx < cl[0]) nx.coerceIn(minOf(minXv, cl[0]), cl[0]) else cl[0]
-                                            yf = if (ny < cl[1]) ny.coerceIn(minOf(minYv, cl[1]), cl[1]) else cl[1]
-                                        } else {
-                                            xf = cl[0]
-                                            yf = cl[1]
-                                        }
-                                        onTextDrag(textElement.id, xf, yf)
                                     }
                                 }
                             }
