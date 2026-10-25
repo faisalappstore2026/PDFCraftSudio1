@@ -23,6 +23,37 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 object ProjectStore {
+    // M6: encoded bytes of unchanged (immutable) bitmaps, reused on the next save so
+    // photos are not re-compressed (and do not lose quality) every time. Weak keys, size capped.
+    private val encodedCache = java.util.WeakHashMap<Bitmap, ByteArray>()
+    private const val ENCODED_CACHE_MAX = 32L * 1024L * 1024L
+    // M7: never decode a stored image larger than this (normal app images are much smaller).
+    private const val MAX_LOAD_DIM = 4096
+
+    private fun cachedBytes(b: Bitmap): ByteArray? = synchronized(encodedCache) { encodedCache[b] }
+
+    private fun rememberBytes(b: Bitmap, bytes: ByteArray) {
+        if (b.isMutable) return
+        synchronized(encodedCache) {
+            var total = 0L
+            for (v in encodedCache.values) total += v.size.toLong()
+            if (total + bytes.size <= ENCODED_CACHE_MAX) encodedCache[b] = bytes
+        }
+    }
+
+    private fun hasTransparentPixel(b: Bitmap): Boolean {
+        if (!b.hasAlpha()) return false
+        return try {
+            val row = IntArray(b.width)
+            for (y in 0 until b.height) {
+                b.getPixels(row, 0, b.width, 0, y, b.width, 1)
+                for (p in row) if ((p ushr 24) != 0xFF) return true
+            }
+            false
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     const val PROJECT_VERSION = 1
     const val EXTENSION = ".pdfcraft"
@@ -515,6 +546,13 @@ object ProjectStore {
 
     private fun putBitmap(zip: ZipOutputStream, zipPath: String, bitmap: Bitmap?): String? {
         if (bitmap == null || bitmap.isRecycled) return null
+        val known = if (!bitmap.isMutable) cachedBytes(bitmap) else null
+        if (known != null) {
+            zip.putNextEntry(ZipEntry(zipPath))
+            zip.write(known)
+            zip.closeEntry()
+            return zipPath
+        }
         val source = try {
             if (bitmap.config == Bitmap.Config.HARDWARE) {
                 bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: bitmap
@@ -523,11 +561,19 @@ object ProjectStore {
             bitmap
         }
         val bytes = ByteArrayOutputStream()
-        val ok = source.compress(Bitmap.CompressFormat.JPEG, 90, bytes)
+        // Images with see-through parts stay PNG (BitmapFactory reads it in old versions too).
+        val png = zipPath.startsWith("images/") && hasTransparentPixel(source)
+        val ok = source.compress(
+            if (png) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG,
+            if (png) 100 else 90,
+            bytes
+        )
         if (source !== bitmap && !source.isRecycled) source.recycle()
         if (!ok || bytes.size() == 0) return null
+        val encoded = bytes.toByteArray()
+        rememberBytes(bitmap, encoded)
         zip.putNextEntry(ZipEntry(zipPath))
-        zip.write(bytes.toByteArray())
+        zip.write(encoded)
         zip.closeEntry()
         return zipPath
     }
@@ -742,7 +788,17 @@ object ProjectStore {
         if (path.isNullOrBlank()) return null
         val entry = zip.getEntry(path) ?: return null
         return try {
-            zip.getInputStream(entry).use { BitmapFactory.decodeStream(it) }
+            val data = zip.getInputStream(entry).use { it.readBytes() }
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
+            var sample = 1
+            val longest = maxOf(bounds.outWidth, bounds.outHeight)
+            while (longest > 0 && longest / sample > MAX_LOAD_DIM) sample *= 2
+            val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+            val bmp = BitmapFactory.decodeByteArray(data, 0, data.size, opts)
+            // Same pixels as the stored bytes: next save can write them back unchanged.
+            if (bmp != null && sample == 1) rememberBytes(bmp, data)
+            bmp
         } catch (e: OutOfMemoryError) {
             android.util.Log.w("ProjectStore", "Bitmap too large: " + path, e)
             null

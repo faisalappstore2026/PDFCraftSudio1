@@ -26,6 +26,8 @@ import com.pdfcraft.studio.ui.theme.PDFCraftStudioTheme
 class MainActivity : ComponentActivity() {
 
     private var openPdfUri by mutableStateOf<String?>(null)
+    // Bumped on every new "Open with" intent, so the same PDF can be opened again.
+    private var openPdfRequest by mutableStateOf(0)
 
     // null = checking; gate only on a real UPDATE_REQUIRED decision
     private var versionStatus by mutableStateOf<VersionStatus?>(null)
@@ -34,7 +36,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        openPdfUri = extractPdfUri(intent)
+        // Recreated activity (theme/language change, process restore): the old intent was
+        // already handled, so do not open its PDF again.
+        openPdfUri = if (savedInstanceState == null) extractPdfUri(intent) else null
         enableEdgeToEdge()
         runVersionCheck()
         setContent {
@@ -47,7 +51,7 @@ class MainActivity : ComponentActivity() {
                             onRetry = { runVersionCheck() },
                             message = updatePolicy?.updateMessage
                         )
-                        else -> PdfCraftNavGraph(openPdfUri = openPdfUri)
+                        else -> PdfCraftNavGraph(openPdfUri = openPdfUri, openPdfRequest = openPdfRequest)
                     }
                 }
             }
@@ -68,6 +72,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         openPdfUri = extractPdfUri(intent)
+        openPdfRequest = openPdfRequest + 1
     }
 
     private fun extractPdfUri(intent: Intent?): String? {

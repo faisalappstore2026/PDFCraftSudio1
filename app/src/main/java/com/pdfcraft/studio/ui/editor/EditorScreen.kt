@@ -2192,10 +2192,12 @@ Column(
                     },
                     onShareSingle = { id ->
                         viewModel.getImage(id)?.let { image ->
-                            shareImages(
-                                context = context,
-                                images = listOf(image)
-                            )
+                            coroutineScope.launch {
+                                shareImages(
+                                    context = context,
+                                    images = listOf(image)
+                                )
+                            }
                         }
                     },
 
@@ -2252,10 +2254,13 @@ Column(
                     },
 
                     onMultipleShare = {
-                        shareImages(
-                            context = context,
-                            images = viewModel.getSelectedImages()
-                        )
+                        val toShare = viewModel.getSelectedImages()
+                        coroutineScope.launch {
+                            shareImages(
+                                context = context,
+                                images = toShare
+                            )
+                        }
                         viewModel.cancelSelection()
                     },
 
@@ -2530,45 +2535,64 @@ private fun saveViaLegacyScan(
     }
 }
 
-private fun shareImages(
+private suspend fun shareImages(
     context: Context,
     images: List<ImportedImage>
 ) {
-    val uris = images.mapNotNull { it.imageUri }
+    // Share what the user sees (edited/cropped bitmap). The original picker uri is often
+    // gone after restart, and loaded projects / PDF pages have none.
+    val uris: List<Uri> = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "shared")
+        try { dir.listFiles()?.forEach { it.delete() } } catch (_: Exception) {}
+        dir.mkdirs()
+        val authority = context.packageName + ".fileprovider"
+        images.mapIndexedNotNull { i, img ->
+            val bmp = img.bitmap
+            val fromBitmap: Uri? = if (bmp != null && !bmp.isRecycled) {
+                try {
+                    val png = bmp.hasAlpha()
+                    val f = File(dir, "image_" + (i + 1) + (if (png) ".png" else ".jpg"))
+                    val ok = FileOutputStream(f).use { out ->
+                        bmp.compress(
+                            if (png) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG,
+                            if (png) 100 else 95,
+                            out
+                        )
+                    }
+                    if (ok) androidx.core.content.FileProvider.getUriForFile(context, authority, f) else null
+                } catch (e: Throwable) {
+                    android.util.Log.w("EditorShare", "Could not prepare image for sharing", e)
+                    null
+                }
+            } else null
+            fromBitmap ?: img.imageUri
+        }
+    }
 
     if (uris.isEmpty()) {
+        android.widget.Toast.makeText(context, context.getString(R.string.share_image), android.widget.Toast.LENGTH_SHORT).show()
         return
     }
 
-    if (uris.size == 1) {
-        val intent = Intent(Intent.ACTION_SEND).apply {
+    val clip = android.content.ClipData.newRawUri("", uris.first())
+    for (k in 1 until uris.size) clip.addItem(android.content.ClipData.Item(uris[k]))
+    val intent = if (uris.size == 1) {
+        Intent(Intent.ACTION_SEND).apply {
             type = "image/*"
             putExtra(Intent.EXTRA_STREAM, uris.first())
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-
-        context.startActivity(
-            Intent.createChooser(
-                intent,
-                context.getString(R.string.share_image)
-            )
-        )
     } else {
-        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
             type = "image/*"
-            putParcelableArrayListExtra(
-                Intent.EXTRA_STREAM,
-                ArrayList(uris)
-            )
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
         }
-
-        context.startActivity(
-            Intent.createChooser(
-                intent,
-                context.getString(R.string.share_image)
-            )
-        )
+    }
+    intent.clipData = clip
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    try {
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_image)))
+    } catch (e: Exception) {
+        android.util.Log.w("EditorShare", "No app to share with", e)
     }
 }
 

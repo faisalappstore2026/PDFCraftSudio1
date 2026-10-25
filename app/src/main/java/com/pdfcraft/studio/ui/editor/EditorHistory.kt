@@ -136,6 +136,37 @@ class EditorHistory(private val onCounts: (Int, Int) -> Unit) {
         if (undo.isNotEmpty() && sameState(undo.last(), m)) return
         undo.addLast(m)
         while (undo.size > max) undo.removeFirst()
+        trimToMemoryBudget()
+    }
+
+    /**
+     * Old undo steps can be the only owners of deleted/replaced bitmaps.
+     * Drop the oldest steps while that extra memory is over budget (keep at least a few).
+     */
+    private fun trimToMemoryBudget() {
+        val budget = 128L * 1024L * 1024L
+        while (undo.size > 5 && extraBitmapBytes() > budget) undo.removeFirst()
+    }
+
+    private fun extraBitmapBytes(): Long {
+        val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Bitmap, Boolean>())
+        var total = 0L
+        fun visit(m: EditorMemento, count: Boolean) {
+            val all = ArrayList<Bitmap?>()
+            m.images.forEach { all.add(it.bitmap) }
+            all.add(m.pageBackgroundBitmap)
+            all.addAll(m.pageBackgroundBitmapOverrides.values)
+            all.addAll(m.pdfPageRasters.values)
+            for (b in all) {
+                if (b == null || b.isRecycled || !seen.add(b)) continue
+                if (count) total += b.allocationByteCount.toLong()
+            }
+        }
+        // Newest step is (almost) the current screen: its bitmaps are not extra.
+        if (undo.isNotEmpty()) visit(undo.last(), false)
+        for (m in undo) visit(m, true)
+        for (m in redo) visit(m, true)
+        return total
     }
 
     /** Cheap check first (same instances), full compare only when all elements are identical. */

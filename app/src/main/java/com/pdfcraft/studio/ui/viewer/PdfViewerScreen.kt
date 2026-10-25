@@ -323,12 +323,16 @@ fun PdfViewerScreen(
     if (errorMessage != null) {
         LaunchedEffect(errorMessage) {
             if (backOnce.compareAndSet(false, true)) {
+                errorMessage?.let { msg ->
+                    android.widget.Toast.makeText(context.applicationContext, msg, android.widget.Toast.LENGTH_LONG).show()
+                }
                 try { onBackClick() } catch (_: Throwable) {}
             }
         }
     }
 
-    val targetWidthPx = with(density) { 720.dp.roundToPx() }
+    // 720dp is ~2160px on many phones (~26 MB per page). 1440px keeps text sharp with far less memory.
+    val targetWidthPx = minOf(with(density) { 720.dp.roundToPx() }, 1440)
 
     Scaffold(
         topBar = {

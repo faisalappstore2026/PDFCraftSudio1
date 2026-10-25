@@ -98,6 +98,9 @@ class PdfLibraryVm : ViewModel() {
     var selectedUris by mutableStateOf(setOf<String>())
     var showSortMenu by mutableStateOf(false)
     var showTopMenu by mutableStateOf(false)
+    // Device scan bookkeeping: resume does not rescan the whole phone every time.
+    var lastScanAt: Long = 0L
+    var scanRunning: Boolean = false
 }
 
 
@@ -146,13 +149,27 @@ fun PdfLibraryScreen(
     }
 
     fun reload(showSpinner: Boolean = false) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val skipScan = !showSpinner && allPdfs.isNotEmpty() &&
+            (vm.scanRunning || now - vm.lastScanAt < 30_000L)
         scope.launch {
-            if (showSpinner || allPdfs.isEmpty()) loading = true
-            val list = withContext(Dispatchers.IO) { PdfLibraryStore.scanDevicePdfs(context) }
-            val rec = withContext(Dispatchers.IO) { PdfLibraryStore.listRecent(context) }
-            allPdfs = list
-            recent = rec
-            loading = false
+            if (skipScan) {
+                // Recent list is cheap and may have changed (a PDF was just opened).
+                recent = withContext(Dispatchers.IO) { PdfLibraryStore.listRecent(context) }
+                return@launch
+            }
+            vm.scanRunning = true
+            try {
+                if (showSpinner || allPdfs.isEmpty()) loading = true
+                val list = withContext(Dispatchers.IO) { PdfLibraryStore.scanDevicePdfs(context) }
+                val rec = withContext(Dispatchers.IO) { PdfLibraryStore.listRecent(context) }
+                allPdfs = list
+                recent = rec
+                vm.lastScanAt = android.os.SystemClock.elapsedRealtime()
+            } finally {
+                vm.scanRunning = false
+                loading = false
+            }
         }
     }
 

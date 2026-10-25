@@ -21,6 +21,7 @@ import com.pdfcraft.studio.ui.viewer.PdfViewerScreen
 @Composable
 fun PdfCraftNavGraph(
     openPdfUri: String? = null,
+    openPdfRequest: Int = 0,
     navController: NavHostController = rememberNavController()
 ) {
     val context = LocalContext.current
@@ -45,18 +46,37 @@ fun PdfCraftNavGraph(
         }
     }
     val goHomeFromEditor: () -> Unit = {
-        SessionStore.setHome(context)
-        if (navController.previousBackStackEntry != null) {
-            navController.popBackStack()
-        } else {
-            navController.navigate(Screen.Home.route) {
-                popUpTo(navController.graph.id) { inclusive = true }
-                launchSingleTop = true
+        // A second (double) back tap arrives after the editor is gone: ignore it.
+        if (navController.currentDestination?.route.orEmpty().startsWith("editor")) {
+            SessionStore.setHome(context)
+            if (navController.previousBackStackEntry != null) {
+                navController.popBackStack()
+                if (navController.currentDestination?.route == Screen.MyProjects.route) {
+                    SessionStore.setScreen(context, SessionStore.PROJECTS)
+                }
+            } else {
+                navController.navigate(Screen.Home.route) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                    launchSingleTop = true
+                }
             }
         }
     }
-    LaunchedEffect(openPdfUri) {
+    val leaveToHome: (String) -> Unit = { route ->
+        // Only when this screen is still on top (double back tap cannot empty the screen).
+        if (navController.currentDestination?.route == route) {
+            SessionStore.setHome(context)
+            navController.popBackStack()
+        }
+    }
+    // Last-screen restore runs once per app start, not again after the activity is recreated.
+    val sessionRestored = androidx.compose.runtime.saveable.rememberSaveable {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+    LaunchedEffect(openPdfUri, openPdfRequest) {
         val uri = openPdfUri?.takeIf { it.isNotBlank() }
+        if (uri == null && sessionRestored.value) return@LaunchedEffect
+        sessionRestored.value = true
         if (uri != null) {
             SessionStore.setViewer(context, uri)
             navController.navigate(Screen.PdfViewer.routeWithUri(uri)) {
@@ -132,8 +152,9 @@ fun PdfCraftNavGraph(
             )
         }
         composable(Screen.PdfLibrary.route) {
+            androidx.activity.compose.BackHandler { leaveToHome(Screen.PdfLibrary.route) }
             PdfLibraryScreen(
-                onBackClick = { navController.popBackStack() },
+                onBackClick = { leaveToHome(Screen.PdfLibrary.route) },
                 onOpenPdf = { uri ->
                     SessionStore.setViewer(context, uri)
                     navController.navigate(Screen.PdfViewer.routeWithUri(uri))
@@ -146,11 +167,13 @@ fun PdfCraftNavGraph(
             )
         }
         composable(Screen.IconCenter.route) {
-            IconCenterScreen(onBackClick = { navController.popBackStack() })
+            androidx.activity.compose.BackHandler { leaveToHome(Screen.IconCenter.route) }
+            IconCenterScreen(onBackClick = { leaveToHome(Screen.IconCenter.route) })
         }
         composable(Screen.MyProjects.route) {
+            androidx.activity.compose.BackHandler { leaveToHome(Screen.MyProjects.route) }
             MyProjectsScreen(
-                onBackClick = { navController.popBackStack() },
+                onBackClick = { leaveToHome(Screen.MyProjects.route) },
                 onOpenProject = { path ->
                     SessionStore.clearEditorUi(context)
                     SessionStore.setEditor(context, path)
@@ -190,7 +213,7 @@ fun PdfCraftNavGraph(
                 initialOffset = if (same) snap.viewerOffset else 0,
                 onScrollChanged = { i, o -> SessionStore.setViewerScroll(context, i, o) },
                 onBackClick = {
-                    try {
+                    if (navController.currentDestination?.route == Screen.PdfViewer.route) try {
                         if (!navController.popBackStack()) {
                             SessionStore.setHome(context)
                         } else {
