@@ -19,7 +19,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.ln
+import kotlin.math.pow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -190,7 +201,11 @@ private fun PadSlider(
         }
         Slider(
             value = value.coerceIn(0f, 40f),
-            onValueChange = { onChange(it.roundToInt().toFloat()) },
+            onValueChange = {
+                TextSliderDrag.active = true
+                onChange(it.roundToInt().toFloat())
+            },
+            onValueChangeFinished = { TextSliderDrag.active = false },
             valueRange = 0f..40f
         )
     }
@@ -219,7 +234,10 @@ private fun SliderCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(
-                onClick = onBack,
+                onClick = {
+                    TextSliderDrag.active = false
+                    onBack()
+                },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Icon(
@@ -230,7 +248,10 @@ private fun SliderCard(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(stringResource(R.string.back))
             }
-            TextButton(onClick = onDone) { Text(stringResource(R.string.editor_done)) }
+            TextButton(onClick = {
+                TextSliderDrag.active = false
+                onDone()
+            }) { Text(stringResource(R.string.editor_done)) }
         }
         content()
     }
@@ -253,7 +274,108 @@ private fun LabeledSlider(
     }
     Slider(
         value = value.coerceIn(range.start, range.endInclusive),
-        onValueChange = onChange,
+        onValueChange = {
+            TextSliderDrag.active = true
+            onChange(it)
+        },
+        onValueChangeFinished = { TextSliderDrag.active = false },
         valueRange = range
     )
+}
+
+/** fix30: true while a finger drags a text slider; the canvas hides the box border + handles. */
+internal object TextSliderDrag {
+    var active by mutableStateOf(false)
+}
+
+private const val TEXT_BOX_MIN_SP = 6f
+private const val TEXT_BOX_MAX_SP = 96f
+private const val TEXT_MOVE_STEP_DP = 4f
+
+/** Log scale: equal slider travel = equal zoom factor (6sp..96sp = 16x range). */
+private fun textBoxSpToT(sp: Float): Float =
+    (ln(sp.coerceIn(TEXT_BOX_MIN_SP, TEXT_BOX_MAX_SP) / TEXT_BOX_MIN_SP) / ln(TEXT_BOX_MAX_SP / TEXT_BOX_MIN_SP))
+        .coerceIn(0f, 1f)
+
+private fun textBoxTToSp(t: Float): Float =
+    TEXT_BOX_MIN_SP * (TEXT_BOX_MAX_SP / TEXT_BOX_MIN_SP).pow(t.coerceIn(0f, 1f))
+
+/** fix30 Text Box Size: text + box scale together; Back / Done like the other cards. */
+@Composable
+fun TextBoxSizeSliderPanel(
+    sizeSp: Float,
+    onSizeChange: (Float) -> Unit,
+    onBack: () -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SliderCard(onBack = onBack, onDone = onDone, modifier = modifier) {
+        val safeSp = sizeSp.coerceIn(TEXT_BOX_MIN_SP, TEXT_BOX_MAX_SP)
+        LabeledSlider(
+            label = stringResource(R.string.text_tool_text_size_title),
+            valueText = safeSp.roundToInt().toString(),
+            value = textBoxSpToT(safeSp),
+            range = 0f..1f,
+            onChange = { onSizeChange(textBoxTToSp(it)) }
+        )
+    }
+}
+
+/** fix30 Text Move: Up / Down / Left / Right; hold a button to repeat. */
+@Composable
+fun TextMovePanel(
+    onMove: (Float, Float) -> Unit,
+    onBack: () -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SliderCard(onBack = onBack, onDone = onDone, modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextMoveButton("\u25C0", stringResource(R.string.text_move_left)) { onMove(-TEXT_MOVE_STEP_DP, 0f) }
+            TextMoveButton("\u25B2", stringResource(R.string.text_move_up)) { onMove(0f, -TEXT_MOVE_STEP_DP) }
+            TextMoveButton("\u25BC", stringResource(R.string.text_move_down)) { onMove(0f, TEXT_MOVE_STEP_DP) }
+            TextMoveButton("\u25B6", stringResource(R.string.text_move_right)) { onMove(TEXT_MOVE_STEP_DP, 0f) }
+        }
+    }
+}
+
+@Composable
+private fun TextMoveButton(symbol: String, desc: String, onStep: () -> Unit) {
+    val step = rememberUpdatedState(onStep)
+    val scope = rememberCoroutineScope()
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .padding(2.dp)
+            .size(52.dp)
+            .background(Color(0xFFEEEEEE), RoundedCornerShape(12.dp))
+            .semantics {
+                contentDescription = desc
+                role = Role.Button
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        val job = scope.launch {
+                            step.value()
+                            delay(400)
+                            while (true) {
+                                step.value()
+                                delay(60)
+                            }
+                        }
+                        tryAwaitRelease()
+                        job.cancel()
+                    }
+                )
+            }
+    ) {
+        Text(symbol, color = Color.Black, fontSize = 20.sp)
+    }
 }

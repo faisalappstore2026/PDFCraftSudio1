@@ -301,6 +301,9 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     var textBgSliderOpen by remember { mutableStateOf(false) }
     var showTextSpreadPicker by remember { mutableStateOf(false) }
     var textSpreadSliderOpen by remember { mutableStateOf(false) }
+    var textBoxSizeOpen by remember { mutableStateOf(false) }
+    var textMoveOpen by remember { mutableStateOf(false) }
+    var textMenuRequest by remember { mutableStateOf(0) }
     var revealTextSignal by remember { mutableStateOf(0) }
     var showFontTools by remember { mutableStateOf(false) }
     var showTextLinkDialog by remember { mutableStateOf(false) }
@@ -1941,6 +1944,24 @@ Column(
                 onTextSizeClick = { textLinkHint = true },
                 onTextSizeChange =
                     viewModel::updateSelectedTextSize,
+                onTextBoxSizeClick = {
+                    textBorderSliderOpen = false
+                    textBgSliderOpen = false
+                    textSpreadSliderOpen = false
+                    textMoveOpen = false
+                    viewModel.endTextBoxScale()
+                    textBoxSizeOpen = true
+                },
+                onTextMoveClick = {
+                    textBorderSliderOpen = false
+                    textBgSliderOpen = false
+                    textSpreadSliderOpen = false
+                    if (textBoxSizeOpen) viewModel.endTextBoxScale()
+                    textBoxSizeOpen = false
+                    viewModel.endCoalescedEdit()
+                    textMoveOpen = true
+                },
+                textMenuRequest = textMenuRequest,
                 pageAspectRatio =
                     viewModel.pageAspectRatio,
                 onPageAspectRatioChange =
@@ -2108,6 +2129,18 @@ Column(
                     textBorderSliderOpen = false
                     textBgSliderOpen = false
                     textSpreadSliderOpen = false
+                    if (textBoxSizeOpen || textMoveOpen) viewModel.endTextBoxScale()
+                    textBoxSizeOpen = false
+                    textMoveOpen = false
+                }
+            }
+            // fix30: any panel open / close resets the slider-drag flag (handles always come back).
+            LaunchedEffect(textBorderSliderOpen, textBgSliderOpen, textSpreadSliderOpen, textBoxSizeOpen, textMoveOpen) {
+                TextSliderDrag.active = false
+                if (textBorderSliderOpen || textBgSliderOpen || textSpreadSliderOpen) {
+                    if (textBoxSizeOpen || textMoveOpen) viewModel.endTextBoxScale()
+                    textBoxSizeOpen = false
+                    textMoveOpen = false
                 }
             }
             Box(
@@ -2194,6 +2227,35 @@ Column(
                         }
                     )
                 }
+                if (textBoxSizeOpen && panelText != null && !toolMenuOpen) {
+                    TextBoxSizeSliderPanel(
+                        sizeSp = if (panelText.userFontSp > 0.01f) panelText.userFontSp else panelText.fontSizeSp,
+                        onSizeChange = { viewModel.scaleSelectedTextBox(it) },
+                        onBack = {
+                            viewModel.endTextBoxScale()
+                            textBoxSizeOpen = false
+                            textMenuRequest++
+                        },
+                        onDone = {
+                            viewModel.endTextBoxScale()
+                            textBoxSizeOpen = false
+                        }
+                    )
+                }
+                if (textMoveOpen && panelText != null && !toolMenuOpen) {
+                    TextMovePanel(
+                        onMove = { dx, dy -> viewModel.nudgeSelectedText(dx, dy) },
+                        onBack = {
+                            viewModel.endCoalescedEdit()
+                            textMoveOpen = false
+                            textMenuRequest++
+                        },
+                        onDone = {
+                            viewModel.endCoalescedEdit()
+                            textMoveOpen = false
+                        }
+                    )
+                }
                 PdfPagesPreview(
                     images = viewModel.importedImages,
                     imagesPerRow = viewModel.imagesPerRow,
@@ -2242,6 +2304,7 @@ Column(
                     onTextScale = viewModel::setTextHandleSize,
                     onTextBoxResize = viewModel::setTextBoxSize,
                     onTextAutoFit = viewModel::applyTextAutoFit,
+                    hideTextSelectionChrome = TextSliderDrag.active,
 
                     onTextValueChange = { id, newText, newSelection ->
                         viewModel.updateTextValue(id, newText, newSelection)

@@ -216,6 +216,7 @@ fun PdfPagesPreview(
     onTextScale: (String, Float) -> Unit = { _, _ -> },
     onTextBoxResize: (String, Float, Float, Float, Float, Float) -> Unit = { _, _, _, _, _, _ -> },
     onTextAutoFit: (String, Float) -> Unit = { _, _ -> },
+    hideTextSelectionChrome: Boolean = false,
     onImageClick: (String) -> Unit = {},
     onImageLongPress: (String) -> Unit = {},
     onChangePosition: (String) -> Unit = {},
@@ -441,7 +442,8 @@ fun PdfPagesPreview(
                                     onTextRotate = onTextRotate,
                                     onTextScale = onTextScale,
                                     onTextBoxResize = onTextBoxResize,
-                                    onTextAutoFit = onTextAutoFit
+                                    onTextAutoFit = onTextAutoFit,
+                                    hideSelectionChrome = hideTextSelectionChrome
                                 )
                             }
                         }
@@ -640,7 +642,8 @@ fun PdfPagesPreview(
                                 onTextRotate = onTextRotate,
                                 onTextScale = onTextScale,
                                 onTextBoxResize = onTextBoxResize,
-                                onTextAutoFit = onTextAutoFit
+                                onTextAutoFit = onTextAutoFit,
+                                hideSelectionChrome = hideTextSelectionChrome
                             )
                         }
                     }
@@ -1133,6 +1136,8 @@ private fun PageTextOverlay(
     onTextUnfocused: (String) -> Unit,
     onConsumePendingFocus: () -> Unit,
     onDeselect: () -> Unit,
+    /** fix30: true while a text style slider is dragged (border + handles hidden). */
+    hideSelectionChrome: Boolean = false,
     onTextRotate: (String, Float) -> Unit = { _, _ -> },
     onTextScale: (String, Float) -> Unit = { _, _ -> },
     onTextBoxResize: (String, Float, Float, Float, Float, Float) -> Unit = { _, _, _, _, _, _ -> },
@@ -1221,14 +1226,16 @@ private fun PageTextOverlay(
             // keep the box inside the page on every side (8dp margin, rotated visual edge).
             val posRowSize = remember(committedText.id) { mutableStateOf(IntSize.Zero) }
             val posDensity = LocalDensity.current
-            val posXY = clampTextBoxPos(
+            // fix30: free boxes (Text Box Size / Text Move) may cross the page border.
+            // Size and position never depend on the rotation (rotation only turns the box).
+            val posXY = if (sizedText0.freeBounds) floatArrayOf(sizedText0.xFraction, sizedText0.yFraction) else clampTextBoxPos(
                 sizedText0.xFraction,
                 sizedText0.yFraction,
                 sizePx.width.toFloat(),
                 sizePx.height.toFloat(),
                 posRowSize.value.width.toFloat(),
                 posRowSize.value.height.toFloat(),
-                sizedText0.rotationDeg,
+                0f,
                 with(posDensity) { 8.dp.toPx() },
                 with(posDensity) { 24.dp.toPx() },
                 with(posDensity) { 20.dp.toPx() }
@@ -1240,7 +1247,8 @@ private fun PageTextOverlay(
             // Rotated boxes too: the visual (AABB) overflow is turned into a cut of the box's own
             // width / height via cos / sin (near 90 deg the axes swap). posOverL = width cut,
             // posOverT = height cut. posExX / posExY = extra AABB reach on the right / bottom.
-            val posRad = (if (sizedText0.rotationDeg.isNaN()) 0f else sizedText0.rotationDeg) * (Math.PI.toFloat() / 180f)
+            // fix30: rotation-independent size (was the rotated AABB, which shrank text while rotating).
+            val posRad = 0f
             val posC = kotlin.math.abs(kotlin.math.cos(posRad))
             val posS = kotlin.math.abs(kotlin.math.sin(posRad))
             val posUnrot = kotlin.math.abs(sizedText0.rotationDeg) <= 0.5f
@@ -1274,8 +1282,8 @@ private fun PageTextOverlay(
             val fitMinW = with(fitDensity) { 24.dp.toPx() }
             val fitMinH = with(fitDensity) { 20.dp.toPx() }
             val fitQuoteW = if (sizedText.quoteRanges.isNotEmpty()) with(fitDensity) { 9.dp.toPx() } else 0f
-            val fitCapW = (fitPageW * (1f - sizedText.xFraction) - fitEdge - posExX).coerceAtLeast(fitMinW)
-            val fitCapH = (fitPageH * (1f - sizedText.yFraction) - fitEdge - posExY).coerceAtLeast(fitMinH)
+            val fitCapW = if (sizedText.freeBounds) fitPageW * 50f + fitMinW else (fitPageW * (1f - sizedText.xFraction) - fitEdge - posExX).coerceAtLeast(fitMinW)
+            val fitCapH = if (sizedText.freeBounds) fitPageH * 50f + fitMinH else (fitPageH * (1f - sizedText.yFraction) - fitEdge - posExY).coerceAtLeast(fitMinH)
             val fitWrapPx = (
                 if (sizedText.boxWidthFrac > 0.01f) {
                     ((sizedText.boxWidthFrac * fitPageW).coerceIn(fitMinW, maxOf(fitCapW, fitMinW)) - posOverL)
@@ -1292,8 +1300,8 @@ private fun PageTextOverlay(
             }
             // Real room left on the page (raw, no 24x20dp minimum) so tiny boxes near the
             // edge get a smaller font instead of overflowing.
-            val fitRoomW = (fitPageW * (1f - sizedText.xFraction) - fitEdge - fitQuoteW - posExX).coerceAtLeast(1f)
-            val fitRoomH = (fitPageH * (1f - sizedText.yFraction) - fitEdge - posExY).coerceAtLeast(1f)
+            val fitRoomW = if (sizedText.freeBounds) fitPageW * 50f + 1f else (fitPageW * (1f - sizedText.xFraction) - fitEdge - fitQuoteW - posExX).coerceAtLeast(1f)
+            val fitRoomH = if (sizedText.freeBounds) fitPageH * 50f + 1f else (fitPageH * (1f - sizedText.yFraction) - fitEdge - posExY).coerceAtLeast(1f)
             val fitClipHpx = minOf(fitAvailH, fitRoomH)
             val fitMaxWi = (minOf(fitWrapPx, fitRoomW) * 0.99f).toInt().coerceAtLeast(1)
             val fitMaxHi = (fitClipHpx * 0.99f).toInt().coerceAtLeast(1)
@@ -1454,13 +1462,17 @@ private fun PageTextOverlay(
             val padPx = with(density) { 10.dp.toPx() }
             // Box stays inside the page: from its position to the right / bottom page border.
             val pageEdgePx = with(density) { 8.dp.toPx() }
-            val capW = if (sizePx.width > 0) {
+            val capW = if (textElement.freeBounds && sizePx.width > 0) {
+                sizePx.width * 50f
+            } else if (sizePx.width > 0) {
                 (sizePx.width * (1f - textElement.xFraction) - pageEdgePx - posExX)
                     .coerceAtLeast(with(density) { 24.dp.toPx() })
             } else {
                 (sizePx.width.toFloat() * 3f).coerceAtLeast(minBoxPx)
             }
-            val capH = if (sizePx.height > 0) {
+            val capH = if (textElement.freeBounds && sizePx.height > 0) {
+                sizePx.height * 50f
+            } else if (sizePx.height > 0) {
                 (sizePx.height * (1f - textElement.yFraction) - pageEdgePx - posExY)
                     .coerceAtLeast(with(density) { 20.dp.toPx() })
             } else {
@@ -1494,6 +1506,7 @@ private fun PageTextOverlay(
             // Drag works on the stored (virtual) position; the drawn one is clamped.
             val xFracState = rememberUpdatedState(sizedText0.xFraction)
             val yFracState = rememberUpdatedState(sizedText0.yFraction)
+            val freeState = rememberUpdatedState(sizedText0.freeBounds)
             val dragCoords = remember(committedText.id) { arrayOfNulls<LayoutCoordinates>(1) }
             val rotState = rememberUpdatedState(textElement.rotationDeg)
             val sizeSpState = rememberUpdatedState(textElement.fontSizeSp)
@@ -1649,6 +1662,8 @@ private fun PageTextOverlay(
                     // Selected box is on top: it gets every touch inside it, so a box
                     // underneath (or on top in list order) can never steal the selection.
                     .zIndex(if (selected) 1f else 0f)
+                    // fix30: free box is measured without the page width limit (no page-edge wrap).
+                    .then(if (textElement.freeBounds) Modifier.wrapContentSize(Alignment.TopStart, unbounded = true) else Modifier)
                     .offset {
                         val pw = sizePx.width.toFloat().coerceAtLeast(1f)
                         val ph = sizePx.height.toFloat().coerceAtLeast(1f)
@@ -1670,7 +1685,7 @@ private fun PageTextOverlay(
                         posRowSize.value = it
                     }
                     .then(
-                        if (selected) {
+                        if (selected && !hideSelectionChrome) {
                             Modifier.drawWithContent {
                                 // Selection outline is drawn ABOVE text background.
                                 drawContent()
@@ -1753,6 +1768,11 @@ private fun PageTextOverlay(
                                         if (sp0 != null && pNow != null) {
                                             val nx = startXf + (pNow.x - sp0.x) / sz.width
                                             val ny = startYf + (pNow.y - sp0.y) / sz.height
+                                            // fix30: free box: finger drag has no page clamp either.
+                                            if (freeState.value) {
+                                                onTextDrag(textElement.id, nx, ny)
+                                                continue
+                                            }
                                             // Live clamp on all four sides (visual edge, 8dp margin).
                                             val cl = clampTextBoxPos(
                                                 nx,
@@ -1951,7 +1971,7 @@ private fun PageTextOverlay(
             }
             }
 
-            if (selected) {
+            if (selected && !hideSelectionChrome) {
                 val spinView = androidx.compose.ui.platform.LocalView.current
                 val lastSnap = remember(textElement.id) { floatArrayOf(Float.NaN) }
                 // Rotation drag: start angle, pivot (page frame), unwrapped angle sum, last angle.

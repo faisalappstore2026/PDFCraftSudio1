@@ -335,7 +335,9 @@ data class TextElement(
     val spreadRanges: List<ColorRange> = emptyList(),
     val spreadDp: Float = 0f,
     /** Font size the user chose (0 = same as fontSizeSp). Auto-fit never grows above it. */
-    val userFontSp: Float = 0f
+    val userFontSp: Float = 0f,
+    /** fix30: set by Text Box Size / Text Move. The box may cross the page border (no clamp, no page-edge wrap). */
+    val freeBounds: Boolean = false
 )
 
 /**
@@ -4020,6 +4022,57 @@ fun isSelectionStrike(): Boolean {
     fun selectedTextSizeSp(): Float {
         val id = focusedTextId ?: selectedTextId ?: return 16f
         return textElements.firstOrNull { it.id == id }?.fontSizeSp ?: 16f
+    }
+
+    /** fix30 Text Box Size: box at tool start; every slider step scales from it (no drift). */
+    private var textBoxScaleBase: TextElement? = null
+
+    /** fix30: font, box, border, corner, padding and spread scale together (one undo step). */
+    fun scaleSelectedTextBox(targetSp: Float) {
+        val id = focusedTextId ?: selectedTextId ?: return
+        val index = textElements.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val cur = textElements[index]
+        val base = textBoxScaleBase?.takeIf { it.id == id } ?: cur.also { textBoxScaleBase = it }
+        val baseSp = (if (base.userFontSp > 0.01f) base.userFontSp else base.fontSizeSp).coerceAtLeast(0.5f)
+        val newSp = targetSp.coerceIn(6f, 96f)
+        val k = newSp / baseSp
+        beginCoalescedEdit("textBoxScale")
+        textElements[index] = cur.copy(
+            fontSizeSp = newSp,
+            userFontSp = newSp,
+            boxWidthFrac = if (base.boxWidthFrac > 0.01f) (base.boxWidthFrac * k).coerceIn(0.02f, 40f) else 0f,
+            boxHeightFrac = if (base.boxHeightFrac > 0.01f) (base.boxHeightFrac * k).coerceIn(0.02f, 40f) else 0f,
+            borderWidthDp = (base.borderWidthDp * k).coerceIn(0.5f, 8f),
+            bgCornerDp = (base.bgCornerDp * k).coerceIn(0f, 24f),
+            bgPadLeftDp = (base.bgPadLeftDp * k).coerceIn(0f, 40f),
+            bgPadTopDp = (base.bgPadTopDp * k).coerceIn(0f, 40f),
+            bgPadRightDp = (base.bgPadRightDp * k).coerceIn(0f, 40f),
+            bgPadBottomDp = (base.bgPadBottomDp * k).coerceIn(0f, 40f),
+            spreadDp = (base.spreadDp * k).coerceIn(0f, 40f),
+            freeBounds = true
+        )
+    }
+
+    fun endTextBoxScale() {
+        textBoxScaleBase = null
+        endCoalescedEdit()
+    }
+
+    /** fix30 Text Move: step in dp of the 360dp logical page; may cross the page border. */
+    fun nudgeSelectedText(dxDp: Float, dyDp: Float) {
+        val id = focusedTextId ?: selectedTextId ?: return
+        val index = textElements.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val cur = textElements[index]
+        if (cur.xFraction.isNaN() || cur.yFraction.isNaN()) return
+        beginCoalescedEdit("textNudge")
+        val aspect = aspectRatioForPage(cur.pageIndex).coerceAtLeast(0.1f)
+        textElements[index] = cur.copy(
+            xFraction = (cur.xFraction + dxDp / 360f).coerceIn(-3f, 4f),
+            yFraction = (cur.yFraction + dyDp * aspect / 360f).coerceIn(-3f, 4f),
+            freeBounds = true
+        )
     }
 
 

@@ -102,6 +102,9 @@ fun EditorToolbar(
     textSizeSp: Float = 16f,
     onTextSizeClick: () -> Unit = {},
     onTextSizeChange: (Float) -> Unit = {},
+    onTextBoxSizeClick: () -> Unit = {},
+    onTextMoveClick: () -> Unit = {},
+    textMenuRequest: Int = 0,
     pageAspectRatio: Float,
     onPageAspectRatioChange: (Float) -> Unit,
     pageCountForSize: Int = 1,
@@ -274,6 +277,15 @@ fun EditorToolbar(
     }
     LaunchedEffect(hasSelectedText) {
         if (!hasSelectedText) textSizeModeActive = false
+    }
+    // fix30: Back on Text Box Size / Text Move reopens the Text tools list.
+    var handledTextMenuRequest by remember { mutableStateOf(textMenuRequest) }
+    LaunchedEffect(textMenuRequest) {
+        if (textMenuRequest != handledTextMenuRequest) {
+            handledTextMenuRequest = textMenuRequest
+            onPinTextSelection()
+            openToolMenu = "text"
+        }
     }
     var selectedToolCategory by remember { mutableStateOf(0) } // 0=Page 1=Images 2=Text
     var orientationMenuExpanded by remember { mutableStateOf(false) }
@@ -459,7 +471,11 @@ fun EditorToolbar(
                         onTextSpreadColorClick = onTextSpreadColorClick,
                         onTextShadowClick = onTextShadowClick,
                         onTextSizeClick = {
-                            if (hasFocusedText) textSizeModeActive = true
+                            if (hasFocusedText) onTextBoxSizeClick()
+                            else onNeedHint("Select a text box first to use this tool.")
+                        },
+                        onTextMoveClick = {
+                            if (hasFocusedText) onTextMoveClick()
                             else onNeedHint("Select a text box first to use this tool.")
                         },
                         onDeleteTextClick = onDeleteTextClick,
@@ -1102,6 +1118,7 @@ private fun TextToolsMenu(
     onEnterTextClick: () -> Unit,
     onFontClick: () -> Unit,
     onTextSizeClick: () -> Unit,
+    onTextMoveClick: () -> Unit = {},
     onTextColorClick: () -> Unit,
     onTextBgColorClick: () -> Unit,
     onTextShadowClick: () -> Unit,
@@ -1160,6 +1177,13 @@ private fun TextToolsMenu(
                 if (!hasFocusedText) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onTextSizeClick()
+                }
+            }
+            HorizontalDivider(color = Color.LightGray)
+            ToolMenuItem(stringResource(R.string.text_tool_text_move)) {
+                if (!hasFocusedText) onNeedHint(hintBox) else {
+                    onMenuDismiss()
+                    onTextMoveClick()
                 }
             }
             HorizontalDivider(color = Color.LightGray)
