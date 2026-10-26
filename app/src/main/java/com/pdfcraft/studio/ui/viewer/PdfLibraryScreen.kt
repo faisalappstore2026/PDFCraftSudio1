@@ -186,7 +186,12 @@ fun PdfLibraryScreen(
             vm.scanRunning = true
             try {
                 if (showSpinner || allPdfs.isEmpty()) loading = true
-                val list = withContext(Dispatchers.IO) { PdfLibraryStore.scanDevicePdfs(context) }
+                val list = withContext(Dispatchers.IO) {
+                    PdfLibraryStore.mergeWithPicked(
+                        context,
+                        PdfLibraryStore.scanDevicePdfs(context)
+                    )
+                }
                 val rec = withContext(Dispatchers.IO) { PdfLibraryStore.listRecent(context) }
                 allPdfs = list
                 recent = rec
@@ -237,6 +242,7 @@ fun PdfLibraryScreen(
             }
             val item = pdfItemFromUri(uri)
             PdfLibraryStore.addRecent(context, item)
+            PdfLibraryStore.addPicked(context, item)
             added.add(item)
         }
         if (added.isNotEmpty()) {
@@ -496,9 +502,11 @@ fun PdfLibraryScreen(
                             onMenuShare = {
                                 menuFor = null
                                 try {
+                                    val shareUri = Uri.parse(item.uri)
                                     val send = Intent(Intent.ACTION_SEND)
                                     send.type = "application/pdf"
-                                    send.putExtra(Intent.EXTRA_STREAM, Uri.parse(item.uri))
+                                    send.putExtra(Intent.EXTRA_STREAM, shareUri)
+                                    send.clipData = android.content.ClipData.newRawUri(item.name, shareUri)
                                     send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     context.startActivity(Intent.createChooser(send, item.name))
                                 } catch (_: Exception) {
@@ -568,6 +576,7 @@ fun PdfLibraryScreen(
                         allPdfs = allPdfs.filterNot { it.uri == target.uri }
                         recent = recent.filterNot { it.uri == target.uri }
                         PdfLibraryStore.removeRecent(context, target.uri)
+                        PdfLibraryStore.removePicked(context, target.uri)
                     } else {
                         actionMessage = context.getString(R.string.pdf_library_delete_failed)
                     }

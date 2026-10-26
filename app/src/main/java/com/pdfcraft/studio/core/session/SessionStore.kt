@@ -88,46 +88,46 @@ object SessionStore {
 
     private fun edit(context: Context) = prefs(context).edit()
 
-    fun setHome(context: Context) { edit(context).putString("screen", HOME).commit() }
-    fun setScreen(context: Context, screen: String) { edit(context).putString("screen", screen).commit() }
+    fun setHome(context: Context) { edit(context).putString("screen", HOME).apply() }
+    fun setScreen(context: Context, screen: String) { edit(context).putString("screen", screen).apply() }
     fun setEditor(context: Context, path: String?) {
-        edit(context).putString("screen", EDITOR).putString("editorPath", path.orEmpty()).commit()
+        edit(context).putString("screen", EDITOR).putString("editorPath", path.orEmpty()).apply()
     }
     fun setEditorScroll(context: Context, index: Int, offset: Int) {
-        edit(context).putInt("editorIndex", index.coerceAtLeast(0)).putInt("editorOffset", offset.coerceAtLeast(0)).commit()
+        edit(context).putInt("editorIndex", index.coerceAtLeast(0)).putInt("editorOffset", offset.coerceAtLeast(0)).apply()
     }
     fun setViewer(context: Context, uri: String?) {
-        edit(context).putString("screen", VIEWER).putString("viewerUri", uri.orEmpty()).commit()
+        edit(context).putString("screen", VIEWER).putString("viewerUri", uri.orEmpty()).apply()
     }
     fun setViewerScroll(context: Context, index: Int, offset: Int) {
-        edit(context).putInt("viewerIndex", index.coerceAtLeast(0)).putInt("viewerOffset", offset.coerceAtLeast(0)).commit()
+        edit(context).putInt("viewerIndex", index.coerceAtLeast(0)).putInt("viewerOffset", offset.coerceAtLeast(0)).apply()
     }
-    fun setOpenTool(context: Context, tool: String) { edit(context).putString("openTool", tool).commit() }
-    fun setOpenToolMenu(context: Context, menu: String?) { edit(context).putString("openToolMenu", menu.orEmpty()).commit() }
-    fun setToolbarDialog(context: Context, dialog: String) { edit(context).putString("toolbarDialog", dialog).commit() }
-    fun setEditorMode(context: Context, mode: String) { edit(context).putString("editorMode", mode).commit() }
-    fun setFocusedTextId(context: Context, id: String) { edit(context).putString("focusedTextId", id).commit() }
-    fun setOverflow(context: Context, open: Boolean) { edit(context).putBoolean("overflowOpen", open).commit() }
+    fun setOpenTool(context: Context, tool: String) { edit(context).putString("openTool", tool).apply() }
+    fun setOpenToolMenu(context: Context, menu: String?) { edit(context).putString("openToolMenu", menu.orEmpty()).apply() }
+    fun setToolbarDialog(context: Context, dialog: String) { edit(context).putString("toolbarDialog", dialog).apply() }
+    fun setEditorMode(context: Context, mode: String) { edit(context).putString("editorMode", mode).apply() }
+    fun setFocusedTextId(context: Context, id: String) { edit(context).putString("focusedTextId", id).apply() }
+    fun setOverflow(context: Context, open: Boolean) { edit(context).putBoolean("overflowOpen", open).apply() }
     fun setNameDialog(context: Context, open: Boolean, name: String, success: Boolean) {
-        edit(context).putBoolean("nameDialog", open).putString("nameField", name).putBoolean("successDialog", success).commit()
+        edit(context).putBoolean("nameDialog", open).putString("nameField", name).putBoolean("successDialog", success).apply()
     }
     fun setHistory(context: Context, undo: Int, redo: Int) {
-        edit(context).putInt("undoCount", undo).putInt("redoCount", redo).commit()
+        edit(context).putInt("undoCount", undo).putInt("redoCount", redo).apply()
     }
     fun setPageSelections(context: Context, size: String, bg: String, del: String, dup: String, num: String) {
         edit(context).putString("selSize", size).putString("selBg", bg).putString("selDel", del)
-            .putString("selDup", dup).putString("selNum", num).commit()
+            .putString("selDup", dup).putString("selNum", num).apply()
     }
     fun setPickerSets(context: Context, dragPages: String, deletePages: String, dragImgs: String, deleteImgs: String) {
         edit(context).putString("dragPages", dragPages).putString("deletePages", deletePages)
-            .putString("dragImgs", dragImgs).putString("deleteImgs", deleteImgs).commit()
+            .putString("dragImgs", dragImgs).putString("deleteImgs", deleteImgs).apply()
     }
     fun setExtraPickers(context: Context, dragImgs: Boolean, delImgs: Boolean, delMode: Boolean) {
         edit(context).putBoolean("showDragImagePicker", dragImgs)
             .putBoolean("showDeleteImagesImagePicker", delImgs)
-            .putBoolean("showDeleteImagesModeDialog", delMode).commit()
+            .putBoolean("showDeleteImagesModeDialog", delMode).apply()
     }
-    fun setOrientationOpen(context: Context, open: Boolean) { edit(context).putBoolean("orientationOpen", open).commit() }
+    fun setOrientationOpen(context: Context, open: Boolean) { edit(context).putBoolean("orientationOpen", open).apply() }
 
     fun parseInts(raw: String): List<Int> =
         raw.split(',').mapNotNull { it.trim().toIntOrNull() }
@@ -154,7 +154,7 @@ object SessionStore {
             .putBoolean("showDeleteImagesImagePicker", false)
             .putBoolean("showDeleteImagesModeDialog", false)
             .putBoolean("orientationOpen", false)
-            .commit()
+            .apply()
     }
 
     fun uriReadable(context: Context, uriStr: String?): Boolean {

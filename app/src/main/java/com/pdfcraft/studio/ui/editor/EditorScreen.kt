@@ -790,9 +790,26 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                     showNameDialog = false
                                     val raw = nameField.text.trim().ifEmpty { "Project.pdf" }
                                     if (exportProgress == null) withStorageWrite {
-                                    // Take a snapshot of the lists on the main thread, then draw/save in background.
+                                    // Snapshot lists + page-bg maps on main thread; IO must not read live VM.
                                     val exportImages = viewModel.importedImages.toList()
                                     val exportTexts = viewModel.textElements.toList()
+                                    val exportPerRow = viewModel.imagesPerRow
+                                    val exportAspect = viewModel.pageAspectRatio
+                                    val exportBg = viewModel.pageBackgroundColor
+                                    val exportSpacing = viewModel.imageSpacingDp
+                                    val exportCellAspect = viewModel.layoutCellAspectRatio
+                                    val exportMargin = viewModel.pageMarginDp
+                                    val exportMinPages = viewModel.minPageCount
+                                    val snapAspect = viewModel.pageAspectOverrides.toMap()
+                                    val snapBgColor = viewModel.pageBackgroundColorOverrides.toMap()
+                                    val snapBgBmp = viewModel.pageBackgroundBitmapOverrides.toMap()
+                                    val snapKind = viewModel.pageBackgroundKindOverrides.toMap()
+                                    val snapColor2 = viewModel.pageBackgroundColor2Overrides.toMap()
+                                    val snapDir = viewModel.pageBackgroundGradientDirOverrides.toMap()
+                                    val snapDefBmp = viewModel.pageBackgroundBitmap
+                                    val snapDefKind = viewModel.pageBackgroundKind
+                                    val snapDefColor2 = viewModel.pageBackgroundColor2
+                                    val snapDefDir = viewModel.pageBackgroundGradientDir
                                     exportProgress = 0 to 0
                                     coroutineScope.launch {
                                         val result = try {
@@ -802,19 +819,44 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                                 fileName = raw,
                                                 images = exportImages,
                                                 textElements = exportTexts,
-                                                imagesPerRow = viewModel.imagesPerRow,
-                                                pageAspectRatio = viewModel.pageAspectRatio,
-                                                pageBackgroundColor = viewModel.pageBackgroundColor,
-                                                imageSpacingDp = viewModel.imageSpacingDp,
-                                                imageCellAspectRatio = viewModel.layoutCellAspectRatio,
-                                                pageMarginDp = viewModel.pageMarginDp,
-                                                minPageCount = viewModel.minPageCount,
-                                                pageAspectRatioForPage = viewModel::aspectRatioForPage,
-                                                pageBackgroundColorForPage = viewModel::backgroundColorForPage,
-                                                pageBackgroundBitmapForPage = viewModel::backgroundBitmapForPage,
-                                                pageBackgroundKindForPage = viewModel::resolvedKind,
-                                                pageBackgroundColor2ForPage = viewModel::backgroundColor2ForPage,
-                                                pageBackgroundDirForPage = viewModel::backgroundDirForPage,
+                                                imagesPerRow = exportPerRow,
+                                                pageAspectRatio = exportAspect,
+                                                pageBackgroundColor = exportBg,
+                                                imageSpacingDp = exportSpacing,
+                                                imageCellAspectRatio = exportCellAspect,
+                                                pageMarginDp = exportMargin,
+                                                minPageCount = exportMinPages,
+                                                pageAspectRatioForPage = { pageIndex ->
+                                                    if (exportPerRow == 1) {
+                                                        val img = exportImages
+                                                            .filter { it.ownerPageIndex == null }
+                                                            .getOrNull(pageIndex)
+                                                        val b = img?.bitmap
+                                                        if (b != null && b.height > 0) {
+                                                            (b.width.toFloat() / b.height)
+                                                                .coerceIn(0.2f, 5f)
+                                                        } else {
+                                                            snapAspect[pageIndex] ?: exportAspect
+                                                        }
+                                                    } else {
+                                                        snapAspect[pageIndex] ?: exportAspect
+                                                    }
+                                                },
+                                                pageBackgroundColorForPage = { pageIndex ->
+                                                    snapBgColor[pageIndex] ?: exportBg
+                                                },
+                                                pageBackgroundBitmapForPage = { pageIndex ->
+                                                    snapBgBmp[pageIndex] ?: snapDefBmp
+                                                },
+                                                pageBackgroundKindForPage = { pageIndex ->
+                                                    snapKind[pageIndex] ?: snapDefKind
+                                                },
+                                                pageBackgroundColor2ForPage = { pageIndex ->
+                                                    snapColor2[pageIndex] ?: snapDefColor2
+                                                },
+                                                pageBackgroundDirForPage = { pageIndex ->
+                                                    snapDir[pageIndex] ?: snapDefDir
+                                                },
                                                 onProgress = { done, total -> exportProgress = done to total }
                                                 )
                                             }

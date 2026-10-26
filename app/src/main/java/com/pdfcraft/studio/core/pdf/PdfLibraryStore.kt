@@ -22,6 +22,8 @@ object PdfLibraryStore {
     private const val PREFS = "pdf_library"
     private const val KEY_RECENT = "recent"
     private const val MAX_RECENT = 50
+    private const val KEY_PICKED = "picked"
+    private const val MAX_PICKED = 100
 
     fun scanDevicePdfs(context: Context): List<PdfItem> {
         val byKey = LinkedHashMap<String, PdfItem>()
@@ -181,6 +183,105 @@ object PdfLibraryStore {
         saveRecent(context, listRecent(context).filterNot { it.uri == uri })
     }
 
+    fun listPicked(context: Context): List<PdfItem> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val raw = prefs.getString(KEY_PICKED, "[]") ?: "[]"
+        return try {
+            val arr = JSONArray(raw)
+            val out = ArrayList<PdfItem>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.add(
+                    PdfItem(
+                        uri = o.optString("uri"),
+                        name = o.optString("name", "PDF"),
+                        sizeBytes = o.optLong("size"),
+                        folder = o.optString("folder", "Picked"),
+                        lastModifiedMillis = o.optLong("time"),
+                        location = o.optString("location", "Picked")
+                    )
+                )
+            }
+            out.filter { it.uri.isNotBlank() }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun savePicked(context: Context, items: List<PdfItem>) {
+        val arr = JSONArray()
+        items.forEach { item ->
+            arr.put(
+                JSONObject()
+                    .put("uri", item.uri)
+                    .put("name", item.name)
+                    .put("size", item.sizeBytes)
+                    .put("folder", item.folder)
+                    .put("time", item.lastModifiedMillis)
+                    .put("location", item.location)
+            )
+        }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_PICKED, arr.toString())
+            .apply()
+    }
+
+    fun addPicked(context: Context, item: PdfItem) {
+        val existing = listPicked(context).filterNot { it.uri == item.uri }
+        val next = listOf(item) + existing
+        savePicked(context, next.take(MAX_PICKED))
+    }
+
+    fun removePicked(context: Context, uri: String) {
+        savePicked(context, listPicked(context).filterNot { it.uri == uri })
+    }
+
+    /** Merge MediaStore scan with SAF-picked PDFs (and still-granted persistable URIs). */
+    fun mergeWithPicked(context: Context, scanned: List<PdfItem>): List<PdfItem> {
+        val byUri = LinkedHashMap<String, PdfItem>()
+        for (item in scanned) {
+            byUri[item.uri] = item
+        }
+        for (item in listPicked(context)) {
+            if (item.uri.isNotBlank()) byUri.putIfAbsent(item.uri, item)
+        }
+        try {
+            for (p in context.contentResolver.persistedUriPermissions) {
+                if (!p.isReadPermission) continue
+                val key = p.uri.toString()
+                if (key.isBlank() || byUri.containsKey(key)) continue
+                var name = p.uri.lastPathSegment
+                    ?.substringAfterLast(':')
+                    ?.substringAfterLast('/')
+                    ?: "PDF"
+                if (!name.endsWith(".pdf", true)) name = name + ".pdf"
+                byUri[key] = PdfItem(key, name, 0L, "Picked", 0L, "Picked")
+            }
+        } catch (_: Exception) {
+        }
+        return byUri.values.sortedBy { it.name.lowercase(Locale.US) }
+    }
+
+    private fun rewriteUriLists(context: Context, oldUri: String, updated: PdfItem) {
+        val pickedSrc = listPicked(context)
+        if (pickedSrc.any { it.uri == oldUri || it.uri == updated.uri }) {
+            val picked = pickedSrc
+                .map { if (it.uri == oldUri) updated else it }
+                .filterNot { it.uri == oldUri && updated.uri != oldUri }
+                .distinctBy { it.uri }
+            savePicked(context, picked.take(MAX_PICKED))
+        }
+        val recentSrc = listRecent(context)
+        if (recentSrc.any { it.uri == oldUri || it.uri == updated.uri }) {
+            val recent = recentSrc
+                .map { if (it.uri == oldUri) updated else it }
+                .filterNot { it.uri == oldUri && updated.uri != oldUri }
+                .distinctBy { it.uri }
+            saveRecent(context, recent.take(MAX_RECENT))
+        }
+    }
+
     fun renamePdf(context: Context, item: PdfItem, newName: String): PdfItem? {
         val trimmed = newName.trim()
         if (trimmed.isEmpty()) return null
@@ -190,7 +291,9 @@ object PdfLibraryStore {
         values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, finalName)
         try {
             if (context.contentResolver.update(uri, values, null, null) > 0) {
-                return item.copy(name = finalName)
+                val updated = item.copy(name = finalName)
+                rewriteUriLists(context, item.uri, updated)
+                return updated
             }
         } catch (e: Exception) {
             android.util.Log.w("PdfLibraryStore", "Rename via MediaStore failed", e)
@@ -199,7 +302,23 @@ object PdfLibraryStore {
             val out = android.provider.DocumentsContract.renameDocument(
                 context.contentResolver, uri, finalName
             )
-            if (out != null) item.copy(uri = out.toString(), name = finalName) else null
+            if (out != null) {
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        out, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                }
+                try {
+                    context.contentResolver.releasePersistableUriPermission(
+                        uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                }
+                val updated = item.copy(uri = out.toString(), name = finalName)
+                rewriteUriLists(context, item.uri, updated)
+                updated
+            } else null
         } catch (e: Exception) {
             android.util.Log.w("PdfLibraryStore", "Rename failed", e)
             null
