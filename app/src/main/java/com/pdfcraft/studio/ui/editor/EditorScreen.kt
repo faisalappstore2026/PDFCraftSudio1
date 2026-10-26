@@ -525,13 +525,19 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         }
 
     var pendingBgBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var showMatchPageSizeDialog by remember { mutableStateOf(false) }
     val backgroundImagePickerLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.PickVisualMedia()
         ) { uri ->
             if (uri != null) {
                 if (showAdvancedBgEditor) {
-                    viewModel.decodeBackgroundPreview(uri) { pendingBgBitmap = it }
+                    viewModel.decodeBackgroundPreview(uri) { bmp ->
+                        pendingBgBitmap = bmp
+                        if (viewModel.pageBgColorSelection.isNotEmpty()) {
+                            showMatchPageSizeDialog = true
+                        }
+                    }
                 } else {
                     viewModel.setPageBackgroundFromUri(uri)
                 }
@@ -625,6 +631,32 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                 viewModel.saveDraftAsync(context)
                 showAdvancedBgEditor = false
                 pendingBgBitmap = null
+            }
+        )
+    }
+
+    if (showMatchPageSizeDialog) {
+        AlertDialog(
+            onDismissRequest = { showMatchPageSizeDialog = false },
+            title = { Text(stringResource(R.string.page_bg_match_size_title)) },
+            text = { Text(stringResource(R.string.page_bg_match_size_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val bmp = pendingBgBitmap
+                        if (bmp != null && !bmp.isRecycled && bmp.width > 0 && bmp.height > 0) {
+                            viewModel.applyAspectToBgSelection(
+                                bmp.width.toFloat() / bmp.height.toFloat()
+                            )
+                        }
+                        showMatchPageSizeDialog = false
+                    }
+                ) { Text(stringResource(R.string.yes)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMatchPageSizeDialog = false }) {
+                    Text(stringResource(R.string.no))
+                }
             }
         )
     }
@@ -846,7 +878,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                                     snapBgColor[pageIndex] ?: exportBg
                                                 },
                                                 pageBackgroundBitmapForPage = { pageIndex ->
-                                                    snapBgBmp[pageIndex] ?: snapDefBmp
+                                                    snapBgBmp[pageIndex]
+                                                        ?: if ((snapKind[pageIndex] ?: snapDefKind) == "IMAGE") snapDefBmp else null
                                                 },
                                                 pageBackgroundKindForPage = { pageIndex ->
                                                     snapKind[pageIndex] ?: snapDefKind
@@ -2113,6 +2146,10 @@ Column(
                     TextBorderSliderPanel(
                         widthDp = panelText.borderWidthDp,
                         onWidthChange = { viewModel.updateTextBorderWidth(it) },
+                        onBack = {
+                            textBorderSliderOpen = false
+                            showTextBorderPicker = true
+                        },
                         onDone = {
                             viewModel.endCoalescedEdit()
                             textBorderSliderOpen = false
@@ -2133,6 +2170,10 @@ Column(
                         onPadRightChange = { viewModel.updateTextBgPadding(right = it) },
                         onPadTopChange = { viewModel.updateTextBgPadding(top = it) },
                         onPadBottomChange = { viewModel.updateTextBgPadding(bottom = it) },
+                        onBack = {
+                            textBgSliderOpen = false
+                            showTextBgColorPicker = true
+                        },
                         onDone = {
                             viewModel.endCoalescedEdit()
                             textBgSliderOpen = false
@@ -2143,6 +2184,10 @@ Column(
                     TextSpreadSliderPanel(
                         spreadDp = panelText.spreadDp,
                         onSpreadChange = { viewModel.updateTextSpread(it) },
+                        onBack = {
+                            textSpreadSliderOpen = false
+                            showTextSpreadPicker = true
+                        },
                         onDone = {
                             viewModel.endCoalescedEdit()
                             textSpreadSliderOpen = false

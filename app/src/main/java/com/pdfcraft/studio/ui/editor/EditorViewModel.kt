@@ -3733,7 +3733,9 @@ fun isSelectionStrike(): Boolean {
     }
 
     fun backgroundBitmapForPage(pageIndex: Int): Bitmap? {
-        return pageBackgroundBitmapOverrides[pageIndex] ?: pageBackgroundBitmap
+        pageBackgroundBitmapOverrides[pageIndex]?.let { return it }
+        // Global bake only for pages whose resolved kind is IMAGE (selected-only apply).
+        return if (resolvedKind(pageIndex) == PageBgKind.IMAGE.name) pageBackgroundBitmap else null
     }
 
     fun backgroundColor2ForPage(pageIndex: Int): Long {
@@ -3845,6 +3847,18 @@ fun isSelectionStrike(): Boolean {
         }
     }
 
+    fun applyAspectToBgSelection(ratio: Float) {
+        recordEdit()
+        val r = ratio.coerceIn(0.4f, 8f)
+        val pages = pageBgColorSelection.toList()
+        if (pages.isEmpty()) {
+            pageAspectRatio = r
+            pageAspectOverrides.clear()
+        } else {
+            pages.forEach { idx -> pageAspectOverrides[idx] = r }
+        }
+    }
+
     fun applyPageBackgroundToSelection(spec: PageBackgroundSpec, bitmap: Bitmap?) {
         recordEdit()
         val pages = pageBgColorSelection.toList()
@@ -3933,12 +3947,15 @@ fun isSelectionStrike(): Boolean {
             } ?: return@launch
             if (processed.isRecycled) return@launch
             if (pageBackgroundPhoto !== src) return@launch
-            val prevBmp = pageBackgroundBitmap
-            pageBackgroundBitmap = processed
+            // Global bitmap only when baking every page; otherwise selected pages alone.
+            if (pages.isEmpty()) {
+                val prevBmp = pageBackgroundBitmap
+                pageBackgroundBitmap = processed
+                if (prevBmp !== processed) recycleOrphan(prevBmp)
+            }
             targets.forEach { idx ->
                 replaceOverride(idx, imageBgForPage(processed, idx))
             }
-            if (prevBmp !== processed) recycleOrphan(prevBmp)
         }
     }
 

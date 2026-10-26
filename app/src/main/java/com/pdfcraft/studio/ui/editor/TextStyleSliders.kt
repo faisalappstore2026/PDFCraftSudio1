@@ -4,22 +4,31 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -31,10 +40,11 @@ import kotlin.math.roundToInt
 fun TextBorderSliderPanel(
     widthDp: Float,
     onWidthChange: (Float) -> Unit,
+    onBack: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SliderCard(title = stringResource(R.string.tt_border), onDone = onDone, modifier = modifier) {
+    SliderCard(onBack = onBack, onDone = onDone, modifier = modifier) {
         LabeledSlider(
             label = stringResource(R.string.tt_thickness),
             valueText = ((widthDp * 10f).roundToInt() / 10f).toString(),
@@ -50,10 +60,11 @@ fun TextBorderSliderPanel(
 fun TextSpreadSliderPanel(
     spreadDp: Float,
     onSpreadChange: (Float) -> Unit,
+    onBack: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SliderCard(title = stringResource(R.string.tt_spread), onDone = onDone, modifier = modifier) {
+    SliderCard(onBack = onBack, onDone = onDone, modifier = modifier) {
         LabeledSlider(
             label = stringResource(R.string.tt_spread),
             valueText = spreadDp.roundToInt().toString(),
@@ -79,10 +90,13 @@ fun TextBgSliderPanel(
     onPadRightChange: (Float) -> Unit = {},
     onPadTopChange: (Float) -> Unit = {},
     onPadBottomChange: (Float) -> Unit = {},
+    onBack: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SliderCard(title = stringResource(R.string.tt_background), onDone = onDone, modifier = modifier) {
+    var linkLR by rememberSaveable { mutableStateOf(true) }
+    var linkTB by rememberSaveable { mutableStateOf(true) }
+    SliderCard(onBack = onBack, onDone = onDone, modifier = modifier) {
         LabeledSlider(
             label = stringResource(R.string.tt_corner_radius),
             valueText = cornerDp.roundToInt().toString(),
@@ -97,15 +111,63 @@ fun TextBgSliderPanel(
             range = 0.05f..1f,
             onChange = onAlphaChange
         )
-        Row(modifier = Modifier.fillMaxWidth()) {
-            PadSlider(stringResource(R.string.tt_pad_left), padLeft, onPadLeftChange, Modifier.weight(1f))
-            Spacer(Modifier.width(12.dp))
-            PadSlider(stringResource(R.string.tt_pad_right), padRight, onPadRightChange, Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PadSlider(
+                stringResource(R.string.tt_pad_left),
+                padLeft,
+                { v ->
+                    onPadLeftChange(v)
+                    if (linkLR) onPadRightChange(v)
+                },
+                Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(6.dp))
+            PadSlider(
+                stringResource(R.string.tt_pad_right),
+                padRight,
+                { v ->
+                    onPadRightChange(v)
+                    if (linkLR) onPadLeftChange(v)
+                },
+                Modifier.weight(1f)
+            )
+            Checkbox(
+                checked = linkLR,
+                onCheckedChange = { linkLR = it },
+                modifier = Modifier.size(48.dp)
+            )
         }
-        Row(modifier = Modifier.fillMaxWidth()) {
-            PadSlider(stringResource(R.string.tt_pad_top), padTop, onPadTopChange, Modifier.weight(1f))
-            Spacer(Modifier.width(12.dp))
-            PadSlider(stringResource(R.string.tt_pad_bottom), padBottom, onPadBottomChange, Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PadSlider(
+                stringResource(R.string.tt_pad_top),
+                padTop,
+                { v ->
+                    onPadTopChange(v)
+                    if (linkTB) onPadBottomChange(v)
+                },
+                Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(6.dp))
+            PadSlider(
+                stringResource(R.string.tt_pad_bottom),
+                padBottom,
+                { v ->
+                    onPadBottomChange(v)
+                    if (linkTB) onPadTopChange(v)
+                },
+                Modifier.weight(1f)
+            )
+            Checkbox(
+                checked = linkTB,
+                onCheckedChange = { linkTB = it },
+                modifier = Modifier.size(48.dp)
+            )
         }
     }
 }
@@ -136,7 +198,7 @@ private fun PadSlider(
 
 @Composable
 private fun SliderCard(
-    title: String,
+    onBack: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier,
     content: @Composable () -> Unit
@@ -156,7 +218,18 @@ private fun SliderCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            TextButton(
+                onClick = onBack,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.back),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.back))
+            }
             TextButton(onClick = onDone) { Text(stringResource(R.string.editor_done)) }
         }
         content()

@@ -405,7 +405,9 @@ fun PdfPagesPreview(
                                 val kind = pageBackgroundKindForPage?.invoke(0) ?: "SOLID"
                                 if (kind == "NONE" || kind == "IMAGE") 0xFFFFFFFFL else (pageBackgroundColorForPage?.invoke(0) ?: pageBackgroundColor)
                             },
-                            backgroundBitmap = pageBackgroundBitmapForPage?.invoke(0) ?: pageBackgroundBitmap,
+                            backgroundBitmap = if (pageBackgroundBitmapForPage != null) {
+                                pageBackgroundBitmapForPage.invoke(0)
+                            } else pageBackgroundBitmap,
                             backgroundBrush = run {
                                 val kind = pageBackgroundKindForPage?.invoke(0) ?: "SOLID"
                                 if (kind != "GRADIENT") null
@@ -525,7 +527,9 @@ fun PdfPagesPreview(
                             val kind = pageBackgroundKindForPage?.invoke(docPage) ?: "SOLID"
                             if (kind == "NONE" || kind == "IMAGE") 0xFFFFFFFFL else (pageBackgroundColorForPage?.invoke(docPage) ?: pageBackgroundColor)
                         },
-                        backgroundBitmap = pageBackgroundBitmapForPage?.invoke(docPage) ?: pageBackgroundBitmap,
+                        backgroundBitmap = if (pageBackgroundBitmapForPage != null) {
+                            pageBackgroundBitmapForPage.invoke(docPage)
+                        } else pageBackgroundBitmap,
                         backgroundBrush = run {
                             val kind = pageBackgroundKindForPage?.invoke(docPage) ?: "SOLID"
                             if (kind != "GRADIENT") null
