@@ -441,5 +441,15 @@
     <string name="export_pdf_saving">Saving PDF...</string>
     <string name="image_import_some_failed">%1$d picture(s) could not be opened.</string>
     <string name="export_pdf_out_of_memory">Not enough memory to save this PDF. Try fewer or smaller images.</string>
+    <string name="icon_center">Icon Center</string>
+    <string name="icon_size">Icon size</string>
+    <string name="icon_center_import_image">Import image</string>
+    <string name="icon_center_no_image">No image</string>
+    <string name="icon_center_help">This circle matches the real round app icon. Scale 1.00 is the same size as the phone icon. Copy the numbers and send them in chat.</string>
+    <string name="icon_center_left_right">Left / Right</string>
+    <string name="icon_center_up_down">Up / Down</string>
+    <string name="icon_center_zoom">Zoom</string>
+    <string name="icon_center_copy">Copy details</string>
+    <string name="icon_center_copied">Copied</string>
 </resources>
 

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.Surface
@@ -39,7 +40,17 @@ class MainActivity : ComponentActivity() {
         // Recreated activity (theme/language change, process restore): the old intent was
         // already handled, so do not open its PDF again.
         openPdfUri = if (savedInstanceState == null) extractPdfUri(intent) else null
-        enableEdgeToEdge()
+        // Light scrims + dark icons: app scaffolds are white (targetSdk 35+ edge-to-edge).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
+        )
         runVersionCheck()
         setContent {
             PDFCraftStudioTheme {

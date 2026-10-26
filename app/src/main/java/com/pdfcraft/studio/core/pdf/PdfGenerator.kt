@@ -168,10 +168,8 @@ object PdfGenerator {
         // Use a fixed logical width; height follows editor page aspect ratio
         val pageWidth = 1080
         val pageHeight = (pageWidth / pageAspectRatio.coerceAtLeast(0.1f)).roundToInt().coerceAtLeast(1)
-        val cfg = context.resources.configuration
-        val rawDp = cfg.screenWidthDp.toFloat()
-        val pageDp = (rawDp - 40f).coerceIn(220f, 1400f)
-        val wrapScale = (pageDp / 360f) / cfg.fontScale.coerceIn(0.85f, 1.8f)
+        // Deterministic wrap: match editor 360dp logical page (not screenWidthDp).
+        val wrapScale = 1f
 
         // Same margin model as editor (pageMarginDp / PAGE_INNER_PADDING)
         val perRow = imagesPerRow.coerceAtLeast(1)

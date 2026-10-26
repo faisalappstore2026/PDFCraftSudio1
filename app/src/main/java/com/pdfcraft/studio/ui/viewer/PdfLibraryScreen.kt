@@ -550,14 +550,18 @@ fun PdfLibraryScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val updated = PdfLibraryStore.renamePdf(context, target, renameText)
-                    if (updated == null) {
-                        actionMessage = context.getString(R.string.pdf_library_rename_failed)
-                    } else {
-                        allPdfs = allPdfs.map { if (it.uri == target.uri) updated else it }
-                        recent = recent.map { if (it.uri == target.uri) updated else it }
+                    scope.launch {
+                        val updated = withContext(Dispatchers.IO) {
+                            PdfLibraryStore.renamePdf(context, target, renameText)
+                        }
+                        if (updated == null) {
+                            actionMessage = context.getString(R.string.pdf_library_rename_failed)
+                        } else {
+                            allPdfs = allPdfs.map { if (it.uri == target.uri) updated else it }
+                            recent = recent.map { if (it.uri == target.uri) updated else it }
+                        }
+                        renameFor = null
                     }
-                    renameFor = null
                 }) { Text(stringResource(R.string.ok)) }
             },
             dismissButton = {
@@ -571,16 +575,20 @@ fun PdfLibraryScreen(
             title = { Text(stringResource(R.string.pdf_library_delete_confirm)) },
             confirmButton = {
                 TextButton(onClick = {
-                    val ok = PdfLibraryStore.deletePdf(context, target)
-                    if (ok) {
-                        allPdfs = allPdfs.filterNot { it.uri == target.uri }
-                        recent = recent.filterNot { it.uri == target.uri }
-                        PdfLibraryStore.removeRecent(context, target.uri)
-                        PdfLibraryStore.removePicked(context, target.uri)
-                    } else {
-                        actionMessage = context.getString(R.string.pdf_library_delete_failed)
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            PdfLibraryStore.deletePdf(context, target)
+                        }
+                        if (ok) {
+                            allPdfs = allPdfs.filterNot { it.uri == target.uri }
+                            recent = recent.filterNot { it.uri == target.uri }
+                            PdfLibraryStore.removeRecent(context, target.uri)
+                            PdfLibraryStore.removePicked(context, target.uri)
+                        } else {
+                            actionMessage = context.getString(R.string.pdf_library_delete_failed)
+                        }
+                        deleteFor = null
                     }
-                    deleteFor = null
                 }) { Text(stringResource(R.string.pdf_library_delete)) }
             },
             dismissButton = {

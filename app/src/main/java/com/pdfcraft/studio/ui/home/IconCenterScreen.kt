@@ -42,7 +42,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import com.pdfcraft.studio.R
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,10 +82,13 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
         containerColor = Color.White,
         topBar = {
             TopAppBar(
-                title = { Text("Icon Center") },
+                title = { Text(stringResource(R.string.icon_center)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.content_desc_back)
+                        )
                     }
                 }
             )
@@ -98,12 +103,12 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "This circle matches the real round app icon. Scale 1.00 is the same size as the phone icon. Copy the numbers and send them in chat.",
+                text = stringResource(R.string.icon_center_help),
                 color = Color(0xFF424242)
             )
             Spacer(modifier = Modifier.height(12.dp))
             Button(onClick = { picker.launch("image/*") }) {
-                Text("Import image")
+                Text(stringResource(R.string.icon_center_import_image))
             }
             Spacer(modifier = Modifier.height(16.dp))
             Box(
@@ -131,12 +136,12 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
                             }
                     )
                 } else {
-                    Text("No image", color = Color(0xFF757575))
+                    Text(stringResource(R.string.icon_center_no_image), color = Color(0xFF757575))
                 }
             }
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "Left / Right   " + trimNum(offsetX),
+                text = stringResource(R.string.icon_center_left_right) + "   " + trimNum(offsetX),
                 modifier = Modifier.fillMaxWidth()
             )
             Slider(
@@ -149,7 +154,7 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                text = "Up / Down   " + trimNum(offsetY),
+                text = stringResource(R.string.icon_center_up_down) + "   " + trimNum(offsetY),
                 modifier = Modifier.fillMaxWidth()
             )
             Slider(
@@ -162,7 +167,7 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                text = "Zoom   " + trimNum(scale),
+                text = stringResource(R.string.icon_center_zoom) + "   " + trimNum(scale),
                 modifier = Modifier.fillMaxWidth()
             )
             Slider(
@@ -189,7 +194,10 @@ fun IconCenterScreen(onBackClick: () -> Unit) {
                 clipboard.setText(AnnotatedString(report))
                 copied = true
             }) {
-                Text(if (copied) "Copied" else "Copy details")
+                Text(
+                    if (copied) stringResource(R.string.icon_center_copied)
+                    else stringResource(R.string.icon_center_copy)
+                )
             }
         }
     }

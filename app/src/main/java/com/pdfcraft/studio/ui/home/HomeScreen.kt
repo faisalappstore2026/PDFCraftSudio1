@@ -156,7 +156,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 PrimaryActionButton(
-                    text = "Icon Center",
+                    text = stringResource(R.string.icon_center),
                     icon = Icons.Filled.Settings,
                     onClick = onIconCenterClick,
                     modifier = Modifier
@@ -172,7 +172,7 @@ fun HomeScreen(
                     .padding(bottom = 8.dp)
             ) {
                 Text(
-                    text = "Icon size",
+                    text = stringResource(R.string.icon_size),
                     color = Color(0xFF8A8A8A),
                     fontSize = 13.sp
                 )
