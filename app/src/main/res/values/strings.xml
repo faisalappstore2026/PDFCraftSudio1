@@ -455,6 +455,6 @@
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="page_bg_match_size_title">Match page size to image?</string>
-    <string name="page_bg_match_size_message">Would you like to resize the selected pages to match this image's aspect ratio so the image fits perfectly without cropping or stretching?</string>
+    <string name="page_bg_match_size_message">Would you like to resize the selected pages to match the aspect ratio of this image, so it fits perfectly without cropping or stretching?</string>
 </resources>
 
