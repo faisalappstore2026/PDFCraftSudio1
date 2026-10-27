@@ -63,6 +63,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import com.pdfcraft.studio.R
 import com.pdfcraft.studio.core.session.SessionStore
 import androidx.compose.ui.platform.LocalContext
@@ -1143,7 +1148,19 @@ private fun TextToolsMenu(
     var alignOpen by remember { mutableStateOf(false) }
     LaunchedEffect(menuExpanded) { if (!menuExpanded) alignOpen = false }
 
-    Box {
+    // fix33: the Text menu is much taller than Page/Image menus. When it does not fit
+    // below the button, the popup is pushed up to the screen top. Cap its height to the
+    // space below the button so it opens right under it (it scrolls inside).
+    val textMenuView = LocalView.current
+    val textMenuDensity = LocalDensity.current
+    var textMenuAnchorBottom by remember { mutableStateOf(0f) }
+    val textMenuMaxH = with(textMenuDensity) {
+        val frame = android.graphics.Rect()
+        textMenuView.getWindowVisibleDisplayFrame(frame)
+        val free = frame.height().toFloat() - textMenuAnchorBottom - 64.dp.toPx()
+        free.coerceAtLeast(180.dp.toPx()).toDp()
+    }
+    Box(modifier = Modifier.onGloballyPositioned { textMenuAnchorBottom = it.boundsInWindow().bottom }) {
         CategoryMenuLabel(
             text = stringResource(R.string.text_tools_menu_entry),
             expanded = menuExpanded,
@@ -1153,6 +1170,7 @@ private fun TextToolsMenu(
         DropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = onMenuDismiss,
+            modifier = Modifier.heightIn(max = textMenuMaxH),
             properties = PopupProperties(
                 focusable = false,
                 dismissOnClickOutside = false,
@@ -1176,14 +1194,7 @@ private fun TextToolsMenu(
             ToolMenuItem(stringResource(R.string.text_tool_text_size)) {
                 if (!hasFocusedText) onNeedHint(hintBox) else {
                     onMenuDismiss()
-                    onTextSizeClick()
-                }
-            }
-            HorizontalDivider(color = Color.LightGray)
-            ToolMenuItem(stringResource(R.string.text_tool_text_move)) {
-                if (!hasFocusedText) onNeedHint(hintBox) else {
-                    onMenuDismiss()
-                    onTextMoveClick()
+                    onTextSizeClick() // fix33: Move+Rotate+Size panel
                 }
             }
             HorizontalDivider(color = Color.LightGray)

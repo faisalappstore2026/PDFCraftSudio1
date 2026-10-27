@@ -2228,9 +2228,15 @@ Column(
                     )
                 }
                 if (textBoxSizeOpen && panelText != null && !toolMenuOpen) {
-                    TextBoxSizeSliderPanel(
+                    TextMoveRotateSizePanel(
+                        textId = panelText.id,
                         sizeSp = if (panelText.userFontSp > 0.01f) panelText.userFontSp else panelText.fontSizeSp,
+                        rotationDeg = panelText.rotationDeg,
+                        onMove = { dx, dy -> viewModel.nudgeSelectedText(dx, dy) },
                         onSizeChange = { viewModel.scaleSelectedTextBox(it) },
+                        onSizeEnd = { viewModel.endTextBoxScale() },
+                        onRotate = { viewModel.setTextRotation(panelText.id, it) },
+                        onRotateEnd = { viewModel.endCoalescedEdit() },
                         onBack = {
                             viewModel.endTextBoxScale()
                             textBoxSizeOpen = false

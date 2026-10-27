@@ -176,7 +176,7 @@
     <string name="font_style_section">Style</string>
     <string name="font_list_section">Fonts</string>
     <string name="font_imported_label">Imported</string>
-    <string name="page_tools_menu_entry">Page Settings</string>
+    <string name="page_tools_menu_entry">Page Tools</string>
     <string name="page_tool_add_new_page">➕ Add Page</string>
 
     <string name="page_tool_duplicate_pages">📑 Duplicate Pages</string>
@@ -222,13 +222,17 @@
     <string name="page_added_message">New page added</string>
     <string name="page_deleted_message">Page deleted</string>
     <string name="page_cannot_delete_last">Cannot delete the last remaining page</string>
-    <string name="text_tool_text_size">↕️ Text Box Size</string>
+    <string name="text_tool_text_size">✥ Move+Rotate+Size</string>
     <string name="text_tool_text_size_title">Text Box Size</string>
     <string name="text_tool_text_move">✥ Text Move</string>
     <string name="text_move_up">Move up</string>
     <string name="text_move_down">Move down</string>
     <string name="text_move_left">Move left</string>
     <string name="text_move_right">Move right</string>
+    <string name="text_mrs_title">Move+Rotate+Size</string>
+    <string name="text_mrs_size">Size</string>
+    <string name="text_mrs_rotate">Rotate</string>
+    <string name="text_mrs_rotate_input">Rotation in degrees</string>
 
     <string name="text_tool_text_color">🎨 Text Color</string>
     <string name="text_tool_border_color">🔳 Border Color</string>
