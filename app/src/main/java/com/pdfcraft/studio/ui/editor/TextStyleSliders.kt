@@ -402,6 +402,46 @@ private fun filterDegInput(raw: String): String {
     return (if (neg) "-" else "") + digits
 }
 
+/** fix34: digits only (no minus, no decimals), up to 3 digits. */
+private fun filterSizeInput(raw: String): String = raw.filter { it.isDigit() }.take(3)
+
+/** fix34: size slider position t (0..1) to an easy 1..100 number and back. */
+private fun sizeTToValue(t: Float): Int = (1f + t.coerceIn(0f, 1f) * 99f).roundToInt().coerceIn(1, 100)
+private fun sizeValueToT(v: Int): Float = ((v.coerceIn(1, 100) - 1) / 99f).coerceIn(0f, 1f)
+
+/** fix34: soft magnet to every 10 degrees (within 2.5 degrees), else whole degree. */
+private fun magnetRotation(raw: Float): Int {
+    val r = raw.coerceIn(-180f, 180f)
+    val near = (r / 10f).roundToInt() * 10
+    return if (kotlin.math.abs(r - near) <= 2.5f) near.coerceIn(-180, 180) else r.roundToInt().coerceIn(-180, 180)
+}
+
+/** fix34: small whole-number input box (shared by Size and Rotate). */
+@Composable
+private fun SmallNumberBox(
+    value: String,
+    onValueChange: (String) -> Unit,
+    desc: String,
+    onImeDone: () -> Unit
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(onDone = { onImeDone() }),
+        textStyle = TextStyle(color = Color.Black, fontSize = 12.sp, textAlign = TextAlign.Center),
+        modifier = Modifier
+            .width(52.dp)
+            .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(6.dp))
+            .padding(horizontal = 4.dp, vertical = 3.dp)
+            .semantics { contentDescription = desc }
+    )
+}
+
 /** fix33: stored 0..360 to shown -180..180. */
 private fun shownRotation(deg: Float): Int {
     if (deg.isNaN()) return 0
@@ -421,14 +461,15 @@ private fun SliderTicks(marks: List<Pair<Float, String>>) {
         val track = maxWidth - inset * 2
         marks.forEach { (t, label) ->
             val x = inset + track * t.coerceIn(0f, 1f)
+            val minor = label.isEmpty() // fix34: small unlabeled tick
             Box(
                 modifier = Modifier
                     .offset(x = x - 0.5.dp)
                     .width(1.dp)
-                    .height(4.dp)
-                    .background(Color.Gray)
+                    .height(if (minor) 3.dp else 4.dp)
+                    .background(if (minor) Color.LightGray else Color.Gray)
             )
-            Text(
+            if (!minor) Text(
                 text = label,
                 color = Color.Gray,
                 fontSize = 9.sp,
@@ -474,9 +515,9 @@ private fun CompactSlider(
 }
 
 /**
- * fix33 Move+Rotate+Size: one compact card.
- * Arrows (Left, Right, Up, Down; hold to repeat), Size slider with % ticks,
- * Rotate slider -180..180 (0 in the middle) + whole-number input.
+ * fix33/fix34 Move+Rotate+Size: one compact card.
+ * Arrows (Left, Right, Up, Down; hold to repeat), Size 1..100 slider + box,
+ * Rotate slider -180..180 (0 in the middle, magnet every 10) + box.
  */
 @Composable
 fun TextMoveRotateSizePanel(
@@ -494,11 +535,24 @@ fun TextMoveRotateSizePanel(
 ) {
     val focus = LocalFocusManager.current
     val safeSp = sizeSp.coerceIn(TEXT_BOX_MIN_SP, TEXT_BOX_MAX_SP)
-    val baseSp = remember(textId) { safeSp }
-    val rotInt = shownRotation(rotationDeg)
+    val sizeVal = sizeTToValue(textBoxSpToT(safeSp))
+    var sizeText by remember(textId) { mutableStateOf(sizeVal.toString()) }
+    LaunchedEffect(sizeVal) {
+        if (sizeText.toIntOrNull() != sizeVal) sizeText = sizeVal.toString()
+    }
+    // fix34: -180 and 180 are the same angle (stored as 180). Remember the side the
+    // user picked so the slider / box stay at -180 instead of jumping to 180.
+    var lastUserRot by remember(textId) { mutableStateOf<Int?>(null) }
+    val storedRot = shownRotation(rotationDeg)
+    val rotInt = if (storedRot == 180 && lastUserRot == -180) -180 else storedRot
     var rotText by remember(textId) { mutableStateOf(rotInt.toString()) }
     LaunchedEffect(rotInt) {
         if (rotText.toIntOrNull() != rotInt) rotText = rotInt.toString()
+    }
+    val applyRot: (Int) -> Unit = { d ->
+        val c = d.coerceIn(-180, 180)
+        lastUserRot = c
+        onRotate(c.toFloat())
     }
     Column(
         modifier = modifier
@@ -559,15 +613,34 @@ fun TextMoveRotateSizePanel(
             TextMoveButton("\u25B2", stringResource(R.string.text_move_up), 40) { onMove(0f, -TEXT_MOVE_STEP_DP) }
             TextMoveButton("\u25BC", stringResource(R.string.text_move_down), 40) { onMove(0f, TEXT_MOVE_STEP_DP) }
         }
-        val pct = (safeSp / baseSp.coerceAtLeast(0.5f) * 100f).roundToInt()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(stringResource(R.string.text_mrs_size), color = Color.DarkGray, fontSize = 11.sp)
-            Text(pct.toString() + "%  ·  " + safeSp.roundToInt().toString() + " sp", color = Color.DarkGray, fontSize = 11.sp)
+            SmallNumberBox(
+                value = sizeText,
+                onValueChange = { raw ->
+                    val f = filterSizeInput(raw)
+                    val v = f.toIntOrNull()
+                    if (v == null) {
+                        sizeText = f
+                    } else {
+                        val c = v.coerceIn(1, 100)
+                        sizeText = if (c != v) c.toString() else f
+                        onSizeChange(textBoxTToSp(sizeValueToT(c)))
+                    }
+                },
+                desc = stringResource(R.string.text_mrs_size_input),
+                onImeDone = {
+                    if (sizeText.toIntOrNull() == null) sizeText = sizeVal.toString()
+                    onSizeEnd()
+                    focus.clearFocus()
+                }
+            )
         }
         CompactSlider(
             value = textBoxSpToT(safeSp),
@@ -575,10 +648,9 @@ fun TextMoveRotateSizePanel(
             onChange = { onSizeChange(textBoxTToSp(it)) },
             onEnd = onSizeEnd
         )
-        val sizeMarks = listOf(0.25f, 0.5f, 1f, 2f, 4f)
-            .filter { f -> baseSp * f >= TEXT_BOX_MIN_SP - 0.01f && baseSp * f <= TEXT_BOX_MAX_SP + 0.01f }
-            .map { f -> textBoxSpToT(baseSp * f) to ((f * 100f).roundToInt().toString() + "%") }
-        SliderTicks(sizeMarks)
+        SliderTicks(
+            listOf(1, 25, 50, 75, 100).map { v -> sizeValueToT(v) to v.toString() }
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -587,9 +659,8 @@ fun TextMoveRotateSizePanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(stringResource(R.string.text_mrs_rotate), color = Color.DarkGray, fontSize = 11.sp)
-            val inputDesc = stringResource(R.string.text_mrs_rotate_input)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                BasicTextField(
+                SmallNumberBox(
                     value = rotText,
                     onValueChange = { raw ->
                         val f = filterDegInput(raw)
@@ -599,25 +670,15 @@ fun TextMoveRotateSizePanel(
                         } else {
                             val c = v.coerceIn(-180, 180)
                             rotText = if (c != v) c.toString() else f
-                            onRotate(c.toFloat())
+                            applyRot(c)
                         }
                     },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(onDone = {
+                    desc = stringResource(R.string.text_mrs_rotate_input),
+                    onImeDone = {
                         if (rotText.toIntOrNull() == null) rotText = rotInt.toString()
                         onRotateEnd()
                         focus.clearFocus()
-                    }),
-                    textStyle = TextStyle(color = Color.Black, fontSize = 12.sp, textAlign = TextAlign.Center),
-                    modifier = Modifier
-                        .width(52.dp)
-                        .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 4.dp, vertical = 3.dp)
-                        .semantics { contentDescription = inputDesc }
+                    }
                 )
                 Text("°", color = Color.DarkGray, fontSize = 11.sp)
             }
@@ -625,17 +686,15 @@ fun TextMoveRotateSizePanel(
         CompactSlider(
             value = rotInt.toFloat(),
             range = -180f..180f,
-            onChange = { onRotate(it.roundToInt().toFloat()) },
+            onChange = { applyRot(magnetRotation(it)) },
             onEnd = onRotateEnd
         )
         SliderTicks(
-            listOf(
-                0f to "-180",
-                0.25f to "-90",
-                0.5f to "0",
-                0.75f to "90",
-                1f to "180"
-            )
+            (-18..18).map { k ->
+                val deg = k * 10
+                val label = if (deg % 90 == 0) deg.toString() else ""
+                ((deg + 180) / 360f) to label
+            }
         )
         Spacer(modifier = Modifier.height(2.dp))
     }

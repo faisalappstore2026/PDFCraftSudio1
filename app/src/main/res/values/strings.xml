@@ -233,6 +233,7 @@
     <string name="text_mrs_size">Size</string>
     <string name="text_mrs_rotate">Rotate</string>
     <string name="text_mrs_rotate_input">Rotation in degrees</string>
+    <string name="text_mrs_size_input">Size from 1 to 100</string>
 
     <string name="text_tool_text_color">🎨 Text Color</string>
     <string name="text_tool_border_color">🔳 Border Color</string>

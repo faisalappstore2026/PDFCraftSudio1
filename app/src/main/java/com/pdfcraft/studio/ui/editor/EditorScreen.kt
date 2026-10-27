@@ -60,6 +60,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -2173,95 +2176,8 @@ Column(
                         .background(BrandPageSurface)
                         .padding(20.dp)
                 ) {
-                // Slider panels sit above the pages (pages shift down, not hidden).
+                // fix34: text slider panels are docked at the BOTTOM (below the pages).
                 val panelText = viewModel.activeTextElement()
-                if (textBorderSliderOpen && panelText != null && !toolMenuOpen) {
-                    TextBorderSliderPanel(
-                        widthDp = panelText.borderWidthDp,
-                        onWidthChange = { viewModel.updateTextBorderWidth(it) },
-                        onBack = {
-                            textBorderSliderOpen = false
-                            showTextBorderPicker = true
-                        },
-                        onDone = {
-                            viewModel.endCoalescedEdit()
-                            textBorderSliderOpen = false
-                        }
-                    )
-                }
-                if (textBgSliderOpen && panelText != null && !toolMenuOpen) {
-                    TextBgSliderPanel(
-                        cornerDp = panelText.bgCornerDp,
-                        alpha = panelText.bgAlpha,
-                        onCornerChange = { viewModel.updateTextBgStyle(cornerDp = it) },
-                        onAlphaChange = { viewModel.updateTextBgStyle(alpha = it) },
-                        padLeft = panelText.bgPadLeftDp,
-                        padRight = panelText.bgPadRightDp,
-                        padTop = panelText.bgPadTopDp,
-                        padBottom = panelText.bgPadBottomDp,
-                        onPadLeftChange = { viewModel.updateTextBgPadding(left = it) },
-                        onPadRightChange = { viewModel.updateTextBgPadding(right = it) },
-                        onPadTopChange = { viewModel.updateTextBgPadding(top = it) },
-                        onPadBottomChange = { viewModel.updateTextBgPadding(bottom = it) },
-                        onBack = {
-                            textBgSliderOpen = false
-                            showTextBgColorPicker = true
-                        },
-                        onDone = {
-                            viewModel.endCoalescedEdit()
-                            textBgSliderOpen = false
-                        }
-                    )
-                }
-                if (textSpreadSliderOpen && panelText != null && !toolMenuOpen) {
-                    TextSpreadSliderPanel(
-                        spreadDp = panelText.spreadDp,
-                        onSpreadChange = { viewModel.updateTextSpread(it) },
-                        onBack = {
-                            textSpreadSliderOpen = false
-                            showTextSpreadPicker = true
-                        },
-                        onDone = {
-                            viewModel.endCoalescedEdit()
-                            textSpreadSliderOpen = false
-                        }
-                    )
-                }
-                if (textBoxSizeOpen && panelText != null && !toolMenuOpen) {
-                    TextMoveRotateSizePanel(
-                        textId = panelText.id,
-                        sizeSp = if (panelText.userFontSp > 0.01f) panelText.userFontSp else panelText.fontSizeSp,
-                        rotationDeg = panelText.rotationDeg,
-                        onMove = { dx, dy -> viewModel.nudgeSelectedText(dx, dy) },
-                        onSizeChange = { viewModel.scaleSelectedTextBox(it) },
-                        onSizeEnd = { viewModel.endTextBoxScale() },
-                        onRotate = { viewModel.setTextRotation(panelText.id, it) },
-                        onRotateEnd = { viewModel.endCoalescedEdit() },
-                        onBack = {
-                            viewModel.endTextBoxScale()
-                            textBoxSizeOpen = false
-                            textMenuRequest++
-                        },
-                        onDone = {
-                            viewModel.endTextBoxScale()
-                            textBoxSizeOpen = false
-                        }
-                    )
-                }
-                if (textMoveOpen && panelText != null && !toolMenuOpen) {
-                    TextMovePanel(
-                        onMove = { dx, dy -> viewModel.nudgeSelectedText(dx, dy) },
-                        onBack = {
-                            viewModel.endCoalescedEdit()
-                            textMoveOpen = false
-                            textMenuRequest++
-                        },
-                        onDone = {
-                            viewModel.endCoalescedEdit()
-                            textMoveOpen = false
-                        }
-                    )
-                }
                 PdfPagesPreview(
                     images = viewModel.importedImages,
                     imagesPerRow = viewModel.imagesPerRow,
@@ -2525,8 +2441,111 @@ Column(
                     initialScrollOffset = if (restoreThisEditor) sessionSnap.editorOffset else 0,
                     onScrollChanged = { i, o -> SessionStore.setEditorScroll(sessionContext, i, o) },
 
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
                 )
+                // fix34: bottom dock for the text slider panels (pages shrink, never covered).
+                // Lifted above the keyboard when the Size / Rotate number box is typed in.
+                val textSliderPanelOpen = panelText != null && !toolMenuOpen && (
+                    textBorderSliderOpen || textBgSliderOpen || textSpreadSliderOpen ||
+                        textBoxSizeOpen || textMoveOpen
+                    )
+                if (textSliderPanelOpen) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))
+                ) {
+                    if (textBorderSliderOpen && panelText != null && !toolMenuOpen) {
+                        TextBorderSliderPanel(
+                            widthDp = panelText.borderWidthDp,
+                            onWidthChange = { viewModel.updateTextBorderWidth(it) },
+                            onBack = {
+                                textBorderSliderOpen = false
+                                showTextBorderPicker = true
+                            },
+                            onDone = {
+                                viewModel.endCoalescedEdit()
+                                textBorderSliderOpen = false
+                            }
+                        )
+                    }
+                    if (textBgSliderOpen && panelText != null && !toolMenuOpen) {
+                        TextBgSliderPanel(
+                            cornerDp = panelText.bgCornerDp,
+                            alpha = panelText.bgAlpha,
+                            onCornerChange = { viewModel.updateTextBgStyle(cornerDp = it) },
+                            onAlphaChange = { viewModel.updateTextBgStyle(alpha = it) },
+                            padLeft = panelText.bgPadLeftDp,
+                            padRight = panelText.bgPadRightDp,
+                            padTop = panelText.bgPadTopDp,
+                            padBottom = panelText.bgPadBottomDp,
+                            onPadLeftChange = { viewModel.updateTextBgPadding(left = it) },
+                            onPadRightChange = { viewModel.updateTextBgPadding(right = it) },
+                            onPadTopChange = { viewModel.updateTextBgPadding(top = it) },
+                            onPadBottomChange = { viewModel.updateTextBgPadding(bottom = it) },
+                            onBack = {
+                                textBgSliderOpen = false
+                                showTextBgColorPicker = true
+                            },
+                            onDone = {
+                                viewModel.endCoalescedEdit()
+                                textBgSliderOpen = false
+                            }
+                        )
+                    }
+                    if (textSpreadSliderOpen && panelText != null && !toolMenuOpen) {
+                        TextSpreadSliderPanel(
+                            spreadDp = panelText.spreadDp,
+                            onSpreadChange = { viewModel.updateTextSpread(it) },
+                            onBack = {
+                                textSpreadSliderOpen = false
+                                showTextSpreadPicker = true
+                            },
+                            onDone = {
+                                viewModel.endCoalescedEdit()
+                                textSpreadSliderOpen = false
+                            }
+                        )
+                    }
+                    if (textBoxSizeOpen && panelText != null && !toolMenuOpen) {
+                        TextMoveRotateSizePanel(
+                            textId = panelText.id,
+                            sizeSp = if (panelText.userFontSp > 0.01f) panelText.userFontSp else panelText.fontSizeSp,
+                            rotationDeg = panelText.rotationDeg,
+                            onMove = { dx, dy -> viewModel.nudgeSelectedText(dx, dy) },
+                            onSizeChange = { viewModel.scaleSelectedTextBox(it) },
+                            onSizeEnd = { viewModel.endTextBoxScale() },
+                            onRotate = { viewModel.setTextRotation(panelText.id, it) },
+                            onRotateEnd = { viewModel.endCoalescedEdit() },
+                            onBack = {
+                                viewModel.endTextBoxScale()
+                                textBoxSizeOpen = false
+                                textMenuRequest++
+                            },
+                            onDone = {
+                                viewModel.endTextBoxScale()
+                                textBoxSizeOpen = false
+                            }
+                        )
+                    }
+                    if (textMoveOpen && panelText != null && !toolMenuOpen) {
+                        TextMovePanel(
+                            onMove = { dx, dy -> viewModel.nudgeSelectedText(dx, dy) },
+                            onBack = {
+                                viewModel.endCoalescedEdit()
+                                textMoveOpen = false
+                                textMenuRequest++
+                            },
+                            onDone = {
+                                viewModel.endCoalescedEdit()
+                                textMoveOpen = false
+                            }
+                        )
+                    }
+                }
+                }
                 }
                 // (old overlay slider panels moved into the Column above)
                 if (toolMenuOpen) {
