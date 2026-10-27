@@ -15,8 +15,11 @@ import com.pdfcraft.studio.ui.theme.BrandRed
 import com.pdfcraft.studio.ui.theme.BrandRedDark
 
 /**
- * fix35: design preview system for the Page / Text / Image Tools dropdown lists.
- * Pick 1..10 from the editor overflow menu; the choice is saved in SharedPreferences.
+ * fix35/fix36: editor design system. Each MenuDesign is a full editor theme:
+ * dropdown lists, top bar, the Page / Image / Text Tools buttons and their row,
+ * the pages area and the on-screen page frame. PDF output is never affected.
+ * Menu Design = MENU_DESIGNS (30, in MenuDesignPresets.kt).
+ * Favorite Design = FAVORITE_DESIGNS (append a new entry to add Favorite 4, 5, ...).
  */
 enum class MenuDividerStyle { NONE, FULL, INSET }
 
@@ -54,70 +57,34 @@ data class MenuDesign(
     val headerOutline: Color? = null,
     val headerOutlineOpen: Color? = null,
     val headerCorner: Dp = 12.dp,
-    val headerWeight: FontWeight = FontWeight.SemiBold
+    val headerWeight: FontWeight = FontWeight.SemiBold,
+    // fix36: top bar (back / title / undo / redo / three dots)
+    val topBarBg: Color = Color.White,
+    val topBarBrush: Brush? = null,
+    val topBarFg: Color = Color(0xFF1F1F1F),
+    val badge: Color = Color(0xFF1976D2),
+    // fix36: row behind the Page / Image / Text Tools buttons
+    val toolbarBg: Color = Color.White,
+    val toolbarBrush: Brush? = null,
+    val toolbarDivider: Color = Color(0xFFEEEEEE),
+    // fix36: pages area and on-screen page frame (not the PDF)
+    val pagesBg: Color = Color(0xFFEDEDED),
+    val pagesBrush: Brush? = null,
+    val pageBorder: Color = Color(0x33000000),
+    val pageShadow: Dp = 2.dp,
+    val pageShadowColor: Color = Color.Black,
+    val pageLine: Color = Color(0xFF4A4A4A),
+    val glow: Color = Color(0xFF00D9FF),
+    val glow2: Color = Color(0xFF4285FF),
+    val pageLabel: Color = Color(0x99000000)
 )
 
-val MENU_DESIGNS: List<MenuDesign> = listOf(
-    // 1 Modern Clean (default)
-    MenuDesign(
-        name = "Modern Clean",
-        container = Color.White,
-        corner = 18.dp,
-        itemCorner = 10.dp,
-        itemMarginH = 6.dp,
-        itemMarginV = 1.dp,
-        itemPadH = 12.dp
-    ),
-    // 2 Brand Gradient
-    MenuDesign(
-        name = "Brand Gradient",
-        container = Color.White,
-        corner = 14.dp,
-        accentBar = true,
-        divider = MenuDividerStyle.INSET,
-        dividerColor = Color(0xFFF1E3E5),
-        headerBg = Color(0xFFFFF1F2),
-        headerFg = BrandRedDark,
-        headerBrushOpen = Brush.horizontalGradient(listOf(BrandRed, BrandRedDark)),
-        headerCorner = 14.dp
-    ),
-    // 3 Midnight Dark
-    MenuDesign(
-        name = "Midnight Dark",
-        container = Color(0xFF1E1F24),
-        corner = 16.dp,
-        text = Color(0xFFF2F2F5),
-        subText = Color(0xFF9A9CA6),
-        accent = Color(0xFFFF6B6B),
-        itemCorner = 10.dp,
-        itemMarginH = 6.dp,
-        itemMarginV = 1.dp,
-        itemPadH = 12.dp,
-        pressed = Color(0x33FFFFFF),
-        alignRowBg = Color(0xFFF2F2F5),
-        headerBg = Color(0xFF2A2B31),
-        headerFg = Color(0xFFF2F2F5),
-        headerBgOpen = Color(0xFF111216),
-        headerFgOpen = Color(0xFFFF6B6B),
-        headerOutlineOpen = Color(0xFFFF6B6B)
-    ),
-    // 4 Soft Cards
-    MenuDesign(
-        name = "Soft Cards",
-        container = Color(0xFFF1F2F6),
-        corner = 18.dp,
-        itemBg = Color.White,
-        itemCorner = 12.dp,
-        itemMarginH = 8.dp,
-        itemMarginV = 2.dp,
-        itemPadH = 12.dp,
-        itemPadV = 6.dp,
-        headerBg = Color.White,
-        headerOutline = Color(0xFFE3E4EA),
-        headerBgOpen = Color(0xFF2B2D42),
-        headerCorner = 16.dp
-    ),
-    // 5 Outlined
+/**
+ * fix36: favorites in order 1, 2, 3, ... To add the next favorite, append ONE
+ * entry at the end of this list, for example  MENU_DESIGNS[11],  (= Menu Design 12).
+ */
+val FAVORITE_DESIGNS: List<MenuDesign> = listOf(
+    // Favorite 1 (fix35 design 5)
     MenuDesign(
         name = "Outlined",
         container = Color.White,
@@ -135,40 +102,22 @@ val MENU_DESIGNS: List<MenuDesign> = listOf(
         headerBgOpen = Color.White,
         headerFgOpen = BrandRed,
         headerOutlineOpen = BrandRed,
-        headerCorner = 8.dp
+        headerCorner = 8.dp,
+        // fix36 full editor theme
+        topBarBg = Color.White,
+        topBarFg = Color(0xFF202124),
+        badge = BrandRed,
+        toolbarBg = Color.White,
+        toolbarDivider = Color(0xFFDADCE0),
+        pagesBg = Color(0xFFF1F3F4),
+        pageBorder = Color(0xFFDADCE0),
+        pageShadow = 1.dp,
+        pageLine = Color(0xFFBDC1C6),
+        glow = BrandRed,
+        glow2 = Color(0xFFFF8A80),
+        pageLabel = Color(0xFF5F6368)
     ),
-    // 6 Rose Pills
-    MenuDesign(
-        name = "Rose Pills",
-        container = Color(0xFFFFF4F5),
-        corner = 22.dp,
-        text = Color(0xFF3A1A1E),
-        itemBg = Color.White,
-        itemCorner = 50.dp,
-        itemMarginH = 8.dp,
-        itemMarginV = 2.dp,
-        itemPadH = 14.dp,
-        itemPadV = 6.dp,
-        pressed = Color(0x33E4293B),
-        headerBg = Color(0xFFFFF4F5),
-        headerFg = BrandRedDark,
-        headerOutline = Color(0xFFF7C9CE),
-        headerCorner = 50.dp
-    ),
-    // 7 Accent Lines
-    MenuDesign(
-        name = "Accent Lines",
-        container = Color.White,
-        corner = 12.dp,
-        accentBar = true,
-        divider = MenuDividerStyle.FULL,
-        dividerColor = Color(0xFFF0F0F0),
-        fontWeight = FontWeight.Normal,
-        headerBg = Color(0xFFF7F7F7),
-        headerBgOpen = Color(0xFF263238),
-        headerCorner = 6.dp
-    ),
-    // 8 Ocean Glass
+    // Favorite 2 (fix35 design 8)
     MenuDesign(
         name = "Ocean Glass",
         container = Color(0xFFF5F9FF),
@@ -185,9 +134,25 @@ val MENU_DESIGNS: List<MenuDesign> = listOf(
         headerBg = Color(0xFFEAF3FF),
         headerFg = Color(0xFF13294B),
         headerBrushOpen = Brush.horizontalGradient(listOf(Color(0xFF42A5F5), Color(0xFF1565C0))),
-        headerCorner = 14.dp
+        headerCorner = 14.dp,
+        // fix36 full editor theme
+        topBarBg = Color(0xFFEAF3FF),
+        topBarBrush = Brush.verticalGradient(listOf(Color(0xFFDCEBFF), Color(0xFFF5F9FF))),
+        topBarFg = Color(0xFF13294B),
+        badge = Color(0xFF1976D2),
+        toolbarBg = Color(0xFFF5F9FF),
+        toolbarDivider = Color(0xFFD6E6FB),
+        pagesBg = Color(0xFFE3EEFB),
+        pagesBrush = Brush.verticalGradient(listOf(Color(0xFFEAF3FF), Color(0xFFD3E5FA))),
+        pageBorder = Color(0xFFB3D1F5),
+        pageShadow = 4.dp,
+        pageShadowColor = Color(0xFF1976D2),
+        pageLine = Color(0xFF90B8E6),
+        glow = Color(0xFF42A5F5),
+        glow2 = Color(0xFF1565C0),
+        pageLabel = Color(0xFF3D5A80)
     ),
-    // 9 Warm Paper
+    // Favorite 3 (fix35 design 9)
     MenuDesign(
         name = "Warm Paper",
         container = Color(0xFFFFFBF2),
@@ -205,51 +170,68 @@ val MENU_DESIGNS: List<MenuDesign> = listOf(
         headerOutline = Color(0xFFEFE3CF),
         headerBgOpen = Color(0xFF3E2723),
         headerFgOpen = Color(0xFFFFF6E5),
-        headerCorner = 6.dp
+        headerCorner = 6.dp,
+        // fix36 full editor theme
+        topBarBg = Color(0xFFFFF6E5),
+        topBarFg = Color(0xFF3E2723),
+        badge = BrandRedDark,
+        toolbarBg = Color(0xFFFFFBF2),
+        toolbarDivider = Color(0xFFEFE3CF),
+        pagesBg = Color(0xFFF3E9D8),
+        pageBorder = Color(0xFFD9C7A8),
+        pageShadow = 3.dp,
+        pageShadowColor = Color(0xFF5D4037),
+        pageLine = Color(0xFF8D7B6E),
+        glow = BrandRedDark,
+        glow2 = Color(0xFFD84315),
+        pageLabel = Color(0xFF8D7B6E)
     ),
-    // 10 Ruby Night
-    MenuDesign(
-        name = "Ruby Night",
-        container = BrandRedDark,
-        containerBrush = Brush.verticalGradient(listOf(BrandRed, BrandRedDark)),
-        corner = 20.dp,
-        text = Color.White,
-        subText = Color(0xFFFFD6DA),
-        accent = Color.White,
-        itemCorner = 12.dp,
-        itemMarginH = 6.dp,
-        itemMarginV = 1.dp,
-        itemPadH = 12.dp,
-        pressed = Color(0x33FFFFFF),
-        divider = MenuDividerStyle.INSET,
-        dividerColor = Color(0x33FFFFFF),
-        alignRowBg = Color(0xFFFFF1F2),
-        headerBg = Color(0xFFFFF1F2),
-        headerFg = BrandRedDark,
-        headerBrushOpen = Brush.horizontalGradient(listOf(BrandRed, BrandRedDark)),
-        headerCorner = 20.dp
-    )
 )
 
+/** fix36: one active selection = kind (menu / favorite) + index. Default = Favorite 1. */
 object MenuDesignState {
-    private const val PREFS = "pdfcraft_menu_design"
-    private const val KEY = "design_index"
+    const val KIND_MENU = 0
+    const val KIND_FAVORITE = 1
+    // new prefs file: the old fix35 file (pdfcraft_menu_design / design_index) is ignored
+    private const val PREFS = "pdfcraft_editor_design"
+    private const val KEY_KIND = "kind"
+    private const val KEY_INDEX = "index"
+    var kind by mutableIntStateOf(KIND_FAVORITE)
+        private set
     var index by mutableIntStateOf(0)
         private set
     private var loaded = false
 
+    private fun listFor(k: Int): List<MenuDesign> =
+        if (k == KIND_MENU) MENU_DESIGNS else FAVORITE_DESIGNS
+
+    fun active(): MenuDesign {
+        val list = listFor(kind)
+        return if (index in list.indices) list[index] else FAVORITE_DESIGNS[0]
+    }
+
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
-        index = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getInt(KEY, 0).coerceIn(0, MENU_DESIGNS.size - 1)
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val k = p.getInt(KEY_KIND, KIND_FAVORITE)
+        val i = p.getInt(KEY_INDEX, 0)
+        if ((k == KIND_MENU || k == KIND_FAVORITE) && i in listFor(k).indices) {
+            kind = k
+            index = i
+        } else {
+            kind = KIND_FAVORITE
+            index = 0
+        }
     }
 
-    fun select(context: Context, i: Int) {
+    fun select(context: Context, k: Int, i: Int) {
+        if (k != KIND_MENU && k != KIND_FAVORITE) return
+        if (i !in listFor(k).indices) return
         loaded = true
-        index = i.coerceIn(0, MENU_DESIGNS.size - 1)
+        kind = k
+        index = i
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putInt(KEY, index).apply()
+            .edit().putInt(KEY_KIND, k).putInt(KEY_INDEX, i).apply()
     }
 }
-

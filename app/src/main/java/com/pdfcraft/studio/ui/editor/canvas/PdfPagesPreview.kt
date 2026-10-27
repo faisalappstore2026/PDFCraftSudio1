@@ -69,6 +69,7 @@ import androidx.compose.material.icons.filled.Close
 import com.pdfcraft.studio.ui.common.AppIcons
 import com.pdfcraft.studio.ui.editor.packEditorPages
 import com.pdfcraft.studio.ui.editor.packPageSource
+import com.pdfcraft.studio.ui.editor.currentMenuDesign
 import com.pdfcraft.studio.ui.common.DocumentScrollBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -383,7 +384,7 @@ fun PdfPagesPreview(
     editorZoomScale.value = scaleState.value
     // Always show at least one page so text can be added before any images.
     if (images.isEmpty() && minPageCount <= 1) {
-        BoxWithConstraints(modifier = modifier.fillMaxSize().background(Color(0xFFE8E8E8)).clipToBounds().then(pinchMod)) {
+        BoxWithConstraints(modifier = modifier.fillMaxSize().background(Color.Transparent).clipToBounds().then(pinchMod)) { // fix36
             LazyColumn(
                 state = pageListState,
                 userScrollEnabled = !pinching.value,
@@ -397,7 +398,7 @@ fun PdfPagesPreview(
                         Text(
                             text = stringResource(R.string.page_label, 1),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            color = currentMenuDesign().pageLabel, // fix36
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
                         PageCard(
@@ -461,7 +462,7 @@ fun PdfPagesPreview(
     val cellBounds = remember { mutableStateMapOf<String, Rect>() }
 
     BoxWithConstraints(
-        modifier = modifier.fillMaxSize().background(Color(0xFFE8E8E8)).clipToBounds().then(pinchMod)
+        modifier = modifier.fillMaxSize().background(Color.Transparent).clipToBounds().then(pinchMod) // fix36
     ) {
         val pageWidthDp = maxWidth.value
         val pageHeightDp = pageWidthDp / pageAspectRatio
@@ -519,7 +520,7 @@ fun PdfPagesPreview(
                             pageIndex + 1
                         ),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        color = currentMenuDesign().pageLabel, // fix36
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
 
@@ -3316,15 +3317,22 @@ private fun PageCard(
     content: @Composable () -> Unit
 ) {
     val energyPhase = rememberPageEnergyPhase()
+    val frame = currentMenuDesign() // fix36: on-screen page frame only (PDF output unchanged)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(aspectRatio)
-            .shadow(2.dp, RoundedCornerShape(0.dp))
-            .border(1.dp, Color(0x33000000))
+            .shadow(
+                frame.pageShadow,
+                RoundedCornerShape(0.dp),
+                clip = true,
+                ambientColor = frame.pageShadowColor,
+                spotColor = frame.pageShadowColor
+            )
+            .border(1.dp, frame.pageBorder)
             .drawWithContent {
                 drawContent()
-                drawPageEnergyBorder(energyPhase.floatValue)
+                drawPageEnergyBorder(energyPhase.floatValue, frame.pageLine, frame.glow, frame.glow2)
             }
             .then(
                 if (backgroundBrush != null) Modifier.background(backgroundBrush)
@@ -3568,12 +3576,17 @@ private fun rememberPageEnergyPhase(): androidx.compose.runtime.MutableFloatStat
     return phase
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPageEnergyBorder(phase: Float) {
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPageEnergyBorder(
+    phase: Float,
+    line: Color = Color(0xFF4A4A4A),
+    glow: Color = Color(0xFF00D9FF),
+    glow2: Color = Color(0xFF4285FF)
+) { // fix36: colors come from the active editor design
     val inset = 1.1f.dp.toPx()
     val outline = Path().apply {
         addRect(Rect(inset, inset, size.width - inset, size.height - inset))
     }
-    drawPath(outline, Color(0xFF4A4A4A), style = Stroke(width = 1.2f.dp.toPx()))
+    drawPath(outline, line, style = Stroke(width = 1.2f.dp.toPx()))
     val measure = PathMeasure().apply { setPath(outline, false) }
     val length = measure.length
     if (length <= 1f) return
@@ -3590,7 +3603,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPageEnergyBorde
         return out
     }
     val round = StrokeCap.Round
-    drawPath(piece(length * 0.18f), Color(0x3300D9FF), style = Stroke(width = 4.2f.dp.toPx(), cap = round))
-    drawPath(piece(length * 0.12f), Color(0xAA4285FF), style = Stroke(width = 1.8f.dp.toPx(), cap = round))
-    drawPath(piece(length * 0.045f), Color(0xFF00D9FF), style = Stroke(width = 2.dp.toPx(), cap = round))
+    drawPath(piece(length * 0.18f), glow.copy(alpha = 0.2f), style = Stroke(width = 4.2f.dp.toPx(), cap = round))
+    drawPath(piece(length * 0.12f), glow2.copy(alpha = 0.67f), style = Stroke(width = 1.8f.dp.toPx(), cap = round))
+    drawPath(piece(length * 0.045f), glow, style = Stroke(width = 2.dp.toPx(), cap = round))
 }

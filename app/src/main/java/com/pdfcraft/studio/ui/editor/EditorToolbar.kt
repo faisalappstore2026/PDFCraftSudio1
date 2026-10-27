@@ -389,6 +389,7 @@ fun EditorToolbar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .designBackground(currentMenuDesign().toolbarBg, currentMenuDesign().toolbarBrush) // fix36
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -500,7 +501,7 @@ fun EditorToolbar(
                 }
             }
         }
-        HorizontalDivider(color = Color(0xFFEEEEEE))
+        HorizontalDivider(color = currentMenuDesign().toolbarDivider) // fix36
     }
 
     if (showPageSizePicker) {

@@ -1,5 +1,8 @@
 package com.pdfcraft.studio.ui.editor
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,7 +11,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -16,41 +18,70 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.PopupProperties
-import com.pdfcraft.studio.R
-import com.pdfcraft.studio.ui.theme.BrandRed
+import androidx.core.view.WindowCompat
 
-/** fix35: UI pieces that draw the dropdown lists with the chosen MenuDesign. */
+/** fix35/fix36: UI pieces that draw the editor with the active design (menu or favorite). */
 @Composable
 internal fun currentMenuDesign(): MenuDesign {
     val ctx = LocalContext.current
     remember { MenuDesignState.ensureLoaded(ctx.applicationContext) }
-    return MENU_DESIGNS[MenuDesignState.index.coerceIn(0, MENU_DESIGNS.size - 1)]
+    return MenuDesignState.active()
+}
+
+/** fix36: solid color or gradient background, used for top bar / tools row / pages area. */
+internal fun Modifier.designBackground(color: Color, brush: Brush?): Modifier =
+    if (brush != null) this.background(brush) else this.background(color)
+
+private fun Context.findActivity(): Activity? {
+    var c: Context = this
+    while (c is ContextWrapper) {
+        if (c is Activity) return c
+        c = c.baseContext
+    }
+    return null
+}
+
+/** fix36: dark status bar icons on light top bars, light icons on dark top bars. */
+@Composable
+internal fun EditorStatusBarIcons(design: MenuDesign) {
+    val view = LocalView.current
+    val darkIcons = design.topBarFg.luminance() < 0.5f
+    DisposableEffect(view, darkIcons) {
+        val window = if (view.isInEditMode) null else view.context.findActivity()?.window
+        if (window != null) {
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkIcons
+        }
+        onDispose {
+            // the rest of the app uses light bars with dark icons (MainActivity)
+            if (window != null) {
+                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
+            }
+        }
+    }
 }
 
 internal fun MenuDesign.iconArgb(): Int = accent.toArgb()
@@ -191,78 +222,3 @@ internal fun MenuDesignHeader(text: String, expanded: Boolean, onClick: () -> Un
     }
 }
 
-/** Overflow menu chooser: 10 number chips, each tinted with its design colors. */
-@Composable
-fun MenuDesignPickerDialog(onDismiss: () -> Unit) {
-    val ctx = LocalContext.current
-    val current = currentMenuDesign()
-    val currentIndex = MenuDesignState.index
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(22.dp),
-            color = Color.White,
-            shadowElevation = 8.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = stringResource(R.string.menu_design_title),
-                    color = Color(0xFF1F1F1F),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.menu_design_hint),
-                    color = Color(0xFF757575),
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                for (row in 0 until 2) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        for (col in 0 until 5) {
-                            val i = row * 5 + col
-                            val design = MENU_DESIGNS[i]
-                            val selected = i == currentIndex
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(design.container, CircleShape)
-                                    .border(
-                                        if (selected) 2.5.dp else 1.dp,
-                                        if (selected) BrandRed else Color(0xFFDDDDDD),
-                                        CircleShape
-                                    )
-                                    .clickable {
-                                        MenuDesignState.select(ctx.applicationContext, i)
-                                        onDismiss()
-                                    }
-                            ) {
-                                Text(
-                                    text = (i + 1).toString(),
-                                    color = design.text,
-                                    fontSize = 15.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-                Text(
-                    text = stringResource(R.string.menu_design_current) + " " + (currentIndex + 1).toString() + " · " + current.name,
-                    color = Color(0xFF424242),
-                    fontSize = 12.sp
-                )
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.menu_design_close))
-                }
-            }
-        }
-    }
-}

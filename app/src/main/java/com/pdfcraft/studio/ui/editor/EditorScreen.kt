@@ -667,15 +667,18 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         )
     }
 
+    val editorDesign = currentMenuDesign() // fix36: active full editor design
+    EditorStatusBarIcons(editorDesign)
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = Modifier.designBackground(Color.Transparent, editorDesign.topBarBrush), // fix36
                 title = {
                     Text(
                         viewModel.currentProjectName
                             ?: stringResource(R.string.editor_title),
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.Black,
+                        color = editorDesign.topBarFg, // fix36
                         maxLines = 1
                     )
                 },
@@ -748,6 +751,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         }
                         var projectSaving by remember { mutableStateOf(false) }
                         var menuDesignPickerOpen by remember { mutableStateOf(false) } // fix35
+                        var favoriteDesignPickerOpen by remember { mutableStateOf(false) } // fix36
                         DropdownMenu(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false }
@@ -799,7 +803,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                     }
                                 }
                             )
-                            // fix35: preview the 10 designs of the Page / Text / Image Tools lists
+                            // fix36: 30 full editor designs
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.menu_design_option)) },
                                 onClick = {
@@ -807,9 +811,20 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                     menuDesignPickerOpen = true
                                 }
                             )
+                            // fix36: favorite designs 1, 2, 3, ...
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.favorite_design_option)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    favoriteDesignPickerOpen = true
+                                }
+                            )
                         }
                         if (menuDesignPickerOpen) {
                             MenuDesignPickerDialog(onDismiss = { menuDesignPickerOpen = false })
+                        }
+                        if (favoriteDesignPickerOpen) {
+                            FavoriteDesignPickerDialog(onDismiss = { favoriteDesignPickerOpen = false })
                         }
                     }
 
@@ -1016,8 +1031,12 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White
+                colors = TopAppBarDefaults.topAppBarColors( // fix36
+                    containerColor = if (editorDesign.topBarBrush != null) Color.Transparent else editorDesign.topBarBg,
+                    scrolledContainerColor = if (editorDesign.topBarBrush != null) Color.Transparent else editorDesign.topBarBg,
+                    navigationIconContentColor = editorDesign.topBarFg,
+                    titleContentColor = editorDesign.topBarFg,
+                    actionIconContentColor = editorDesign.topBarFg
                 )
             )
         },
@@ -2185,7 +2204,7 @@ Column(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(BrandPageSurface)
+                        .designBackground(editorDesign.pagesBg, editorDesign.pagesBrush) // fix36
                         .padding(20.dp)
                 ) {
                 // fix34: text slider panels are docked at the BOTTOM (below the pages).
@@ -3226,7 +3245,7 @@ private fun HistoryActionButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDesc,
-            tint = if (enabled) Color.Black else Color(0xFFBDBDBD),
+            tint = currentMenuDesign().topBarFg.let { if (enabled) it else it.copy(alpha = 0.35f) }, // fix36
             modifier = Modifier
                 .size(22.dp)
                 .pointerInput(enabled, count) {
@@ -3242,7 +3261,7 @@ private fun HistoryActionButton(
                     .align(Alignment.TopEnd)
                     .padding(top = 1.dp, end = 1.dp)
                     .size(18.dp)
-                    .background(Color(0xFF1976D2), CircleShape),
+                    .background(currentMenuDesign().badge, CircleShape), // fix36
                 contentAlignment = Alignment.Center
             ) {
                 Text(

@@ -252,7 +252,11 @@
     <string name="export_pdf">📥 Save PDF</string>
     <string name="menu_design_option">🎨 Menu Design</string>
     <string name="menu_design_title">Menu Design</string>
-    <string name="menu_design_hint">Tap a number to style the Page Tools, Text Tools and Image Tools lists</string>
+    <string name="menu_design_hint">Tap a number to restyle the whole editor: lists, top bar, tool buttons, pages area and page frame</string>
+    <string name="favorite_design_option">⭐ Favorite Design</string>
+    <string name="favorite_design_title">Favorite Design</string>
+    <string name="favorite_design_hint">Your favorite designs in order. Tap a number to apply it</string>
+    <string name="favorite_design_short">Favorite</string>
     <string name="menu_design_current">Current design:</string>
     <string name="menu_design_close">Close</string>
     <string name="export_pdf_dialog_title">Save PDF</string>
