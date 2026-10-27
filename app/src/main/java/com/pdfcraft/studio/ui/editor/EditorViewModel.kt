@@ -855,6 +855,51 @@ private fun beginCoalescedEdit(key: String = "edit") {
         }
     }
 
+    /**
+     * fix32: imported file identity per source photo: "name|bytes|width|height".
+     * Same key = same gallery photo, even when imported in separate steps.
+     */
+    private val bgPhotoKeys = ArrayList<Pair<java.lang.ref.WeakReference<Bitmap>, String>>()
+
+    private fun setPhotoKey(b: Bitmap, key: String) {
+        synchronized(bgPhotoKeys) {
+            bgPhotoKeys.removeAll { link ->
+                val k = link.first.get()
+                k == null || k === b
+            }
+            bgPhotoKeys.add(java.lang.ref.WeakReference(b) to key)
+        }
+    }
+
+    fun photoKeyOf(b: Bitmap): String? = synchronized(bgPhotoKeys) {
+        bgPhotoKeys.firstOrNull { it.first.get() === b }?.second
+    }
+
+    /** fix32: same instance, or both have a file key and the keys are equal (no key = identity only). */
+    private fun samePhoto(a: Bitmap, b: Bitmap): Boolean {
+        if (a === b) return true
+        val ka = photoKeyOf(a) ?: return false
+        val kb = photoKeyOf(b) ?: return false
+        return ka == kb
+    }
+
+    private fun readPhotoKey(uri: Uri, bmp: Bitmap): String? = runCatching {
+        val cr = getApplication<Application>().contentResolver
+        val cols = arrayOf(
+            android.provider.OpenableColumns.DISPLAY_NAME,
+            android.provider.OpenableColumns.SIZE
+        )
+        cr.query(uri, cols, null, null, null)?.use { c ->
+            if (!c.moveToFirst()) return@use null
+            val ni = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            val si = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
+            val name = if (ni >= 0 && !c.isNull(ni)) c.getString(ni) else null
+            val size = if (si >= 0 && !c.isNull(si)) c.getLong(si) else -1L
+            if (name.isNullOrBlank() || size <= 0L) null
+            else name + "|" + size + "|" + bmp.width + "|" + bmp.height
+        }
+    }.getOrNull()
+
     private fun bgPhotoOf(baked: Bitmap): Bitmap? = synchronized(bgPhotoLinks) {
         bgPhotoLinks.firstOrNull { it.first.get() === baked }?.second
     }
@@ -1256,6 +1301,7 @@ private fun beginCoalescedEdit(key: String = "edit") {
         synchronized(bgPhotoLinks) { bgPhotoLinks.clear() }
         data.pagePhotoSources.forEach { (k, s) ->
             pageBackgroundBitmapOverrides[k]?.let { b -> linkBgPhoto(b, s) }
+            data.pagePhotoKeys[k]?.let { key -> setPhotoKey(s, key) }
         }
         // fix31: re-bake on every page only for a whole-document photo (no per-page kinds);
         // per-page photos keep their own saved page images.
@@ -3801,7 +3847,7 @@ fun isSelectionStrike(): Boolean {
         for (idx in pages) {
             val s = photoSourceForPage(idx) ?: return null
             val c = common
-            if (c == null) common = s else if (c !== s) return null
+            if (c == null) common = s else if (!samePhoto(c, s)) return null
         }
         return common
     }
@@ -3854,6 +3900,8 @@ fun isSelectionStrike(): Boolean {
             val bmp = withContext(Dispatchers.IO) {
                 imageHandler.decode(uri, maxDimensionPx = 1600)
             } ?: return@launch
+            val key = withContext(Dispatchers.IO) { readPhotoKey(uri, bmp) }
+            if (key != null) setPhotoKey(bmp, key)
             onReady(bmp)
         }
     }

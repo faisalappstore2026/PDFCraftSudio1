@@ -96,6 +96,8 @@ object ProjectStore {
         val pageBackgroundPhoto: Bitmap? = null,
         /** fix31: page index -> its gallery photo (shared instance when pages share a photo). */
         val pagePhotoSources: Map<Int, Bitmap> = emptyMap(),
+        /** fix32: page index -> imported file key of its photo. */
+        val pagePhotoKeys: Map<Int, String> = emptyMap(),
         val pageBgBlur: Float = 0f,
         val pageBgImgOpacity: Float = 100f,
         val pageBgBrightness: Float = 0f,
@@ -266,13 +268,23 @@ object ProjectStore {
                 // fix31: each distinct page photo is stored once; pages point to their file.
                 val photoSrcFiles = JSONObject()
                 val photoSrcSaved = java.util.IdentityHashMap<Bitmap, String>()
+                val photoSrcKeys = JSONObject()
+                val photoFileByKey = HashMap<String, String>()
                 vm.pagePhotoSourcesForSave().forEach { (pageIndex, srcBmp) ->
+                    val pKey = vm.photoKeyOf(srcBmp)
+                    // fix32: same file key = same photo, stored once.
                     val f = photoSrcSaved[srcBmp]
+                        ?: pKey?.let { photoFileByKey[it] }
                         ?: putBitmap(zip, "backgrounds/psrc_${photoSrcSaved.size}.jpg", srcBmp)
-                            ?.also { photoSrcSaved[srcBmp] = it }
+                            ?.also {
+                                photoSrcSaved[srcBmp] = it
+                                if (pKey != null) photoFileByKey[pKey] = it
+                            }
                     if (f != null) photoSrcFiles.put(pageIndex.toString(), f)
+                    if (f != null && pKey != null) photoSrcKeys.put(pageIndex.toString(), pKey)
                 }
                 json.getJSONObject("page").put("photoSourceFiles", photoSrcFiles)
+                json.getJSONObject("page").put("photoSourceKeys", photoSrcKeys)
                 json.getJSONObject("page").put("rasterFiles", rasterFiles)
 
                 // Fonts used only on part of a text (font ranges) are bundled too.
@@ -702,6 +714,15 @@ object ProjectStore {
                         if (bmp != null) photoSrcByPage[idx] = bmp
                     }
                 }
+                val photoKeyByPage = mutableMapOf<Int, String>()
+                val photoKeyJson = page.optJSONObject("photoSourceKeys")
+                if (photoKeyJson != null) {
+                    photoKeyJson.keys().forEach { key ->
+                        val idx = key.toIntOrNull() ?: return@forEach
+                        val v = photoKeyJson.optString(key, "")
+                        if (v.isNotBlank()) photoKeyByPage[idx] = v
+                    }
+                }
                 val pdfRasters = mutableMapOf<Int, Bitmap>()
                 val rasterFiles = page.optJSONObject("rasterFiles")
                 if (rasterFiles != null) {
@@ -745,6 +766,7 @@ object ProjectStore {
                         pdfPageRasters = pdfRasters,
                         pageBackgroundPhoto = photoBmp,
                         pagePhotoSources = photoSrcByPage,
+                        pagePhotoKeys = photoKeyByPage,
                         pageBgBlur = page.optDouble("bgBlur", 0.0).toFloat(),
                         pageBgImgOpacity = page.optDouble("bgImgOpacity", 100.0).toFloat(),
                         pageBgBrightness = page.optDouble("bgBrightness", 0.0).toFloat(),
