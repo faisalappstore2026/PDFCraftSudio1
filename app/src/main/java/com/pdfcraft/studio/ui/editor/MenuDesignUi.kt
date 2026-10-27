@@ -72,12 +72,14 @@ internal fun EditorStatusBarIcons(design: MenuDesign) {
     val darkIcons = design.topBarFg.luminance() < 0.5f
     DisposableEffect(view, darkIcons) {
         val window = if (view.isInEditMode) null else view.context.findActivity()?.window
+        val myToken = com.pdfcraft.studio.ui.home.StatusBarIconsOwner.claim() // fix37
         if (window != null) {
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkIcons
         }
         onDispose {
-            // the rest of the app uses light bars with dark icons (MainActivity)
-            if (window != null) {
+            // the rest of the app uses light bars with dark icons (MainActivity);
+            // fix37: skip when a newer screen (Home) already set the icons
+            if (window != null && com.pdfcraft.studio.ui.home.StatusBarIconsOwner.isOwner(myToken)) {
                 WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
             }
         }

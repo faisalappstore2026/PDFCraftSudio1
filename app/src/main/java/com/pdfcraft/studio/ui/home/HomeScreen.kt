@@ -61,6 +61,23 @@ fun HomeScreen(
     var logoSize by remember {
         mutableStateOf(prefs.getFloat("size_dp", 108f))
     }
+    // fix37: Home designs 1..30 (null = original look below)
+    val homeDesign = currentHomeDesign()
+    if (homeDesign != null) {
+        HomeDesignedScreen(
+            design = homeDesign,
+            logoSize = logoSize,
+            onLogoSizeChange = { value ->
+                logoSize = value
+                prefs.edit().putFloat("size_dp", value).apply()
+            },
+            onCreatePdfClick = onCreatePdfClick,
+            onViewPdf = onViewPdf,
+            onMyProjectsClick = onMyProjectsClick,
+            onIconCenterClick = onIconCenterClick
+        )
+        return
+    }
     Scaffold(
         containerColor = Color.White
     ) { innerPadding ->
@@ -186,6 +203,11 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+            // fix37: draggable Home Design button
+            HomeDesignFloatingButton(
+                fabColor = com.pdfcraft.studio.ui.theme.BrandRed,
+                fabFg = Color.White
+            )
         }
     }
 }
