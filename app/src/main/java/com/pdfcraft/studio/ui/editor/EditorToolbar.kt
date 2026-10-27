@@ -636,29 +636,10 @@ private fun OrientationOptionRow(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Left: icon + label (with ratio in brackets)
-        Text(
-            text = icon + "  " + label,
-            color = Color.Black,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            softWrap = false
-        )
+    MenuItemFrame(onClick = onClick) { // fix35
+        MenuItemText(icon + "  " + label)
         Spacer(modifier = Modifier.weight(1f))
-        // Right: tick with a little space from the edge
-        Text(
-            text = if (selected) "✓" else "",
-            color = Color.Black,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(start = 12.dp)
-        )
+        MenuItemText(if (selected) "✓" else "", modifier = Modifier.padding(start = 12.dp))
     }
 }
 
@@ -726,34 +707,7 @@ private fun CategoryMenuLabel(
     expanded: Boolean,
     onClick: () -> Unit
 ) {
-    val bg = if (expanded) Color(0xFFE3F2FD) else Color(0xFFF7F7F7)
-    val border = if (expanded) Color(0xFF1976D2) else Color(0xFFE0E0E0)
-    val fg = if (expanded) Color(0xFF1976D2) else Color.Black
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(bg, RoundedCornerShape(10.dp))
-            .border(1.dp, border, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = text,
-            color = fg,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1
-        )
-        Text(
-            text = " ▾",
-            color = fg,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
+    MenuDesignHeader(text = text, expanded = expanded, onClick = onClick) // fix35
 }
 
 @Composable
@@ -762,31 +716,19 @@ private fun ToolMenuItem(
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
-    Text(
-        text = label,
-        color = Color.Black,
-        style = MaterialTheme.typography.bodyMedium,
-        maxLines = 1,
-        softWrap = false,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    )
-
+    // fix35: drawn with the chosen MenuDesign (compact, the full list fits without scroll).
+    MenuItemFrame(enabled = enabled, onClick = onClick) {
+        MenuItemText(label, enabled = enabled)
+    }
 }
 
 @Composable
 private fun BloggerToolRow(kind: String, label: String, onClick: () -> Unit) {
-    val iconColor = Color(0xFF5F7A86)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Canvas(modifier = Modifier.size(20.dp)) {
+    val menuDesign = currentMenuDesign() // fix35
+    val iconColor = menuDesign.accent
+    val iconArgb = menuDesign.iconArgb()
+    MenuItemFrame(onClick = onClick) {
+        Canvas(modifier = Modifier.size(17.dp)) {
             val w = size.width
             val h = size.height
             val stroke = (h * 0.08f).coerceAtLeast(1.6f)
@@ -803,7 +745,7 @@ private fun BloggerToolRow(kind: String, label: String, onClick: () -> Unit) {
                 }
                 "number" -> {
                     val paint = android.graphics.Paint().apply {
-                        color = android.graphics.Color.argb(255, 95, 122, 134)
+                        color = iconArgb
                         textSize = h * 0.34f
                         isAntiAlias = true
                         isFakeBoldText = true
@@ -824,7 +766,7 @@ private fun BloggerToolRow(kind: String, label: String, onClick: () -> Unit) {
                 }
                 "quote" -> {
                     val paint = android.graphics.Paint().apply {
-                        color = android.graphics.Color.argb(255, 95, 122, 134)
+                        color = iconArgb
                         textSize = h * 0.95f
                         isAntiAlias = true
                         isFakeBoldText = true
@@ -844,13 +786,7 @@ private fun BloggerToolRow(kind: String, label: String, onClick: () -> Unit) {
             }
         }
         Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = label,
-            color = Color.Black,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            softWrap = false
-        )
+        MenuItemText(label)
     }
 }
 
@@ -876,7 +812,7 @@ private fun ImageToolsMenu(
             onClick = onMenuExpand
         )
 
-        DropdownMenu(
+        DesignedDropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = onMenuDismiss,
             properties = PopupProperties(
@@ -889,37 +825,37 @@ private fun ImageToolsMenu(
                 onMenuDismiss()
                 onImportImagesClick()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.resize_images_tool)) {
                 onMenuDismiss()
                 onResizeImagesClick()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.image_spacing_tool)) {
                 onMenuDismiss()
                 onAdjustSpacingClick()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.image_shape_tool)) {
                 onMenuDismiss()
                 onAdjustImageShapeClick()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.round_corners_tool)) {
                 onMenuDismiss()
                 onAdjustCornersClick()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.image_numbering_tool)) {
                 onMenuDismiss()
                 onImageNumberingClick()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.image_drag_tool)) {
                 onMenuDismiss()
                 onDragImagesClick()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.image_delete_tool)) {
                 onMenuDismiss()
                 onDeleteImagesClick()
@@ -989,7 +925,7 @@ private fun PageToolsMenu(
             onClick = onMenuExpand
         )
 
-        DropdownMenu(
+        DesignedDropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = {
                 onMenuDismiss()
@@ -1003,52 +939,32 @@ private fun PageToolsMenu(
             )
         ) {
             // 1. Add New Page + live page count badge
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        onAddNewPage()
-                    }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.page_tool_add_new_page),
-                    color = Color.Black,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "($currentPageCount)",
-                    color = Color(0xFF757575),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1
-                )
+            MenuItemFrame(onClick = { onAddNewPage() }) { // fix35
+                MenuItemText(stringResource(R.string.page_tool_add_new_page), modifier = Modifier.weight(1f))
+                MenuItemText("(" + currentPageCount + ")", secondary = true)
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
 
             // 2. Duplicate Pages
             ToolMenuItem(stringResource(R.string.page_tool_duplicate_pages)) {
                 onMenuDismiss()
                 onDuplicatePages()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
 
             // 3. Arrange Pages
             ToolMenuItem(stringResource(R.string.page_tool_arrange_pages)) {
                 onMenuDismiss()
                 onArrangePages()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
 
             // 4. Page Size
             ToolMenuItem(stringResource(R.string.page_tool_set_page_size)) {
                 onMenuDismiss()
                 onSetPageSize()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
 
             // 5. Page Layout (orientation)
             ToolMenuItem(stringResource(R.string.page_tool_orientation) + " ›") {
@@ -1096,7 +1012,7 @@ private fun PageToolsMenu(
                     }
                 )
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
 
 
             // 7. Background
@@ -1106,7 +1022,7 @@ private fun PageToolsMenu(
                 orientationSub = false
                 onSetBackgroundColor()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
 
             // 8. Delete Page
             ToolMenuItem(stringResource(R.string.page_tool_delete_page)) {
@@ -1148,29 +1064,18 @@ private fun TextToolsMenu(
     var alignOpen by remember { mutableStateOf(false) }
     LaunchedEffect(menuExpanded) { if (!menuExpanded) alignOpen = false }
 
-    // fix33: the Text menu is much taller than Page/Image menus. When it does not fit
-    // below the button, the popup is pushed up to the screen top. Cap its height to the
-    // space below the button so it opens right under it (it scrolls inside).
-    val textMenuView = LocalView.current
-    val textMenuDensity = LocalDensity.current
-    var textMenuAnchorBottom by remember { mutableStateOf(0f) }
-    val textMenuMaxH = with(textMenuDensity) {
-        val frame = android.graphics.Rect()
-        textMenuView.getWindowVisibleDisplayFrame(frame)
-        val free = frame.height().toFloat() - textMenuAnchorBottom - 64.dp.toPx()
-        free.coerceAtLeast(180.dp.toPx()).toDp()
-    }
-    Box(modifier = Modifier.onGloballyPositioned { textMenuAnchorBottom = it.boundsInWindow().bottom }) {
+    // fix35: no height cap and no scroll; compact MenuDesign items keep the whole
+    // list right under the Text Tools button.
+    Box {
         CategoryMenuLabel(
             text = stringResource(R.string.text_tools_menu_entry),
             expanded = menuExpanded,
             onClick = onMenuExpand
         )
 
-        DropdownMenu(
+        DesignedDropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = onMenuDismiss,
-            modifier = Modifier.heightIn(max = textMenuMaxH),
             properties = PopupProperties(
                 focusable = false,
                 dismissOnClickOutside = false,
@@ -1183,56 +1088,56 @@ private fun TextToolsMenu(
                 onMenuDismiss()
                 onEnterTextClick()
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_font)) {
                 if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onFontClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_text_size)) {
                 if (!hasFocusedText) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onTextSizeClick() // fix33: Move+Rotate+Size panel
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_text_color)) {
                 if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onTextColorClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_border_color)) {
                 if (!hasSelectedText) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onTextBorderColorClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_spread_color)) {
                 if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onTextSpreadColorClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_bg_color)) {
                 if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onTextBgColorClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_shadow)) {
                 if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onTextShadowClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_align)) {
                 if (!hasFocusedText) onNeedHint(hintBox) else alignOpen = !alignOpen
             }
@@ -1240,7 +1145,8 @@ private fun TextToolsMenu(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .background(currentMenuDesign().alignRowBg, RoundedCornerShape(10.dp)), // fix35
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     listOf("LEFT", "CENTER", "RIGHT", "JUSTIFY").forEach { kind ->
@@ -1253,21 +1159,21 @@ private fun TextToolsMenu(
                     }
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_insert_link)) {
                 if (!hasSelectedText) onNeedHint(hintBox) else { // whole box or range
                     onMenuDismiss()
                     onInsertLinkClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_delete)) {
                 if (!hasFocusedText) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onDeleteTextClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             val hintSel = stringResource(R.string.text_hint_select_text_short)
             BloggerToolRow(kind = "bullet", label = stringResource(R.string.text_tool_bullet_list)) {
                 // Range selected: only that range; box only: whole box text.
@@ -1276,7 +1182,7 @@ private fun TextToolsMenu(
                     onBulletListClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             BloggerToolRow(kind = "number", label = stringResource(R.string.text_tool_numbered_list)) {
                 // Range selected: only that range; box only: whole box text.
                 if (!hasFocusedText && !hasTextRangeSelection) onNeedHint(hintBox) else {
@@ -1284,7 +1190,7 @@ private fun TextToolsMenu(
                     onNumberedListClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             BloggerToolRow(kind = "quote", label = stringResource(R.string.text_tool_quote)) {
                 // Range selected: only that range; box only: whole box text.
                 if (!hasFocusedText && !hasTextRangeSelection) onNeedHint(hintBox) else {
@@ -1292,7 +1198,7 @@ private fun TextToolsMenu(
                     onQuoteClick()
                 }
             }
-            HorizontalDivider(color = Color.LightGray)
+            MenuDesignDivider()
             BloggerToolRow(kind = "divider", label = stringResource(R.string.text_tool_divider)) {
                 // Range selected: only that range; box only: whole box text.
                 if (!hasFocusedText && !hasTextRangeSelection) onNeedHint(hintBox) else {

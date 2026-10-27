@@ -250,6 +250,11 @@
     <string name="shadow_color">Shadow Color</string>
 
     <string name="export_pdf">📥 Save PDF</string>
+    <string name="menu_design_option">🎨 Menu Design</string>
+    <string name="menu_design_title">Menu Design</string>
+    <string name="menu_design_hint">Tap a number to style the Page Tools, Text Tools and Image Tools lists</string>
+    <string name="menu_design_current">Current design:</string>
+    <string name="menu_design_close">Close</string>
     <string name="export_pdf_dialog_title">Save PDF</string>
     <string name="export_pdf_name_hint">Enter PDF name</string>
     <string name="export_pdf_default_name">Project.pdf</string>

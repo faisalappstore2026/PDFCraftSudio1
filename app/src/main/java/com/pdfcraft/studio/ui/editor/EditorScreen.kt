@@ -747,6 +747,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                             )
                         }
                         var projectSaving by remember { mutableStateOf(false) }
+                        var menuDesignPickerOpen by remember { mutableStateOf(false) } // fix35
                         DropdownMenu(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false }
@@ -798,6 +799,17 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                     }
                                 }
                             )
+                            // fix35: preview the 10 designs of the Page / Text / Image Tools lists
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_design_option)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    menuDesignPickerOpen = true
+                                }
+                            )
+                        }
+                        if (menuDesignPickerOpen) {
+                            MenuDesignPickerDialog(onDismiss = { menuDesignPickerOpen = false })
                         }
                     }
 
