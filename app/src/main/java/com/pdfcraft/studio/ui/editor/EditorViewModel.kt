@@ -838,6 +838,26 @@ private fun beginCoalescedEdit(key: String = "edit") {
     var pageBackgroundGradientDir: String by mutableStateOf("TTB")
     val pageBackgroundGradientDirOverrides = mutableStateMapOf<Int, String>()
     var pageBackgroundPhoto: Bitmap? by mutableStateOf(null)
+
+    /**
+     * fix31: baked page background image -> the gallery photo it was made from (identity).
+     * Keyed by the baked bitmap, so it follows pages through move / delete / duplicate / undo.
+     */
+    private val bgPhotoLinks = ArrayList<Pair<java.lang.ref.WeakReference<Bitmap>, Bitmap>>()
+
+    private fun linkBgPhoto(baked: Bitmap, src: Bitmap) {
+        synchronized(bgPhotoLinks) {
+            bgPhotoLinks.removeAll { link ->
+                val k = link.first.get()
+                k == null || k === baked
+            }
+            bgPhotoLinks.add(java.lang.ref.WeakReference(baked) to src)
+        }
+    }
+
+    private fun bgPhotoOf(baked: Bitmap): Bitmap? = synchronized(bgPhotoLinks) {
+        bgPhotoLinks.firstOrNull { it.first.get() === baked }?.second
+    }
     var pageBgBlur: Float by mutableStateOf(0f)
     var pageBgImgOpacity: Float by mutableStateOf(100f)
     var pageBgBrightness: Float by mutableStateOf(0f)
@@ -1233,7 +1253,13 @@ private fun beginCoalescedEdit(key: String = "edit") {
         numberingBgArgb = data.numberingBgArgb
         numberingFgArgb = data.numberingFgArgb
         numberingWeight = data.numberingWeight
-        if (pageBackgroundPhoto != null) {
+        synchronized(bgPhotoLinks) { bgPhotoLinks.clear() }
+        data.pagePhotoSources.forEach { (k, s) ->
+            pageBackgroundBitmapOverrides[k]?.let { b -> linkBgPhoto(b, s) }
+        }
+        // fix31: re-bake on every page only for a whole-document photo (no per-page kinds);
+        // per-page photos keep their own saved page images.
+        if (pageBackgroundPhoto != null && pageBackgroundKindOverrides.isEmpty()) {
             rebakePhotoOnPages(emptyList(), inspectBackground(0))
         }
         if (ProjectStore.isDraftFile(file)) {
@@ -3752,6 +3778,45 @@ fun isSelectionStrike(): Boolean {
         return pageBackgroundKindOverrides[pageIndex] ?: pageBackgroundKind
     }
 
+    /** fix31: the gallery photo behind this page background (null = no image background). */
+    fun photoSourceForPage(pageIndex: Int): Bitmap? {
+        if (resolvedKind(pageIndex) != PageBgKind.IMAGE.name) return null
+        val baked = backgroundBitmapForPage(pageIndex) ?: return null
+        if (baked.isRecycled) return null
+        val linked = bgPhotoOf(baked)
+        if (linked != null) return linked.takeIf { !it.isRecycled }
+        // Older projects (no saved source): the page image itself, never a PDF page.
+        if (pageIndex in pdfPageRasterIndices || pdfPageRasters.containsKey(pageIndex)) return null
+        return baked
+    }
+
+    /**
+     * fix31: photo for the Image tab. One page: its own photo. Several pages: only when
+     * every selected page has the same photo; otherwise null (only Choose from gallery).
+     */
+    fun pickerPhotoForSelection(): Bitmap? {
+        val pages = pageBgColorSelection.toList()
+        if (pages.isEmpty()) return pageBackgroundPhoto?.takeIf { !it.isRecycled }
+        var common: Bitmap? = null
+        for (idx in pages) {
+            val s = photoSourceForPage(idx) ?: return null
+            val c = common
+            if (c == null) common = s else if (c !== s) return null
+        }
+        return common
+    }
+
+    /** fix31: per-page source photos for saving (same photo = same instance). */
+    fun pagePhotoSourcesForSave(): Map<Int, Bitmap> {
+        val out = HashMap<Int, Bitmap>()
+        pageBackgroundBitmapOverrides.toMap().forEach { (k, b) ->
+            if (resolvedKind(k) != PageBgKind.IMAGE.name) return@forEach
+            val s = bgPhotoOf(b) ?: return@forEach
+            if (!s.isRecycled) out[k] = s
+        }
+        return out
+    }
+
     fun pickerBackgroundBitmap(pageIndex: Int): Bitmap? {
         val photo = pageBackgroundPhoto
         if (photo != null && !photo.isRecycled) return photo
@@ -3955,8 +4020,11 @@ fun isSelectionStrike(): Boolean {
                 pageBackgroundBitmap = processed
                 if (prevBmp !== processed) recycleOrphan(prevBmp)
             }
+            linkBgPhoto(processed, src)
             targets.forEach { idx ->
-                replaceOverride(idx, imageBgForPage(processed, idx))
+                val baked = imageBgForPage(processed, idx)
+                linkBgPhoto(baked, src)
+                replaceOverride(idx, baked)
             }
         }
     }

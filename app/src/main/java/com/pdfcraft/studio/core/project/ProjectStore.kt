@@ -94,6 +94,8 @@ object ProjectStore {
         val pageBackgroundGradientDirOverrides: Map<Int, String> = emptyMap(),
         val pdfPageRasters: Map<Int, Bitmap> = emptyMap(),
         val pageBackgroundPhoto: Bitmap? = null,
+        /** fix31: page index -> its gallery photo (shared instance when pages share a photo). */
+        val pagePhotoSources: Map<Int, Bitmap> = emptyMap(),
         val pageBgBlur: Float = 0f,
         val pageBgImgOpacity: Float = 100f,
         val pageBgBrightness: Float = 0f,
@@ -261,6 +263,16 @@ object ProjectStore {
                     "photoFile",
                     putBitmap(zip, "backgrounds/photo.jpg", vm.pageBackgroundPhoto)
                 )
+                // fix31: each distinct page photo is stored once; pages point to their file.
+                val photoSrcFiles = JSONObject()
+                val photoSrcSaved = java.util.IdentityHashMap<Bitmap, String>()
+                vm.pagePhotoSourcesForSave().forEach { (pageIndex, srcBmp) ->
+                    val f = photoSrcSaved[srcBmp]
+                        ?: putBitmap(zip, "backgrounds/psrc_${photoSrcSaved.size}.jpg", srcBmp)
+                            ?.also { photoSrcSaved[srcBmp] = it }
+                    if (f != null) photoSrcFiles.put(pageIndex.toString(), f)
+                }
+                json.getJSONObject("page").put("photoSourceFiles", photoSrcFiles)
                 json.getJSONObject("page").put("rasterFiles", rasterFiles)
 
                 // Fonts used only on part of a text (font ranges) are bundled too.
@@ -679,6 +691,17 @@ object ProjectStore {
                         if (bmp != null) bgOverrides[idx] = bmp
                     }
                 }
+                val photoSrcByPage = mutableMapOf<Int, Bitmap>()
+                val photoSrcFiles = page.optJSONObject("photoSourceFiles")
+                if (photoSrcFiles != null) {
+                    val decodedSrc = mutableMapOf<String, Bitmap>()
+                    photoSrcFiles.keys().forEach { key ->
+                        val idx = key.toIntOrNull() ?: return@forEach
+                        val rel = photoSrcFiles.optString(key)
+                        val bmp = decodedSrc[rel] ?: decodeZipBitmap(zip, rel)?.also { decodedSrc[rel] = it }
+                        if (bmp != null) photoSrcByPage[idx] = bmp
+                    }
+                }
                 val pdfRasters = mutableMapOf<Int, Bitmap>()
                 val rasterFiles = page.optJSONObject("rasterFiles")
                 if (rasterFiles != null) {
@@ -721,6 +744,7 @@ object ProjectStore {
                         pageBackgroundGradientDirOverrides = stringMapFromJson(page.optJSONObject("pageBackgroundGradientDirOverrides")),
                         pdfPageRasters = pdfRasters,
                         pageBackgroundPhoto = photoBmp,
+                        pagePhotoSources = photoSrcByPage,
                         pageBgBlur = page.optDouble("bgBlur", 0.0).toFloat(),
                         pageBgImgOpacity = page.optDouble("bgImgOpacity", 100.0).toFloat(),
                         pageBgBrightness = page.optDouble("bgBrightness", 0.0).toFloat(),

@@ -594,7 +594,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         val first = viewModel.pageBgColorSelection.firstOrNull() ?: 0
         PageBackgroundEditorDialog(
             initial = viewModel.inspectBackground(first),
-            initialBitmap = viewModel.pageBackgroundPhoto,
+            initialBitmap = viewModel.pickerPhotoForSelection(),
             pendingBitmap = pendingBgBitmap,
             previewPages = (0 until viewModel.documentPageCount().coerceAtLeast(1)).map { pi ->
                 TemplatePreviewPage(
