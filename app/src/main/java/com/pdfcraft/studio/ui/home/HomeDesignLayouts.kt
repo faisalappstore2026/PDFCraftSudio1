@@ -33,6 +33,11 @@ import androidx.compose.ui.unit.sp
 /** fix37: the 12 option arrangements (layout kinds) used by the 30 Home designs. */
 @Composable
 internal fun HomeOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize: Float) {
+    // fix38: circle family layouts (Home designs 1..30, HomeDesignCircles.kt)
+    if (d.layout.isCircleFamily()) {
+        HomeCircleOptions(d, entries, logoSize)
+        return
+    }
     val gap = d.spacing
     when (d.layout) {
         HomeLayout.LIST -> entries.forEachIndexed { i, e ->

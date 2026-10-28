@@ -128,7 +128,7 @@ internal fun HomeDesignedScreen(
                     HomeHeaderBlock(
                         d = d,
                         logoSize = logoSize,
-                        showLogo = d.layout != HomeLayout.ORBIT,
+                        showLogo = d.layout != HomeLayout.ORBIT && d.layout != HomeLayout.CIRCLE_ORBIT,
                         modifier = Modifier.padding(horizontal = if (edgeless) 24.dp else 0.dp)
                     )
                     HomeBody(d, entries, logoSize, onLogoSizeChange)
@@ -153,18 +153,8 @@ internal fun HomeLogo(d: HomeDesign, size: Dp) {
             .clip(shape)
             .background(if (d.logoFrame == HomeLogoFrame.PLAIN) Color.Transparent else d.logoBg)
     ) {
-        Image(
-            painter = painterResource(R.drawable.home_brand_icon),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    val shown = 1.5f * 0.67f
-                    scaleX = shown
-                    scaleY = shown
-                }
-        )
+        // fix38: new Circle.png icon with ICON_FIT (AppIconFit.kt)
+        AppCircleIconImage()
     }
 }
 

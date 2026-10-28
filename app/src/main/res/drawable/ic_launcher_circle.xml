@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- fix38 ICON_FIT offsetX=0.00 offsetY=0.00 scale=0.65 center (Circle.png 1078x1076) -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/app_circle_icon"
+    android:insetLeft="17.5000%"
+    android:insetTop="17.5603%"
+    android:insetRight="17.5000%"
+    android:insetBottom="17.5603%" />

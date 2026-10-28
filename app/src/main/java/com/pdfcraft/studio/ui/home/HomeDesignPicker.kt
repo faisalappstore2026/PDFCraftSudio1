@@ -111,12 +111,13 @@ internal fun HomeDesignFloatingButton(fabColor: Color, fabFg: Color) {
     }
 }
 
-/** fix37: Home Design picker, numbers 1..30 (5 per row) + Original. */
+/** fix37: Home Design picker, numbers 1..30 (5 per row) + Original. fix38: + Favorite Design row on top. */
 @Composable
 internal fun HomeDesignPickerDialog(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val active = HomeDesignState.design
     val originalWord = stringResource(R.string.home_design_original)
+    val favoriteWord = stringResource(R.string.favorite_design_short)
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(22.dp),
@@ -143,39 +144,60 @@ internal fun HomeDesignPickerDialog(onDismiss: () -> Unit) {
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(14.dp))
-                HOME_DESIGNS.chunked(5).forEachIndexed { row, rowDesigns ->
+                // fix38: Favorite Design (Favorite 1, 2, ...)
+                Text(
+                    text = stringResource(R.string.favorite_design_option),
+                    color = Color(0xFF1F1F1F),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                HOME_FAVORITE_DESIGNS.chunked(5).forEachIndexed { row, rowDesigns ->
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         rowDesigns.forEachIndexed { col, design ->
-                            val number = row * 5 + col + 1
-                            val selected = active == number
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .homeBackground(design.bg, design.bgBrush)
-                                    .border(
-                                        if (selected) 3.dp else 1.dp,
-                                        if (selected) Color(0xFF1F1F1F) else Color(0x33000000),
-                                        CircleShape
-                                    )
-                                    .clickable {
-                                        HomeDesignState.select(ctx.applicationContext, number)
-                                        onDismiss()
-                                    }
-                            ) {
-                                Text(
-                                    text = number.toString(),
-                                    color = design.title,
-                                    fontSize = 15.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            }
+                            val code = HomeDesignState.favoriteCode(row * 5 + col + 1)
+                            HomeDesignChip(
+                                design = design,
+                                label = "★" + (row * 5 + col + 1).toString(),
+                                selected = active == code,
+                                onClick = {
+                                    HomeDesignState.select(ctx.applicationContext, code)
+                                    onDismiss()
+                                }
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
-                val currentName = HomeDesignState.active()?.let { active.toString() + " · " + it.name } ?: originalWord
+                Box(
+                    modifier = Modifier
+                        .padding(vertical = 6.dp)
+                        .size(width = 220.dp, height = 1.dp)
+                        .background(Color(0x22000000))
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                HOME_DESIGNS.chunked(5).forEachIndexed { row, rowDesigns ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        rowDesigns.forEachIndexed { col, design ->
+                            val number = row * 5 + col + 1
+                            HomeDesignChip(
+                                design = design,
+                                label = number.toString(),
+                                selected = active == number,
+                                onClick = {
+                                    HomeDesignState.select(ctx.applicationContext, number)
+                                    onDismiss()
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                val favNumber = HomeDesignState.favoriteNumber(active)
+                val currentName = HomeDesignState.active()?.let {
+                    if (favNumber > 0) favoriteWord + " " + favNumber.toString() + " · " + it.name
+                    else active.toString() + " · " + it.name
+                } ?: originalWord
                 Text(
                     text = stringResource(R.string.menu_design_current) + " " + currentName,
                     color = Color(0xFF424242),
@@ -195,6 +217,31 @@ internal fun HomeDesignPickerDialog(onDismiss: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** fix38: one round design button in the picker (preview colors of the design). */
+@Composable
+private fun HomeDesignChip(design: HomeDesign, label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .homeBackground(design.bg, design.bgBrush)
+            .border(
+                if (selected) 3.dp else 1.dp,
+                if (selected) Color(0xFF1F1F1F) else Color(0x33000000),
+                CircleShape
+            )
+            .clickable(onClick = onClick)
+    ) {
+        Text(
+            text = label,
+            color = design.title,
+            fontSize = if (label.length > 2) 13.sp else 15.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
 

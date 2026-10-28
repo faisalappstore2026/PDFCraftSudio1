@@ -101,18 +101,8 @@ fun HomeScreen(
                         .background(Color.White),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.home_brand_icon),
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                val shown = 1.5f * 0.67f
-                                scaleX = shown
-                                scaleY = shown
-                            }
-                    )
+                    // fix38: new Circle.png icon with ICON_FIT (AppIconFit.kt)
+                    AppCircleIconImage()
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))

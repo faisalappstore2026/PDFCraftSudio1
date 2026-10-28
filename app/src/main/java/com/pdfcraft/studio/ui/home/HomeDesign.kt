@@ -13,11 +13,20 @@ import com.pdfcraft.studio.ui.theme.BrandRed
 
 /**
  * fix37: Home screen design system. Design 0 = the original Home look.
- * Designs 1..30 = HOME_DESIGNS (HomeDesignPresets.kt + HomeDesignPresets2.kt).
+ * fix38: designs 1..30 = HOME_DESIGNS (HomeDesignPresets.kt + HomeDesignPresets2.kt), all made
+ * from the Candy Circles reference (circle family layouts). Favorites = HOME_FAVORITE_DESIGNS.
  * Every design shows the same 4 options (Create PDF, View PDF, My Projects, Icon Center)
  * plus the logo size slider; only look and arrangement change.
  */
-enum class HomeLayout { LIST, GRID2, HERO, ROWS, SHEET, CIRCLES, DOCK, BENTO, ZIGZAG, TIMELINE, CHIPS, ORBIT }
+enum class HomeLayout {
+    LIST, GRID2, HERO, ROWS, SHEET, CIRCLES, DOCK, BENTO, ZIGZAG, TIMELINE, CHIPS, ORBIT,
+    // fix38: circle family (HomeDesignCircles.kt)
+    CIRCLE_GRID, CIRCLE_ROW, CIRCLE_LIST, CIRCLE_DIAMOND, CIRCLE_STAGGER,
+    CIRCLE_HERO, CIRCLE_ORBIT, CIRCLE_BUBBLES, CIRCLE_PANEL, CIRCLE_DOCK
+}
+
+/** fix38: how one option circle is painted. */
+enum class HomeCircleStyle { FILLED, RING, HALO, SOFT }
 
 /** Logo + title + tagline: centered column, left aligned column, or one compact row. */
 enum class HomeHeader { CENTER, LEFT, BAR }
@@ -68,7 +77,12 @@ data class HomeDesign(
     val fab: Color = BrandRed,
     val fabFg: Color = Color.White,
     val spacing: Dp = 14.dp,
-    val showSub: Boolean = true
+    val showSub: Boolean = true,
+    // fix38: circle family
+    val circle: Dp = 88.dp,
+    val circleStyle: HomeCircleStyle = HomeCircleStyle.FILLED,
+    /** label color under the circles (null = title color) */
+    val label: Color? = null
 )
 
 val HOME_DESIGNS: List<HomeDesign> by lazy { HOME_DESIGNS_1 + HOME_DESIGNS_2 }
@@ -79,12 +93,19 @@ internal fun HomeDesign.cardColorFor(i: Int): Color? =
 internal fun HomeDesign.badgeColorFor(i: Int): Color =
     if (!colorCards && itemColors.isNotEmpty()) itemColors[i % itemColors.size] else iconBg
 
-/** fix37: chosen Home design (0 = original) and the floating button position. */
+/**
+ * fix37: chosen Home design and the floating button position.
+ * fix38: saved code 0 = original, 1..30 = numbered design, FAVORITE_BASE + n = Favorite n.
+ * Saved under a new key, so a fix37 number never opens a different new design
+ * (old design 5 = Candy Circles becomes Favorite 1, other old numbers fall back to Original).
+ */
 object HomeDesignState {
     private const val PREFS = "pdfcraft_home_design"
-    private const val KEY_DESIGN = "design"
+    private const val KEY_OLD_DESIGN = "design"
+    private const val KEY_DESIGN = "design_v2"
     private const val KEY_FAB_X = "fab_x"
     private const val KEY_FAB_Y = "fab_y"
+    const val FAVORITE_BASE = 1000
     var design by mutableIntStateOf(0)
         private set
     /** 0..1 of the free width / height, so the button always stays on screen. */
@@ -94,25 +115,49 @@ object HomeDesignState {
         private set
     private var loaded = false
 
+    fun favoriteCode(n: Int): Int = FAVORITE_BASE + n
+
+    /** Favorite number (1, 2, ...) of a saved code, or 0 when it is not a favorite. */
+    fun favoriteNumber(code: Int): Int {
+        val n = code - FAVORITE_BASE
+        return if (n in 1..HOME_FAVORITE_DESIGNS.size) n else 0
+    }
+
+    fun isValid(code: Int): Boolean =
+        code == 0 || code in 1..HOME_DESIGNS.size || favoriteNumber(code) > 0
+
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val d = p.getInt(KEY_DESIGN, 0)
-        design = if (d in 0..HOME_DESIGNS.size) d else 0
+        val saved = try {
+            if (p.contains(KEY_DESIGN)) p.getInt(KEY_DESIGN, 0)
+            else if (p.getInt(KEY_OLD_DESIGN, 0) == 5) favoriteCode(1)
+            else 0
+        } catch (e: ClassCastException) {
+            0
+        }
+        design = if (isValid(saved)) saved else 0
         fabX = p.getFloat(KEY_FAB_X, 1f).coerceIn(0f, 1f)
         fabY = p.getFloat(KEY_FAB_Y, 0.62f).coerceIn(0f, 1f)
     }
 
-    fun active(): HomeDesign? =
-        if (design in 1..HOME_DESIGNS.size) HOME_DESIGNS[design - 1] else null
+    fun active(): HomeDesign? {
+        val code = design
+        val fav = favoriteNumber(code)
+        return when {
+            code in 1..HOME_DESIGNS.size -> HOME_DESIGNS[code - 1]
+            fav > 0 -> HOME_FAVORITE_DESIGNS[fav - 1]
+            else -> null
+        }
+    }
 
-    fun select(context: Context, number: Int) {
-        if (number !in 0..HOME_DESIGNS.size) return
+    fun select(context: Context, code: Int) {
+        if (!isValid(code)) return
         loaded = true
-        design = number
+        design = code
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putInt(KEY_DESIGN, number).apply()
+            .edit().putInt(KEY_DESIGN, code).apply()
     }
 
     fun moveFab(x: Float, y: Float) {
