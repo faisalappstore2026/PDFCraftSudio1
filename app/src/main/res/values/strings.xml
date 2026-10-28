@@ -252,13 +252,14 @@
     <string name="export_pdf">📥 Save PDF</string>
     <string name="menu_design_option">🎨 Menu Design</string>
     <string name="menu_design_title">Menu Design</string>
-    <string name="menu_design_hint">Tap a number to restyle the whole editor: lists, top bar, tool buttons, pages area and page frame</string>
+    <string name="menu_design_hint">Tap a number to restyle only the dropdown lists: Page Tools, Image Tools, Text Tools and the ⋮ menu</string>
     <string name="favorite_design_option">⭐ Favorite Design</string>
     <string name="favorite_design_title">Favorite Design</string>
     <string name="favorite_design_hint">Your favorite designs in order. Tap a number to apply it</string>
     <string name="favorite_design_short">Favorite</string>
     <string name="menu_design_current">Current design:</string>
     <string name="menu_design_close">Close</string>
+    <string name="menu_design_default">Default</string>
     <string name="export_pdf_dialog_title">Save PDF</string>
     <string name="export_pdf_name_hint">Enter PDF name</string>
     <string name="export_pdf_default_name">Project.pdf</string>
@@ -464,7 +465,7 @@
     <string name="icon_size">Icon size</string>
     <string name="home_design_title">Home Design</string>
     <string name="home_design_hint">Tap a number to change the whole Home screen: colors, cards and layout</string>
-    <string name="home_design_original">Original</string>
+    <string name="home_design_original">Default</string>
     <string name="home_sub_create">Start a new PDF document</string>
     <string name="home_sub_view">Open and read your PDFs</string>
     <string name="home_sub_projects">Continue your saved work</string>

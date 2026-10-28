@@ -12,9 +12,10 @@ import androidx.compose.ui.unit.dp
 import com.pdfcraft.studio.ui.theme.BrandRed
 
 /**
- * fix37: Home screen design system. Design 0 = the original Home look.
- * fix38: designs 1..30 = HOME_DESIGNS (HomeDesignPresets.kt + HomeDesignPresets2.kt), all made
- * from the Candy Circles reference (circle family layouts). Favorites = HOME_FAVORITE_DESIGNS.
+ * fix37: Home screen design system.
+ * fix40: code 0 = HOME_DEFAULT_DESIGN (old fix38 design 12 "Rainbow List", HomeDesignFavorites.kt).
+ * Designs 1..30 = HOME_DESIGNS (HomeDesignPresets.kt + HomeDesignPresets2.kt), futuristic / tech looks.
+ * Favorites = HOME_FAVORITE_DESIGNS (full copies, so they never change when 1..30 change).
  * Every design shows the same 4 options (Create PDF, View PDF, My Projects, Icon Center)
  * plus the logo size slider; only look and arrangement change.
  */
@@ -25,8 +26,11 @@ enum class HomeLayout {
     CIRCLE_HERO, CIRCLE_ORBIT, CIRCLE_BUBBLES, CIRCLE_PANEL, CIRCLE_DOCK
 }
 
-/** fix38: how one option circle is painted. */
-enum class HomeCircleStyle { FILLED, RING, HALO, SOFT }
+/** fix38: how one option circle is painted. fix40: + NEON (glow ring) and GLASS (frosted). */
+enum class HomeCircleStyle { FILLED, RING, HALO, SOFT, NEON, GLASS }
+
+/** fix40: tech pattern drawn over the screen background (HomeDesignTech.kt). */
+enum class HomeBgPattern { NONE, GRID, DOTS, SCANLINES, RADAR, CIRCUIT }
 
 /** Logo + title + tagline: centered column, left aligned column, or one compact row. */
 enum class HomeHeader { CENTER, LEFT, BAR }
@@ -82,7 +86,11 @@ data class HomeDesign(
     val circle: Dp = 88.dp,
     val circleStyle: HomeCircleStyle = HomeCircleStyle.FILLED,
     /** label color under the circles (null = title color) */
-    val label: Color? = null
+    val label: Color? = null,
+    // fix40: futuristic background pattern (NONE = plain background, like before)
+    val pattern: HomeBgPattern = HomeBgPattern.NONE,
+    val patternColor: Color = Color(0x22FFFFFF),
+    val patternStep: Dp = 28.dp
 )
 
 val HOME_DESIGNS: List<HomeDesign> by lazy { HOME_DESIGNS_1 + HOME_DESIGNS_2 }
@@ -95,14 +103,16 @@ internal fun HomeDesign.badgeColorFor(i: Int): Color =
 
 /**
  * fix37: chosen Home design and the floating button position.
- * fix38: saved code 0 = original, 1..30 = numbered design, FAVORITE_BASE + n = Favorite n.
- * Saved under a new key, so a fix37 number never opens a different new design
- * (old design 5 = Candy Circles becomes Favorite 1, other old numbers fall back to Original).
+ * Saved code 0 = default design, 1..30 = numbered design, FAVORITE_BASE + n = Favorite n.
+ * fix40: new key design_v3, because numbers 1..30 are new designs now. A fix38 save is
+ * moved once: favorites stay, old 12 = the new default, old 11 / 21 / 22 / 28 / 30 = the
+ * favorites made from them, every other old number falls back to the default.
  */
 object HomeDesignState {
     private const val PREFS = "pdfcraft_home_design"
     private const val KEY_OLD_DESIGN = "design"
-    private const val KEY_DESIGN = "design_v2"
+    private const val KEY_V2_DESIGN = "design_v2"
+    private const val KEY_DESIGN = "design_v3"
     private const val KEY_FAB_X = "fab_x"
     private const val KEY_FAB_Y = "fab_y"
     const val FAVORITE_BASE = 1000
@@ -126,29 +136,52 @@ object HomeDesignState {
     fun isValid(code: Int): Boolean =
         code == 0 || code in 1..HOME_DESIGNS.size || favoriteNumber(code) > 0
 
+    /** fix40: fix38 code -> fix40 code (see the class comment). */
+    private fun fromV2(code: Int): Int = when (code) {
+        12 -> 0
+        11 -> favoriteCode(2)
+        21 -> favoriteCode(4)
+        22 -> favoriteCode(5)
+        28 -> favoriteCode(6)
+        30 -> favoriteCode(7)
+        else -> if (code > FAVORITE_BASE) code else 0
+    }
+
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        var migrated = false
         val saved = try {
-            if (p.contains(KEY_DESIGN)) p.getInt(KEY_DESIGN, 0)
-            else if (p.getInt(KEY_OLD_DESIGN, 0) == 5) favoriteCode(1)
-            else 0
+            when {
+                p.contains(KEY_DESIGN) -> p.getInt(KEY_DESIGN, 0)
+                p.contains(KEY_V2_DESIGN) -> {
+                    migrated = true
+                    fromV2(p.getInt(KEY_V2_DESIGN, 0))
+                }
+                p.getInt(KEY_OLD_DESIGN, 0) == 5 -> {
+                    migrated = true
+                    favoriteCode(1)
+                }
+                else -> 0
+            }
         } catch (e: ClassCastException) {
             0
         }
         design = if (isValid(saved)) saved else 0
+        if (migrated) p.edit().putInt(KEY_DESIGN, design).apply()
         fabX = p.getFloat(KEY_FAB_X, 1f).coerceIn(0f, 1f)
         fabY = p.getFloat(KEY_FAB_Y, 0.62f).coerceIn(0f, 1f)
     }
 
-    fun active(): HomeDesign? {
+    /** fix40: never null, code 0 = HOME_DEFAULT_DESIGN. */
+    fun active(): HomeDesign {
         val code = design
         val fav = favoriteNumber(code)
         return when {
             code in 1..HOME_DESIGNS.size -> HOME_DESIGNS[code - 1]
             fav > 0 -> HOME_FAVORITE_DESIGNS[fav - 1]
-            else -> null
+            else -> HOME_DEFAULT_DESIGN
         }
     }
 

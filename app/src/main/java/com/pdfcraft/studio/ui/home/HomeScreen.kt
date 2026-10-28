@@ -190,6 +190,7 @@ fun HomeScreen(
                         prefs.edit().putFloat("size_dp", value).apply()
                     },
                     valueRange = 64f..200f,
+                    steps = HOME_ICON_SIZE_STEPS, // fix40: points while sliding
                     modifier = Modifier.fillMaxWidth()
                 )
             }

@@ -12,14 +12,15 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pdfcraft.studio.ui.theme.BrandRed
-import com.pdfcraft.studio.ui.theme.BrandRedDark
 
 /**
  * fix35/fix36: editor design system. Each MenuDesign is a full editor theme:
  * dropdown lists, top bar, the Page / Image / Text Tools buttons and their row,
  * the pages area and the on-screen page frame. PDF output is never affected.
- * Menu Design = MENU_DESIGNS (30, in MenuDesignPresets.kt).
- * Favorite Design = FAVORITE_DESIGNS (append a new entry to add Favorite 4, 5, ...).
+ * fix40: the window design comes from Favorite Design only (FAVORITE_DESIGNS,
+ * default = Favorite 2 = old Menu Design 25 "Slate Blue"). Menu Design now picks
+ * one of 30 DropdownDesign looks (MenuDesignPresets2.kt) that restyle ONLY the
+ * dropdown lists: Page Tools, Image Tools, Text Tools and the three dots menu.
  */
 enum class MenuDividerStyle { NONE, FULL, INSET }
 
@@ -79,9 +80,66 @@ data class MenuDesign(
     val pageLabel: Color = Color(0x99000000)
 )
 
+/** fix40: look of the dropdown lists only (Page / Image / Text Tools and the three dots menu). */
+data class DropdownDesign(
+    val name: String,
+    val container: Color,
+    val containerBrush: Brush? = null,
+    val corner: Dp = 16.dp,
+    val outline: Color? = null,
+    val outlineWidth: Dp = 1.dp,
+    val text: Color = Color(0xFF1F1F1F),
+    val subText: Color = Color(0xFF8A8A8A),
+    val accent: Color = BrandRed,
+    val itemBg: Color = Color.Transparent,
+    val itemBrush: Brush? = null,
+    val itemCorner: Dp = 0.dp,
+    val itemOutline: Color? = null,
+    val itemMarginH: Dp = 0.dp,
+    val itemMarginV: Dp = 0.dp,
+    val itemPadH: Dp = 16.dp,
+    val itemPadV: Dp = 7.dp,
+    val pressed: Color = Color(0x1AE4293B),
+    val accentBar: Boolean = false,
+    val divider: MenuDividerStyle = MenuDividerStyle.NONE,
+    val dividerColor: Color = Color(0xFFEEEEEE),
+    val fontSize: TextUnit = 13.sp,
+    val fontWeight: FontWeight = FontWeight.Medium,
+    val letterSpacing: TextUnit = TextUnit.Unspecified,
+    val alignRowBg: Color = Color.Transparent
+)
+
+/** fix40: the dropdown look a window design already has (Menu Design = Default). */
+fun MenuDesign.dropdownLook(): DropdownDesign = DropdownDesign(
+    name = name,
+    container = container,
+    containerBrush = containerBrush,
+    corner = corner,
+    outline = outline,
+    text = text,
+    subText = subText,
+    accent = accent,
+    itemBg = itemBg,
+    itemCorner = itemCorner,
+    itemOutline = itemOutline,
+    itemMarginH = itemMarginH,
+    itemMarginV = itemMarginV,
+    itemPadH = itemPadH,
+    itemPadV = itemPadV,
+    pressed = pressed,
+    accentBar = accentBar,
+    divider = divider,
+    dividerColor = dividerColor,
+    fontSize = fontSize,
+    fontWeight = fontWeight,
+    alignRowBg = alignRowBg
+)
+
 /**
- * fix36: favorites in order 1, 2, 3, ... To add the next favorite, append ONE
- * entry at the end of this list, for example  MENU_DESIGNS[11],  (= Menu Design 12).
+ * fix36: favorites in order 1, 2, 3, ... To add the next favorite, append ONE full
+ * MenuDesign entry at the end of this list.
+ * fix40: old Favorites 2 (Ocean Glass) and 3 (Warm Paper) removed,
+ * Favorite 2 = DEFAULT_EDITOR_DESIGN (old Menu Design 25, MenuDesignPresets.kt).
  */
 val FAVORITE_DESIGNS: List<MenuDesign> = listOf(
     // Favorite 1 (fix35 design 5)
@@ -117,121 +175,78 @@ val FAVORITE_DESIGNS: List<MenuDesign> = listOf(
         glow2 = Color(0xFFFF8A80),
         pageLabel = Color(0xFF5F6368)
     ),
-    // Favorite 2 (fix35 design 8)
-    MenuDesign(
-        name = "Ocean Glass",
-        container = Color(0xFFF5F9FF),
-        containerBrush = Brush.verticalGradient(listOf(Color(0xFFEAF3FF), Color(0xFFFFFFFF))),
-        corner = 18.dp,
-        outline = Color(0xFFD6E6FB),
-        text = Color(0xFF13294B),
-        accent = Color(0xFF1976D2),
-        itemCorner = 10.dp,
-        itemMarginH = 6.dp,
-        itemMarginV = 1.dp,
-        itemPadH = 12.dp,
-        pressed = Color(0x261976D2),
-        headerBg = Color(0xFFEAF3FF),
-        headerFg = Color(0xFF13294B),
-        headerBrushOpen = Brush.horizontalGradient(listOf(Color(0xFF42A5F5), Color(0xFF1565C0))),
-        headerCorner = 14.dp,
-        // fix36 full editor theme
-        topBarBg = Color(0xFFEAF3FF),
-        topBarBrush = Brush.verticalGradient(listOf(Color(0xFFDCEBFF), Color(0xFFF5F9FF))),
-        topBarFg = Color(0xFF13294B),
-        badge = Color(0xFF1976D2),
-        toolbarBg = Color(0xFFF5F9FF),
-        toolbarDivider = Color(0xFFD6E6FB),
-        pagesBg = Color(0xFFE3EEFB),
-        pagesBrush = Brush.verticalGradient(listOf(Color(0xFFEAF3FF), Color(0xFFD3E5FA))),
-        pageBorder = Color(0xFFB3D1F5),
-        pageShadow = 4.dp,
-        pageShadowColor = Color(0xFF1976D2),
-        pageLine = Color(0xFF90B8E6),
-        glow = Color(0xFF42A5F5),
-        glow2 = Color(0xFF1565C0),
-        pageLabel = Color(0xFF3D5A80)
-    ),
-    // Favorite 3 (fix35 design 9)
-    MenuDesign(
-        name = "Warm Paper",
-        container = Color(0xFFFFFBF2),
-        corner = 8.dp,
-        outline = Color(0xFFEFE3CF),
-        text = Color(0xFF3E2723),
-        subText = Color(0xFF8D7B6E),
-        accent = BrandRedDark,
-        divider = MenuDividerStyle.INSET,
-        dividerColor = Color(0xFFEFE3CF),
-        pressed = Color(0x22B31D2C),
-        fontWeight = FontWeight.SemiBold,
-        headerBg = Color(0xFFFFF6E5),
-        headerFg = Color(0xFF3E2723),
-        headerOutline = Color(0xFFEFE3CF),
-        headerBgOpen = Color(0xFF3E2723),
-        headerFgOpen = Color(0xFFFFF6E5),
-        headerCorner = 6.dp,
-        // fix36 full editor theme
-        topBarBg = Color(0xFFFFF6E5),
-        topBarFg = Color(0xFF3E2723),
-        badge = BrandRedDark,
-        toolbarBg = Color(0xFFFFFBF2),
-        toolbarDivider = Color(0xFFEFE3CF),
-        pagesBg = Color(0xFFF3E9D8),
-        pageBorder = Color(0xFFD9C7A8),
-        pageShadow = 3.dp,
-        pageShadowColor = Color(0xFF5D4037),
-        pageLine = Color(0xFF8D7B6E),
-        glow = BrandRedDark,
-        glow2 = Color(0xFFD84315),
-        pageLabel = Color(0xFF8D7B6E)
-    ),
+    // Favorite 2 (fix36 Menu Design 25, the default editor design since fix40)
+    DEFAULT_EDITOR_DESIGN,
 )
 
-/** fix36: one active selection = kind (menu / favorite) + index. Default = Favorite 1. */
+/**
+ * fix40: two saved choices.
+ * favorite = index in FAVORITE_DESIGNS (the whole editor window), default 1 = Favorite 2.
+ * dropdown = 0 (Default: the window design's own lists) or 1..30 (DROPDOWN_DESIGNS).
+ * New keys, the fix36 kind / index save is moved once: Favorite 1 stays Favorite 1,
+ * everything else (removed Menu Designs and Favorites 2, 3) becomes the new default.
+ */
 object MenuDesignState {
-    const val KIND_MENU = 0
-    const val KIND_FAVORITE = 1
-    // new prefs file: the old fix35 file (pdfcraft_menu_design / design_index) is ignored
     private const val PREFS = "pdfcraft_editor_design"
-    private const val KEY_KIND = "kind"
-    private const val KEY_INDEX = "index"
-    var kind by mutableIntStateOf(KIND_FAVORITE)
+    private const val KEY_OLD_KIND = "kind"
+    private const val KEY_OLD_INDEX = "index"
+    private const val KEY_FAVORITE = "window_fav_v2"
+    private const val KEY_DROPDOWN = "dropdown_v1"
+    const val DEFAULT_FAVORITE = 1
+    var favorite by mutableIntStateOf(DEFAULT_FAVORITE)
         private set
-    var index by mutableIntStateOf(0)
+    var dropdown by mutableIntStateOf(0)
         private set
     private var loaded = false
 
-    private fun listFor(k: Int): List<MenuDesign> =
-        if (k == KIND_MENU) MENU_DESIGNS else FAVORITE_DESIGNS
+    /** the whole editor window design */
+    fun active(): MenuDesign = FAVORITE_DESIGNS.getOrNull(favorite) ?: DEFAULT_EDITOR_DESIGN
 
-    fun active(): MenuDesign {
-        val list = listFor(kind)
-        return if (index in list.indices) list[index] else FAVORITE_DESIGNS[0]
+    /** the dropdown lists design */
+    fun activeDropdown(): DropdownDesign {
+        val n = dropdown
+        return if (n in 1..DROPDOWN_DESIGNS.size) DROPDOWN_DESIGNS[n - 1] else active().dropdownLook()
     }
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val k = p.getInt(KEY_KIND, KIND_FAVORITE)
-        val i = p.getInt(KEY_INDEX, 0)
-        if ((k == KIND_MENU || k == KIND_FAVORITE) && i in listFor(k).indices) {
-            kind = k
-            index = i
-        } else {
-            kind = KIND_FAVORITE
-            index = 0
+        var migrated = false
+        val fav = try {
+            if (p.contains(KEY_FAVORITE)) {
+                p.getInt(KEY_FAVORITE, DEFAULT_FAVORITE)
+            } else {
+                migrated = true
+                if (p.getInt(KEY_OLD_KIND, -1) == 1 && p.getInt(KEY_OLD_INDEX, -1) == 0) 0 else DEFAULT_FAVORITE
+            }
+        } catch (e: ClassCastException) {
+            DEFAULT_FAVORITE
         }
+        favorite = if (fav in FAVORITE_DESIGNS.indices) fav else DEFAULT_FAVORITE
+        val dd = try {
+            p.getInt(KEY_DROPDOWN, 0)
+        } catch (e: ClassCastException) {
+            0
+        }
+        dropdown = if (dd in 0..DROPDOWN_DESIGNS.size) dd else 0
+        if (migrated) p.edit().putInt(KEY_FAVORITE, favorite).apply()
     }
 
-    fun select(context: Context, k: Int, i: Int) {
-        if (k != KIND_MENU && k != KIND_FAVORITE) return
-        if (i !in listFor(k).indices) return
-        loaded = true
-        kind = k
-        index = i
+    fun selectFavorite(context: Context, i: Int) {
+        if (i !in FAVORITE_DESIGNS.indices) return
+        ensureLoaded(context)
+        favorite = i
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putInt(KEY_KIND, k).putInt(KEY_INDEX, i).apply()
+            .edit().putInt(KEY_FAVORITE, i).apply()
+    }
+
+    /** 0 = Default (window design lists), 1..30 = dropdown design number */
+    fun selectDropdown(context: Context, n: Int) {
+        if (n !in 0..DROPDOWN_DESIGNS.size) return
+        ensureLoaded(context)
+        dropdown = n
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putInt(KEY_DROPDOWN, n).apply()
     }
 }

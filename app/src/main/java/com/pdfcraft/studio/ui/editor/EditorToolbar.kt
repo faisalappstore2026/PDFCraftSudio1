@@ -725,7 +725,7 @@ private fun ToolMenuItem(
 
 @Composable
 private fun BloggerToolRow(kind: String, label: String, onClick: () -> Unit) {
-    val menuDesign = currentMenuDesign() // fix35
+    val menuDesign = currentDropdownDesign() // fix40: dropdown design
     val iconColor = menuDesign.accent
     val iconArgb = menuDesign.iconArgb()
     MenuItemFrame(onClick = onClick) {
@@ -1147,7 +1147,7 @@ private fun TextToolsMenu(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 10.dp, vertical = 4.dp)
-                        .background(currentMenuDesign().alignRowBg, RoundedCornerShape(10.dp)), // fix35
+                        .background(currentDropdownDesign().alignRowBg, RoundedCornerShape(10.dp)), // fix40
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     listOf("LEFT", "CENTER", "RIGHT", "JUSTIFY").forEach { kind ->
@@ -2367,12 +2367,15 @@ private fun AlignGlyph(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    val accent = Color(0xFF1976D2)
+    val dropdown = currentDropdownDesign() // fix40: glyph colors follow the dropdown design
+    val accent = dropdown.accent
+    val plain = dropdown.text
+    val off = dropdown.subText
     Box(
         modifier = Modifier
             .size(44.dp)
             .background(
-                if (selected && enabled) Color(0x1A1976D2) else Color.Transparent,
+                if (selected && enabled) accent.copy(alpha = 0.10f) else Color.Transparent,
                 RoundedCornerShape(6.dp)
             )
             .border(
@@ -2385,9 +2388,9 @@ private fun AlignGlyph(
     ) {
         Canvas(modifier = Modifier.size(20.dp)) {
             val col = when {
-                !enabled -> Color(0xFFBDBDBD)
+                !enabled -> off
                 selected -> accent
-                else -> Color.Black
+                else -> plain
             }
             val stroke = 1.8.dp.toPx()
             val gap = size.height / 5f

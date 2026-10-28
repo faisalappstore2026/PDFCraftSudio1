@@ -752,16 +752,16 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         var projectSaving by remember { mutableStateOf(false) }
                         var menuDesignPickerOpen by remember { mutableStateOf(false) } // fix35
                         var favoriteDesignPickerOpen by remember { mutableStateOf(false) } // fix36
-                        DropdownMenu(
+                        // fix40: three dots list drawn with the chosen Menu Design (dropdown look)
+                        DesignedDropdownMenu(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.save_project)) },
+                            MenuItemFrame(
                                 enabled = !projectSaving,
-                                onClick = {
+                                onClick = saveProject@{
                                     menuExpanded = false
-                                    if (projectSaving) return@DropdownMenuItem
+                                    if (projectSaving) return@saveProject
                                     projectSaving = true
                                     coroutineScope.launch {
                                         val defaultName = context.getString(R.string.save_project_default_name)
@@ -788,9 +788,11 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                         )
                                     }
                                 }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.export_pdf)) },
+                            ) {
+                                MenuItemText(stringResource(R.string.save_project), enabled = !projectSaving)
+                            }
+                            MenuDesignDivider()
+                            MenuItemFrame(
                                 enabled = exportProgress == null,
                                 onClick = {
                                     menuExpanded = false
@@ -802,23 +804,25 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                         showNameDialog = true
                                     }
                                 }
-                            )
-                            // fix36: 30 full editor designs
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.menu_design_option)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    menuDesignPickerOpen = true
-                                }
-                            )
-                            // fix36: favorite designs 1, 2, 3, ...
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.favorite_design_option)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    favoriteDesignPickerOpen = true
-                                }
-                            )
+                            ) {
+                                MenuItemText(stringResource(R.string.export_pdf), enabled = exportProgress == null)
+                            }
+                            MenuDesignDivider()
+                            // fix40: 30 dropdown list designs
+                            MenuItemFrame(onClick = {
+                                menuExpanded = false
+                                menuDesignPickerOpen = true
+                            }) {
+                                MenuItemText(stringResource(R.string.menu_design_option))
+                            }
+                            MenuDesignDivider()
+                            // fix36: favorite designs 1, 2, ... (whole editor window)
+                            MenuItemFrame(onClick = {
+                                menuExpanded = false
+                                favoriteDesignPickerOpen = true
+                            }) {
+                                MenuItemText(stringResource(R.string.favorite_design_option))
+                            }
                         }
                         if (menuDesignPickerOpen) {
                             MenuDesignPickerDialog(onDismiss = { menuDesignPickerOpen = false })

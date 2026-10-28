@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -64,10 +65,21 @@ private fun CircleFace(d: HomeDesign, i: Int, e: HomeEntry, size: Dp) {
         HomeCircleStyle.SOFT -> Modifier
             .clip(CircleShape)
             .background(color.copy(alpha = 0.22f))
+        // fix40: glowing neon ring
+        HomeCircleStyle.NEON -> Modifier
+            .shadow(10.dp, CircleShape, clip = false, ambientColor = color, spotColor = color)
+            .clip(CircleShape)
+            .background(d.card)
+            .border(2.dp, color, CircleShape)
+        // fix40: frosted glass circle
+        HomeCircleStyle.GLASS -> Modifier
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.14f))
+            .border(1.5.dp, color.copy(alpha = 0.75f), CircleShape)
     }
     val tint: Color = when (d.circleStyle) {
         HomeCircleStyle.FILLED, HomeCircleStyle.HALO -> d.iconFg
-        HomeCircleStyle.RING, HomeCircleStyle.SOFT -> color
+        HomeCircleStyle.RING, HomeCircleStyle.SOFT, HomeCircleStyle.NEON, HomeCircleStyle.GLASS -> color
     }
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size).then(look)) {
         Icon(imageVector = e.icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.43f))

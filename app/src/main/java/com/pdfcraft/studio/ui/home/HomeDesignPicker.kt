@@ -194,10 +194,12 @@ internal fun HomeDesignPickerDialog(onDismiss: () -> Unit) {
                     Spacer(modifier = Modifier.height(10.dp))
                 }
                 val favNumber = HomeDesignState.favoriteNumber(active)
-                val currentName = HomeDesignState.active()?.let {
-                    if (favNumber > 0) favoriteWord + " " + favNumber.toString() + " · " + it.name
-                    else active.toString() + " · " + it.name
-                } ?: originalWord
+                val activeDesign = HomeDesignState.active()
+                val currentName = when {
+                    favNumber > 0 -> favoriteWord + " " + favNumber.toString() + " · " + activeDesign.name
+                    active in 1..HOME_DESIGNS.size -> active.toString() + " · " + activeDesign.name
+                    else -> originalWord + " · " + activeDesign.name // fix40: default design
+                }
                 Text(
                     text = stringResource(R.string.menu_design_current) + " " + currentName,
                     color = Color(0xFF424242),
@@ -229,6 +231,7 @@ private fun HomeDesignChip(design: HomeDesign, label: String, selected: Boolean,
             .size(44.dp)
             .clip(CircleShape)
             .homeBackground(design.bg, design.bgBrush)
+            .homePattern(design) // fix40
             .border(
                 if (selected) 3.dp else 1.dp,
                 if (selected) Color(0xFF1F1F1F) else Color(0x33000000),

@@ -44,12 +44,20 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.view.WindowCompat
 
-/** fix35/fix36: UI pieces that draw the editor with the active design (menu or favorite). */
+/** fix35/fix36: UI pieces that draw the editor with the active design. fix40: window = Favorite Design. */
 @Composable
 internal fun currentMenuDesign(): MenuDesign {
     val ctx = LocalContext.current
     remember { MenuDesignState.ensureLoaded(ctx.applicationContext) }
     return MenuDesignState.active()
+}
+
+/** fix40: look of the dropdown lists (Menu Design 1..30, or the window design lists). */
+@Composable
+internal fun currentDropdownDesign(): DropdownDesign {
+    val ctx = LocalContext.current
+    remember { MenuDesignState.ensureLoaded(ctx.applicationContext) }
+    return MenuDesignState.activeDropdown()
 }
 
 /** fix36: solid color or gradient background, used for top bar / tools row / pages area. */
@@ -86,17 +94,17 @@ internal fun EditorStatusBarIcons(design: MenuDesign) {
     }
 }
 
-internal fun MenuDesign.iconArgb(): Int = accent.toArgb()
+internal fun DropdownDesign.iconArgb(): Int = accent.toArgb()
 
-/** Material3 1.2 DropdownMenu has no container params: theme its Surface instead. */
+/** Material3 1.2 DropdownMenu has no container params: theme its Surface instead. fix40: dropdown design. */
 @Composable
 internal fun DesignedDropdownMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
-    properties: PopupProperties,
+    properties: PopupProperties = PopupProperties(focusable = true),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val d = currentMenuDesign()
+    val d = currentDropdownDesign()
     val scheme = MaterialTheme.colorScheme.copy(surface = d.container, surfaceTint = d.container)
     val shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(d.corner))
     MaterialTheme(colorScheme = scheme, shapes = shapes, typography = MaterialTheme.typography) {
@@ -107,7 +115,7 @@ internal fun DesignedDropdownMenu(
             onDismissRequest = onDismissRequest,
             modifier = Modifier
                 .then(if (brush != null) Modifier.background(brush) else Modifier)
-                .then(if (outline != null) Modifier.border(1.dp, outline, RoundedCornerShape(d.corner)) else Modifier),
+                .then(if (outline != null) Modifier.border(d.outlineWidth, outline, RoundedCornerShape(d.corner)) else Modifier),
             properties = properties,
             content = content
         )
@@ -120,17 +128,21 @@ internal fun MenuItemFrame(
     onClick: () -> Unit,
     content: @Composable RowScope.() -> Unit
 ) {
-    val d = currentMenuDesign()
+    val d = currentDropdownDesign()
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val shape = RoundedCornerShape(d.itemCorner)
     val itemOutline = d.itemOutline
+    val itemBrush = d.itemBrush
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = d.itemMarginH, vertical = d.itemMarginV)
             .clip(shape)
-            .background(if (pressed) d.pressed else d.itemBg, shape)
+            .then(
+                if (!pressed && itemBrush != null) Modifier.background(itemBrush, shape)
+                else Modifier.background(if (pressed) d.pressed else d.itemBg, shape)
+            )
             .then(if (itemOutline != null) Modifier.border(1.dp, itemOutline, shape) else Modifier)
             .clickable(
                 interactionSource = src,
@@ -161,13 +173,14 @@ internal fun MenuItemText(
     enabled: Boolean = true,
     secondary: Boolean = false
 ) {
-    val d = currentMenuDesign()
+    val d = currentDropdownDesign()
     Text(
         text = text,
         color = if (!enabled || secondary) d.subText else d.text,
         fontSize = if (secondary) (d.fontSize.value - 1f).sp else d.fontSize,
         fontWeight = if (secondary) FontWeight.Normal else d.fontWeight,
         lineHeight = (d.fontSize.value + 4f).sp,
+        letterSpacing = d.letterSpacing,
         maxLines = 1,
         softWrap = false,
         modifier = modifier
@@ -176,7 +189,7 @@ internal fun MenuItemText(
 
 @Composable
 internal fun MenuDesignDivider() {
-    val d = currentMenuDesign()
+    val d = currentDropdownDesign()
     when (d.divider) {
         MenuDividerStyle.NONE -> Unit
         MenuDividerStyle.FULL -> HorizontalDivider(thickness = 0.5.dp, color = d.dividerColor)

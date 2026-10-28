@@ -99,7 +99,7 @@ internal fun HomeDesignedScreen(
     )
     HomeStatusBarIcons(darkIcons = d.title.luminance() < 0.5f)
     val edgeless = d.layout == HomeLayout.SHEET || d.layout == HomeLayout.DOCK
-    Box(modifier = Modifier.fillMaxSize().homeBackground(d.bg, d.bgBrush)) {
+    Box(modifier = Modifier.fillMaxSize().homeBackground(d.bg, d.bgBrush).homePattern(d)) { // fix40
         Scaffold(containerColor = Color.Transparent) { innerPadding ->
             BoxWithConstraints(
                 modifier = Modifier
@@ -309,10 +309,13 @@ private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Fl
             value = logoSize,
             onValueChange = onLogoSizeChange,
             valueRange = 64f..200f,
+            steps = HOME_ICON_SIZE_STEPS, // fix40: points while sliding
             colors = SliderDefaults.colors(
                 thumbColor = d.accent,
                 activeTrackColor = d.accent,
-                inactiveTrackColor = d.accent.copy(alpha = 0.25f)
+                inactiveTrackColor = d.accent.copy(alpha = 0.25f),
+                activeTickColor = if (d.accent.luminance() > 0.6f) Color(0xAA000000) else Color(0xCCFFFFFF),
+                inactiveTickColor = d.accent.copy(alpha = 0.85f)
             ),
             modifier = Modifier.fillMaxWidth()
         )
