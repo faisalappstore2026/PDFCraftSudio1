@@ -19,7 +19,7 @@ import com.pdfcraft.studio.R
 object AppIconFit {
     const val OFFSET_X = 0.00f
     const val OFFSET_Y = 0.00f
-    const val SCALE = 0.65f
+    const val SCALE = 0.66f // fix39: Circle4.png
     const val CANVAS_PER_CIRCLE = 1.5f
 }
 
