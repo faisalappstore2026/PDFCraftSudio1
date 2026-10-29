@@ -491,6 +491,12 @@
     <string name="home_top_image_right">Right</string>
     <string name="home_top_image_copy">Copy Details</string>
     <string name="home_top_image_copied">Details copied</string>
+    <!-- fix42: Home top image crop, corners, import -->
+    <string name="home_top_image_crop_x">Crop left and right</string>
+    <string name="home_top_image_crop_y">Crop top and bottom</string>
+    <string name="home_top_image_corner">Corner radius</string>
+    <string name="home_top_image_import">Import Image</string>
+    <string name="home_top_image_import_failed">Could not import the image</string>
     <!-- fix41: editor three dots menu -->
     <string name="color_picker_1">Color Picker 1</string>
     <string name="color_picker_2">Color Picker 2</string>
