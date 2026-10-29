@@ -59,7 +59,7 @@ fun HomeScreen(
         context.getSharedPreferences("home_logo", Context.MODE_PRIVATE)
     }
     var logoSize by remember {
-        mutableStateOf(prefs.getFloat("size_dp", 108f))
+        mutableStateOf(prefs.getFloat("size_dp", HOME_ICON_SIZE_DEFAULT)) // fix41: point 9
     }
     // fix37: Home designs 1..30 (null = original look below)
     val homeDesign = currentHomeDesign()

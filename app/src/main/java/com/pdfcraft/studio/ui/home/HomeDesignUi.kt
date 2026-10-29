@@ -125,6 +125,7 @@ internal fun HomeDesignedScreen(
                         HomePlacement.SPREAD -> Arrangement.SpaceBetween
                     }
                 ) {
+                    HomeTopImage() // fix41: Grok1.jpg at the top
                     HomeHeaderBlock(
                         d = d,
                         logoSize = logoSize,
@@ -319,6 +320,7 @@ private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Fl
             ),
             modifier = Modifier.fillMaxWidth()
         )
+        HomeTopImageControls(accent = d.accent, label = label) // fix41
     }
 }
 

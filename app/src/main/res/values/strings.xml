@@ -483,5 +483,16 @@
     <string name="no">No</string>
     <string name="page_bg_match_size_title">Match page size to image?</string>
     <string name="page_bg_match_size_message">Would you like to resize the selected pages to match the aspect ratio of this image, so it fits perfectly without cropping or stretching?</string>
+    <!-- fix41: Home top image controls -->
+    <string name="home_top_image_size">Top image size</string>
+    <string name="home_top_image_up">Up</string>
+    <string name="home_top_image_down">Down</string>
+    <string name="home_top_image_left">Left</string>
+    <string name="home_top_image_right">Right</string>
+    <string name="home_top_image_copy">Copy Details</string>
+    <string name="home_top_image_copied">Details copied</string>
+    <!-- fix41: editor three dots menu -->
+    <string name="color_picker_1">Color Picker 1</string>
+    <string name="color_picker_2">Color Picker 2</string>
 </resources>
 

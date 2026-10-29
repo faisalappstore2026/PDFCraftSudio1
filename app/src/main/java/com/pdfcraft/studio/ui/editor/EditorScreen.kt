@@ -530,6 +530,9 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
             }
         }
 
+    var areaBgPicker by remember { mutableStateOf(0) } // fix41: 1 = Color Picker 1, 2 = Color Picker 2
+    var areaBgPending by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(Unit) { EditorAreaBg.load(context) }
     var pendingBgBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var showMatchPageSizeDialog by remember { mutableStateOf(false) }
     val backgroundImagePickerLauncher =
@@ -537,7 +540,9 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
             contract = ActivityResultContracts.PickVisualMedia()
         ) { uri ->
             if (uri != null) {
-                if (showAdvancedBgEditor) {
+                if (areaBgPicker != 0) {
+                    viewModel.decodeBackgroundPreview(uri) { bmp -> areaBgPending = bmp } // fix41
+                } else if (showAdvancedBgEditor) {
                     viewModel.decodeBackgroundPreview(uri) { bmp ->
                         pendingBgBitmap = bmp
                         if (viewModel.pageBgColorSelection.isNotEmpty()) {
@@ -641,6 +646,41 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         )
     }
 
+    // fix41: Color Picker 1 (pages area) / Color Picker 2 (top bar), same window as Page Background
+    if (areaBgPicker != 0) {
+        val area = areaBgPicker
+        PageBackgroundEditorDialog(
+            initial = EditorAreaBg.spec(area),
+            initialBitmap = null,
+            pendingBitmap = areaBgPending,
+            title = if (area == EditorAreaBg.PAGES) stringResource(R.string.color_picker_1)
+                else stringResource(R.string.color_picker_2),
+            onPickImage = {
+                backgroundImagePickerLauncher.launch(
+                    androidx.activity.result.PickVisualMediaRequest(
+                        ActivityResultContracts.PickVisualMedia.ImageOnly
+                    )
+                )
+            },
+            onCancel = {
+                areaBgPicker = 0
+                areaBgPending = null
+            },
+            onOk = { spec, bmp ->
+                val appCtx = context.applicationContext
+                coroutineScope.launch { EditorAreaBg.apply(appCtx, area, spec, bmp) }
+                areaBgPicker = 0
+                areaBgPending = null
+            },
+            // "None" = back to the editor design colors (default)
+            onNone = {
+                EditorAreaBg.reset(context, area)
+                areaBgPicker = 0
+                areaBgPending = null
+            }
+        )
+    }
+
     if (showMatchPageSizeDialog) {
         AlertDialog(
             onDismissRequest = { showMatchPageSizeDialog = false },
@@ -672,7 +712,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     Scaffold(
         topBar = {
             TopAppBar(
-                modifier = Modifier.designBackground(Color.Transparent, editorDesign.topBarBrush), // fix36
+                modifier = Modifier.designBackground(Color.Transparent, editorDesign.topBarBrush)
+                    .editorAreaBackground(EditorAreaBg.TOP_BAR), // fix36, fix41: Color Picker 2
                 title = {
                     Text(
                         viewModel.currentProjectName
@@ -822,6 +863,24 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                 favoriteDesignPickerOpen = true
                             }) {
                                 MenuItemText(stringResource(R.string.favorite_design_option))
+                            }
+                            MenuDesignDivider()
+                            // fix41: background of the pages area
+                            MenuItemFrame(onClick = {
+                                menuExpanded = false
+                                areaBgPending = null
+                                areaBgPicker = EditorAreaBg.PAGES
+                            }) {
+                                MenuItemText(stringResource(R.string.color_picker_1))
+                            }
+                            MenuDesignDivider()
+                            // fix41: background of the top bar
+                            MenuItemFrame(onClick = {
+                                menuExpanded = false
+                                areaBgPending = null
+                                areaBgPicker = EditorAreaBg.TOP_BAR
+                            }) {
+                                MenuItemText(stringResource(R.string.color_picker_2))
                             }
                         }
                         if (menuDesignPickerOpen) {
@@ -1036,8 +1095,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors( // fix36
-                    containerColor = if (editorDesign.topBarBrush != null) Color.Transparent else editorDesign.topBarBg,
-                    scrolledContainerColor = if (editorDesign.topBarBrush != null) Color.Transparent else editorDesign.topBarBg,
+                    containerColor = if (editorDesign.topBarBrush != null || EditorAreaBg.isSet(EditorAreaBg.TOP_BAR)) Color.Transparent else editorDesign.topBarBg,
+                    scrolledContainerColor = if (editorDesign.topBarBrush != null || EditorAreaBg.isSet(EditorAreaBg.TOP_BAR)) Color.Transparent else editorDesign.topBarBg,
                     navigationIconContentColor = editorDesign.topBarFg,
                     titleContentColor = editorDesign.topBarFg,
                     actionIconContentColor = editorDesign.topBarFg
@@ -2208,7 +2267,8 @@ Column(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .designBackground(editorDesign.pagesBg, editorDesign.pagesBrush) // fix36
+                        .designBackground(editorDesign.pagesBg, editorDesign.pagesBrush)
+                        .editorAreaBackground(EditorAreaBg.PAGES) // fix36, fix41: Color Picker 1
                         .padding(20.dp)
                 ) {
                 // fix34: text slider panels are docked at the BOTTOM (below the pages).

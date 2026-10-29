@@ -13,6 +13,9 @@ import kotlin.math.max
  */
 internal const val HOME_ICON_SIZE_STEPS = 16
 
+/** fix41: default logo size = point 9 from the left (64 + 8 x 8 = 128 dp). */
+internal const val HOME_ICON_SIZE_DEFAULT = 128f
+
 /** fix40: futuristic background pattern of a Home design (grid, dots, scan lines, radar, circuit). */
 internal fun Modifier.homePattern(d: HomeDesign): Modifier {
     if (d.pattern == HomeBgPattern.NONE) return this
