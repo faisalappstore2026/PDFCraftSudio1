@@ -1340,7 +1340,7 @@ private fun PageTextOverlay(
                 )
             }
             val lastFit = remember(committedText.id) { floatArrayOf(0f) }
-            val fitInfo = remember(sizedText.text, fitMaxWi, fitMaxHi, fitUserSp, visualTx, fitFamily, fitPageW, fitPageH, posOverLi, posOverTi) {
+            val fitInfo = remember(sizedText.letterSpacingEm, sizedText.lineSpacing, sizedText.text, fitMaxWi, fitMaxHi, fitUserSp, visualTx, fitFamily, fitPageW, fitPageH, posOverLi, posOverTi) {
                 if (fitPageW <= 0 || fitPageH <= 0) {
                     floatArrayOf(sizedText.fontSizeSp, -1f)
                 } else {
@@ -1348,6 +1348,8 @@ private fun PageTextOverlay(
                     val styled = visualTx.filter(AnnotatedString(sizedText.text)).text
                     val fitStyle = TextStyle(
                         fontFamily = fitFamily,
+                        letterSpacing = com.pdfcraft.studio.ui.editor.textLetterSpacing(sizedText), // fix43
+                        lineHeight = com.pdfcraft.studio.ui.editor.textLineHeight(sizedText),
                         platformStyle = PlatformTextStyle(includeFontPadding = true)
                     )
                     // Effective limits (auto boxes lose the left / top overflow inside here).
@@ -1493,7 +1495,7 @@ private fun PageTextOverlay(
                 autoW
             }
             val lineCount = 1 + fieldValue.text.count { it == '\n' }
-            val autoH = (lineCount * fontPx * 1.35f + padPx).coerceAtMost(capH)
+            val autoH = (lineCount * fontPx * 1.35f * textElement.lineSpacing + padPx).coerceAtMost(capH) // fix43
             val boxHpx = if (textElement.boxHeightFrac > 0.01f) {
                 ((textElement.boxHeightFrac * pageHpx).coerceIn(with(density) { 20.dp.toPx() }, maxOf(capH, with(density) { 20.dp.toPx() })) - posOverT)
                     .coerceAtLeast(with(density) { 20.dp.toPx() })
@@ -1864,6 +1866,8 @@ private fun PageTextOverlay(
                         color = Color(textElement.textColorArgb),
                         fontSize = textElement.fontSizeSp.sp,
                         fontFamily = fontFamily,
+                        letterSpacing = com.pdfcraft.studio.ui.editor.textLetterSpacing(textElement), // fix43
+                        lineHeight = com.pdfcraft.studio.ui.editor.textLineHeight(textElement),
                         platformStyle = PlatformTextStyle(includeFontPadding = true),
                         textAlign = when (textElement.textAlign.uppercase()) {
                             "CENTER" -> TextAlign.Center
@@ -3322,13 +3326,7 @@ private fun PageCard(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(aspectRatio)
-            .shadow(
-                frame.pageShadow,
-                RoundedCornerShape(0.dp),
-                clip = true,
-                ambientColor = frame.pageShadowColor,
-                spotColor = frame.pageShadowColor
-            )
+            .clip(RoundedCornerShape(0.dp)) // fix43: no page shadow
             .border(1.dp, frame.pageBorder)
             .drawWithContent {
                 drawContent()

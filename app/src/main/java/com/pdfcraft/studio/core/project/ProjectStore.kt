@@ -513,6 +513,8 @@ object ProjectStore {
         obj.put("spreadDp", t.spreadDp.toDouble())
         obj.put("userFontSp", t.userFontSp.toDouble())
         obj.put("freeBounds", t.freeBounds)
+        obj.put("letterSpacingEm", t.letterSpacingEm.toDouble()) // fix43
+        obj.put("lineSpacing", t.lineSpacing.toDouble())
         return obj
     }
 
@@ -976,7 +978,9 @@ object ProjectStore {
             spreadRanges = colorRangesFromJson(o.optJSONArray("spreadRanges")),
             spreadDp = o.optDouble("spreadDp", 0.0).toFloat().coerceIn(0f, 40f),
             userFontSp = o.optDouble("userFontSp", 0.0).toFloat().coerceIn(0f, 96f),
-            freeBounds = o.optBoolean("freeBounds", false)
+            freeBounds = o.optBoolean("freeBounds", false),
+            letterSpacingEm = o.optDouble("letterSpacingEm", 0.0).toFloat().coerceIn(-0.10f, 0.50f), // fix43
+            lineSpacing = o.optDouble("lineSpacing", 1.0).toFloat().coerceIn(0.5f, 3f)
         )
     }
 

@@ -109,6 +109,7 @@ fun EditorToolbar(
     onTextSizeChange: (Float) -> Unit = {},
     onTextBoxSizeClick: () -> Unit = {},
     onTextMoveClick: () -> Unit = {},
+    onTextSpacingClick: () -> Unit = {}, // fix43
     textMenuRequest: Int = 0,
     pageAspectRatio: Float,
     onPageAspectRatioChange: (Float) -> Unit,
@@ -484,6 +485,7 @@ fun EditorToolbar(
                             if (hasFocusedText) onTextMoveClick()
                             else onNeedHint("Select a text box first to use this tool.")
                         },
+                        onTextSpacingClick = onTextSpacingClick, // fix43
                         onDeleteTextClick = onDeleteTextClick,
                         hasSelectedText = hasSelectedText,
                         hasTextRangeSelection = hasTextRangeSelection,
@@ -1041,6 +1043,7 @@ private fun TextToolsMenu(
     onFontClick: () -> Unit,
     onTextSizeClick: () -> Unit,
     onTextMoveClick: () -> Unit = {},
+    onTextSpacingClick: () -> Unit = {}, // fix43
     onTextColorClick: () -> Unit,
     onTextBgColorClick: () -> Unit,
     onTextShadowClick: () -> Unit,
@@ -1101,6 +1104,13 @@ private fun TextToolsMenu(
                 if (!hasFocusedText) onNeedHint(hintBox) else {
                     onMenuDismiss()
                     onTextSizeClick() // fix33: Move+Rotate+Size panel
+                }
+            }
+            MenuDesignDivider()
+            ToolMenuItem(stringResource(R.string.text_spacing)) { // fix43
+                if (!hasFocusedText) onNeedHint(hintBox) else {
+                    onMenuDismiss()
+                    onTextSpacingClick()
                 }
             }
             MenuDesignDivider()

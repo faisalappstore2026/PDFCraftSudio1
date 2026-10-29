@@ -5,32 +5,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
- * fix40: default Home design (saved code 0, the Default button in the Home Design picker)
- * = fix38 Home design 12 "Rainbow List", kept exactly.
+ * fix43: default Home design (saved code 0, the Default button in the Home Design picker)
+ * = Home Favorite 5 "Sorbet List". A getter, so the list below is ready when it is read.
  */
-internal val HOME_DEFAULT_DESIGN: HomeDesign =
-    HomeDesign(
-        name = "Rainbow List",
-        layout = HomeLayout.CIRCLE_LIST,
-        header = HomeHeader.BAR,
-        placement = HomePlacement.TOP,
-        bg = Color(0xFFF7F7FB),
-        title = Color(0xFF1F1F2E),
-        sub = Color(0xFF80809A),
-        card = Color.White,
-        cardFg = Color(0xFF1F1F2E),
-        cardSub = Color(0xFF80809A),
-        corner = 22.dp,
-        elevation = 4.dp,
-        shadowColor = Color(0xFFB0B0C8),
-        iconFg = Color.White,
-        itemColors = listOf(Color(0xFFFF4D6D), Color(0xFFFF9F1C), Color(0xFF2EC4B6), Color(0xFF5E60CE)),
-        colorCards = true,
-        accent = Color(0xFF5E60CE),
-        fab = Color(0xFF5E60CE),
-        spacing = 12.dp,
-        circle = 54.dp
-    )
+internal val HOME_DEFAULT_DESIGN: HomeDesign
+    get() = HOME_FAVORITE_DESIGNS[4]
 
 /**
  * fix38: Home "Favorite Design" list, shown above 1..30 in the Home Design picker.

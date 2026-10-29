@@ -62,6 +62,7 @@ import kotlinx.coroutines.withContext
  * fix41: defaults of the Home top image (res/drawable-nodpi/home_top_image.jpg = Grok1.jpg).
  * scale 1.00 = full width of the Home content, offsetX positive = right, offsetY positive = down (dp).
  * Send the "Copy Details" text to change these defaults.
+ * fix43: bundled image = Grok2.jpg, corner 10, border design 1 (HomeTopImageBorders.kt).
  * fix42: crop, corner and Import Image (filesDir/home_top_image_custom.jpg, bundled image = fallback).
  */
 object HomeTopImageFit {
@@ -81,13 +82,16 @@ object HomeTopImageFit {
     /** 0..45 with a point every 5 */
     const val CROP_STEPS = 8
     /** fix42: corner radius in dp */
-    const val CORNER = 0
+    const val CORNER = 10 // fix43
     const val MAX_CORNER = 60
     /** 0..60 with a point every 2 */
     const val CORNER_STEPS = 29
     /** fix42: longest side of an imported image (px) */
     const val IMPORT_MAX_SIDE = 1600
     const val CUSTOM_FILE = "home_top_image_custom.jpg"
+    /** fix43: border design 1..30 around the top image (0 = no border) */
+    const val BORDER = 1
+    const val BORDER_COUNT = 30
 }
 
 /** fix41: saved Home top image size and position (SharedPreferences "home_top_image"). */
@@ -107,6 +111,9 @@ internal object HomeTopImageState {
         private set
     var corner by mutableStateOf(HomeTopImageFit.CORNER)
         private set
+    /** fix43: border design number (0 = none) */
+    var border by mutableStateOf(HomeTopImageFit.BORDER)
+        private set
     /** fix42: imported image (null = bundled home_top_image.jpg) */
     var customImage by mutableStateOf<ImageBitmap?>(null)
         private set
@@ -116,6 +123,11 @@ internal object HomeTopImageState {
         if (loaded) return
         loaded = true
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!p.getBoolean("fix43_defaults", false)) {
+            // fix43: Grok2.jpg is the bundled image now, start once from the new defaults
+            runCatching { customFile(context).delete() }
+            p.edit().clear().putBoolean("fix43_defaults", true).apply()
+        }
         scale = p.getFloat("scale", HomeTopImageFit.SCALE)
             .coerceIn(HomeTopImageFit.MIN_SCALE, HomeTopImageFit.MAX_SCALE)
         offsetX = p.getInt("offset_x", HomeTopImageFit.OFFSET_X)
@@ -123,6 +135,7 @@ internal object HomeTopImageState {
         cropX = p.getInt("crop_x", HomeTopImageFit.CROP_X).coerceIn(0, HomeTopImageFit.MAX_CROP)
         cropY = p.getInt("crop_y", HomeTopImageFit.CROP_Y).coerceIn(0, HomeTopImageFit.MAX_CROP)
         corner = p.getInt("corner", HomeTopImageFit.CORNER).coerceIn(0, HomeTopImageFit.MAX_CORNER)
+        border = p.getInt("border", HomeTopImageFit.BORDER).coerceIn(0, HomeTopImageFit.BORDER_COUNT)
     }
 
     private fun save(context: Context) {
@@ -133,6 +146,8 @@ internal object HomeTopImageState {
             .putInt("crop_x", cropX)
             .putInt("crop_y", cropY)
             .putInt("corner", corner)
+            .putInt("border", border)
+            .putBoolean("fix43_defaults", true)
             .apply()
     }
 
@@ -212,6 +227,11 @@ internal object HomeTopImageState {
         save(context)
     }
 
+    fun changeBorder(context: Context, n: Int) {
+        border = n.coerceIn(0, HomeTopImageFit.BORDER_COUNT)
+        save(context)
+    }
+
     fun changeCorner(context: Context, value: Float) {
         corner = value.roundToInt().coerceIn(0, HomeTopImageFit.MAX_CORNER)
         save(context)
@@ -232,8 +252,8 @@ internal object HomeTopImageState {
     fun details(): String =
         String.format(
             Locale.US,
-            "HOME_TOP_IMAGE scale=%.2f offsetX=%d offsetY=%d cropX=%d cropY=%d corner=%d custom=%s",
-            scale, offsetX, offsetY, cropX, cropY, corner, if (customImage != null) "yes" else "no"
+            "HOME_TOP_IMAGE scale=%.2f offsetX=%d offsetY=%d cropX=%d cropY=%d corner=%d border=%d custom=%s",
+            scale, offsetX, offsetY, cropX, cropY, corner, border, if (customImage != null) "yes" else "no"
         )
 }
 
@@ -277,6 +297,7 @@ internal fun HomeTopImage(modifier: Modifier = Modifier) {
                     shape = cornerShape // fix42: round corners
                     clip = true
                 }
+                .homeTopImageBorder(HomeTopImageState.border, cornerShape) // fix43
         )
     }
 }

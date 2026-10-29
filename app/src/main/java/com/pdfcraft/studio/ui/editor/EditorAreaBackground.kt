@@ -33,6 +33,8 @@ import kotlinx.coroutines.withContext
 internal object EditorAreaBg {
     const val PAGES = 1
     const val TOP_BAR = 2
+    /** fix43: Color Picker 3 = undo/redo number badge */
+    const val BADGE = 3
     private const val PREFS = "editor_area_bg"
     private var loaded = false
 
@@ -46,10 +48,23 @@ internal object EditorAreaBg {
 
     private var pagesLook by mutableStateOf<AreaLook?>(null)
     private var topBarLook by mutableStateOf<AreaLook?>(null)
+    private var badgeLook by mutableStateOf<AreaLook?>(null)
 
-    private fun get(area: Int): AreaLook? = if (area == PAGES) pagesLook else topBarLook
+    /** fix43: defaults when nothing is saved (Color Templates row 1 col 4 / row 4 col 8) */
+    private val DEFAULT_PAGES = AreaLook(PageBgKind.SOLID, 0xFFEEEEEEL, 0xFFEEEEEEL, floatArrayOf(0f, 0f, 1f, 1f), null)
+    private val DEFAULT_TOP_BAR = AreaLook(PageBgKind.SOLID, 0xFFC62828L, 0xFFC62828L, floatArrayOf(0f, 0f, 1f, 1f), null)
+
+    private fun get(area: Int): AreaLook? = when (area) {
+        PAGES -> pagesLook ?: DEFAULT_PAGES
+        TOP_BAR -> topBarLook ?: DEFAULT_TOP_BAR
+        else -> badgeLook
+    }
     private fun put(area: Int, look: AreaLook?) {
-        if (area == PAGES) pagesLook = look else topBarLook = look
+        when (area) {
+            PAGES -> pagesLook = look
+            TOP_BAR -> topBarLook = look
+            else -> badgeLook = look
+        }
     }
 
     private fun imageFile(context: Context, area: Int) = File(context.filesDir, "editor_area_bg_" + area + ".png")
@@ -74,7 +89,7 @@ internal object EditorAreaBg {
         if (loaded) return
         loaded = true
         val app = context.applicationContext
-        for (area in listOf(PAGES, TOP_BAR)) {
+        for (area in listOf(PAGES, TOP_BAR, BADGE)) {
             val look = withContext(Dispatchers.IO) { readLook(app, area) }
             put(area, look)
         }

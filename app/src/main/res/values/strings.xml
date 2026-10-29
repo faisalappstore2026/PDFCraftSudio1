@@ -500,5 +500,18 @@
     <!-- fix41: editor three dots menu -->
     <string name="color_picker_1">Color Picker 1</string>
     <string name="color_picker_2">Color Picker 2</string>
+    <!-- fix43_home -->
+    <string name="home_top_image_borders">Top Image Borders</string>
+    <string name="selected_number">Selected: %1$d</string>
+    <string name="none_label">None</string>
+    <string name="close_label">Close</string>
+    <string name="color_picker_3">Color Picker 3</string>
+    <string name="border_animations">Border Animations</string>
+    <string name="border_animation_off">Animation Off</string>
+    <string name="text_spacing">Spacing</string>
+    <string name="letter_spacing">Letter spacing</string>
+    <string name="line_spacing">Line spacing</string>
+    <string name="reset_label">Reset</string>
+    <string name="done_label">Done</string>
 </resources>
 

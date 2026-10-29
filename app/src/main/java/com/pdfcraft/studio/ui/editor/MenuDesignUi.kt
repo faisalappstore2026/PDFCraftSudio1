@@ -105,6 +105,7 @@ internal fun DesignedDropdownMenu(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val d = currentDropdownDesign()
+    DropdownBorderAnim.ensureLoaded(androidx.compose.ui.platform.LocalContext.current) // fix43
     val scheme = MaterialTheme.colorScheme.copy(surface = d.container, surfaceTint = d.container)
     val shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(d.corner))
     MaterialTheme(colorScheme = scheme, shapes = shapes, typography = MaterialTheme.typography) {
@@ -115,7 +116,8 @@ internal fun DesignedDropdownMenu(
             onDismissRequest = onDismissRequest,
             modifier = Modifier
                 .then(if (brush != null) Modifier.background(brush) else Modifier)
-                .then(if (outline != null) Modifier.border(d.outlineWidth, outline, RoundedCornerShape(d.corner)) else Modifier),
+                .then(if (outline != null) Modifier.border(d.outlineWidth, outline, RoundedCornerShape(d.corner)) else Modifier)
+                .dropdownBorderAnim(DropdownBorderAnim.choice, d.corner), // fix43
             properties = properties,
             content = content
         )

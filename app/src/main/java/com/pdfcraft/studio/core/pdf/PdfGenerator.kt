@@ -408,6 +408,7 @@ object PdfGenerator {
                 }
                 val baseTf = FontCatalog.resolveTypeface(context, te.fontId)
                 textPaint.typeface = baseTf
+                textPaint.letterSpacing = te.letterSpacingEm // fix43 (shared paint: always set)
                 // Left / top dynamic cap (same as the editor): overflow past the margin is taken
                 // off the box width / height so the right / bottom edge stays put. Rotated: no cap.
                 if (pdfLineCache == null && kotlin.math.abs(te.rotationDeg) <= 0.5f && !teRaw.xFraction.isNaN() && !teRaw.yFraction.isNaN()) {
@@ -435,6 +436,7 @@ object PdfGenerator {
                             val fmN = textPaint.fontMetrics
                             var lhN = fmN.descent - fmN.ascent + fmN.leading
                             if (lhN < textPaint.textSize * 0.8f) lhN = textPaint.textSize * 1.2f
+                            lhN *= te.lineSpacing // fix43
                             val roomF = (1f - te.xFraction).coerceIn(0.02f, 1f)
                             val wN = if (te.boxWidthFrac > 0.01f) {
                                 minOf(te.boxWidthFrac, roomF) * pageWidth * wrapScale * 0.90f
@@ -471,6 +473,7 @@ object PdfGenerator {
                         val fmFit = textPaint.fontMetrics
                         var lhFit = fmFit.descent - fmFit.ascent + fmFit.leading
                         if (lhFit < textPaint.textSize * 0.8f) lhFit = textPaint.textSize * 1.2f
+                        lhFit *= te.lineSpacing // fix43
                         val nFit = wrapTextLines(te.text, textPaint, fitWrap).size.coerceAtLeast(1)
                         val needH = textPaint.textSize + (nFit - 1) * lhFit + fmFit.descent
                         if (needH <= pdfAvailH || textPaint.textSize <= 1f || needH <= 0f) break
@@ -554,6 +557,7 @@ object PdfGenerator {
                 val fm = textPaint.fontMetrics
                 var lineH = fm.descent - fm.ascent + fm.leading
                 if (lineH < textPaint.textSize * 0.8f) lineH = textPaint.textSize * 1.2f
+                lineH *= te.lineSpacing // fix43
                 val rotDeg = te.rotationDeg
                 if (kotlin.math.abs(rotDeg) > 0.05f) {
                     val longestLine = fullText.split('\n').maxByOrNull { it.length } ?: fullText

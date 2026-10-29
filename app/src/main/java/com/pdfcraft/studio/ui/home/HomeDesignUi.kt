@@ -129,7 +129,7 @@ internal fun HomeDesignedScreen(
                     HomeHeaderBlock(
                         d = d,
                         logoSize = logoSize,
-                        showLogo = d.layout != HomeLayout.ORBIT && d.layout != HomeLayout.CIRCLE_ORBIT,
+                        showLogo = false, // fix43: header circle logo removed
                         modifier = Modifier.padding(horizontal = if (edgeless) 24.dp else 0.dp)
                     )
                     HomeBody(d, entries, logoSize, onLogoSizeChange)
@@ -138,6 +138,7 @@ internal fun HomeDesignedScreen(
         }
         Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
             HomeDesignFloatingButton(fabColor = d.fab, fabFg = d.fabFg)
+            HomeTopImageBorderButton(fabColor = d.fab, fabFg = d.fabFg) // fix43
         }
     }
 }
@@ -305,21 +306,7 @@ internal fun TileCard(d: HomeDesign, i: Int, e: HomeEntry, modifier: Modifier, b
 @Composable
 private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Float) -> Unit, label: Color) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(text = stringResource(R.string.icon_size), color = label, fontSize = 13.sp)
-        Slider(
-            value = logoSize,
-            onValueChange = onLogoSizeChange,
-            valueRange = 64f..200f,
-            steps = HOME_ICON_SIZE_STEPS, // fix40: points while sliding
-            colors = SliderDefaults.colors(
-                thumbColor = d.accent,
-                activeTrackColor = d.accent,
-                inactiveTrackColor = d.accent.copy(alpha = 0.25f),
-                activeTickColor = if (d.accent.luminance() > 0.6f) Color(0xAA000000) else Color(0xCCFFFFFF),
-                inactiveTickColor = d.accent.copy(alpha = 0.85f)
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
+        // fix43: icon size slider removed, top image controls stay
         HomeTopImageControls(accent = d.accent, label = label) // fix41
     }
 }

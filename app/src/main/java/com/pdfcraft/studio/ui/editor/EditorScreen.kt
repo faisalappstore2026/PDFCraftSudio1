@@ -306,6 +306,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
     var textSpreadSliderOpen by remember { mutableStateOf(false) }
     var textBoxSizeOpen by remember { mutableStateOf(false) }
     var textMoveOpen by remember { mutableStateOf(false) }
+    var textSpacingOpen by remember { mutableStateOf(false) } // fix43
     var textMenuRequest by remember { mutableStateOf(0) }
     var revealTextSignal by remember { mutableStateOf(0) }
     var showFontTools by remember { mutableStateOf(false) }
@@ -653,8 +654,11 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
             initial = EditorAreaBg.spec(area),
             initialBitmap = null,
             pendingBitmap = areaBgPending,
-            title = if (area == EditorAreaBg.PAGES) stringResource(R.string.color_picker_1)
-                else stringResource(R.string.color_picker_2),
+            title = when (area) {
+                EditorAreaBg.PAGES -> stringResource(R.string.color_picker_1)
+                EditorAreaBg.TOP_BAR -> stringResource(R.string.color_picker_2)
+                else -> stringResource(R.string.color_picker_3) // fix43
+            },
             onPickImage = {
                 backgroundImagePickerLauncher.launch(
                     androidx.activity.result.PickVisualMediaRequest(
@@ -784,7 +788,14 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         onLong = { viewModel.redoAll() }
                     )
                     Box {
-                        IconButton(onClick = { menuExpanded = true }) {
+                        IconButton(onClick = {
+                            // fix43: an open Page / Image / Text Tools dropdown closes first
+                            if (toolMenuOpen) {
+                                closeMenusSignal++
+                                toolMenuOpen = false
+                            }
+                            menuExpanded = true
+                        }) {
                             Icon(
                                 imageVector = Icons.Filled.MoreVert,
                                 contentDescription = stringResource(R.string.editor_more_options)
@@ -881,6 +892,15 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                 areaBgPicker = EditorAreaBg.TOP_BAR
                             }) {
                                 MenuItemText(stringResource(R.string.color_picker_2))
+                            }
+                            MenuDesignDivider()
+                            // fix43: colour of the undo / redo number badge
+                            MenuItemFrame(onClick = {
+                                menuExpanded = false
+                                areaBgPending = null
+                                areaBgPicker = EditorAreaBg.BADGE
+                            }) {
+                                MenuItemText(stringResource(R.string.color_picker_3))
                             }
                         }
                         if (menuDesignPickerOpen) {
@@ -2056,7 +2076,18 @@ Column(
                     if (textBoxSizeOpen) viewModel.endTextBoxScale()
                     textBoxSizeOpen = false
                     viewModel.endCoalescedEdit()
+                    textSpacingOpen = false
                     textMoveOpen = true
+                },
+                onTextSpacingClick = { // fix43
+                    textBorderSliderOpen = false
+                    textBgSliderOpen = false
+                    textSpreadSliderOpen = false
+                    if (textBoxSizeOpen || textMoveOpen) viewModel.endTextBoxScale()
+                    textBoxSizeOpen = false
+                    textMoveOpen = false
+                    viewModel.endCoalescedEdit()
+                    textSpacingOpen = true
                 },
                 textMenuRequest = textMenuRequest,
                 pageAspectRatio =
@@ -2229,6 +2260,8 @@ Column(
                     if (textBoxSizeOpen || textMoveOpen) viewModel.endTextBoxScale()
                     textBoxSizeOpen = false
                     textMoveOpen = false
+                    if (textSpacingOpen) viewModel.endCoalescedEdit()
+                    textSpacingOpen = false // fix43
                 }
             }
             // fix30: any panel open / close resets the slider-drag flag (handles always come back).
@@ -2544,7 +2577,7 @@ Column(
                 // Lifted above the keyboard when the Size / Rotate number box is typed in.
                 val textSliderPanelOpen = panelText != null && !toolMenuOpen && (
                     textBorderSliderOpen || textBgSliderOpen || textSpreadSliderOpen ||
-                        textBoxSizeOpen || textMoveOpen
+                        textBoxSizeOpen || textMoveOpen || textSpacingOpen
                     )
                 if (textSliderPanelOpen) {
                 Column(
@@ -2625,6 +2658,21 @@ Column(
                             }
                         )
                     }
+                    if (textSpacingOpen && panelText != null && !toolMenuOpen &&
+                        !(textBorderSliderOpen || textBgSliderOpen || textSpreadSliderOpen || textBoxSizeOpen || textMoveOpen)
+                    ) { // fix43
+                        TextSpacingSliderPanel(
+                            letterEm = panelText.letterSpacingEm,
+                            lineMult = panelText.lineSpacing,
+                            onLetterChange = { viewModel.updateTextSpacing(letterEm = it) },
+                            onLineChange = { viewModel.updateTextSpacing(lineMult = it) },
+                            onReset = { viewModel.updateTextSpacing(0f, 1f) },
+                            onDone = {
+                                viewModel.endCoalescedEdit()
+                                textSpacingOpen = false
+                            }
+                        )
+                    }
                     if (textMoveOpen && panelText != null && !toolMenuOpen) {
                         TextMovePanel(
                             onMove = { dx, dy -> viewModel.nudgeSelectedText(dx, dy) },
@@ -2656,6 +2704,8 @@ Column(
                             }
                     )
                 }
+                // fix43: draggable button with the 60 dropdown border animations
+                DropdownBorderAnimButton(color = currentMenuDesign().badge, fg = Color.White)
             }
             }
         }
@@ -3325,7 +3375,9 @@ private fun HistoryActionButton(
                     .align(Alignment.TopEnd)
                     .padding(top = 1.dp, end = 1.dp)
                     .size(18.dp)
-                    .background(currentMenuDesign().badge, CircleShape), // fix36
+                    .clip(CircleShape)
+                    .background(currentMenuDesign().badge, CircleShape) // fix36
+                    .editorAreaBackground(EditorAreaBg.BADGE), // fix43: Color Picker 3
                 contentAlignment = Alignment.Center
             ) {
                 Text(

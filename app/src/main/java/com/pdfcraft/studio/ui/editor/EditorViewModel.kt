@@ -337,7 +337,10 @@ data class TextElement(
     /** Font size the user chose (0 = same as fontSizeSp). Auto-fit never grows above it. */
     val userFontSp: Float = 0f,
     /** fix30: set by Text Box Size / Text Move. The box may cross the page border (no clamp, no page-edge wrap). */
-    val freeBounds: Boolean = false
+    val freeBounds: Boolean = false,
+    /** fix43: Text Tools Spacing (letter spacing in em, line spacing multiplier) */
+    val letterSpacingEm: Float = 0f,
+    val lineSpacing: Float = 1f
 )
 
 /**
@@ -4715,6 +4718,18 @@ fun isSelectionStrike(): Boolean {
         val index = activeTextIndex()
         if (index < 0) return
         textElements[index] = textElements[index].copy(spreadDp = dp.coerceIn(0f, 40f))
+    }
+
+    /** fix43: Text Tools Spacing sliders (one undo step per panel session). */
+    fun updateTextSpacing(letterEm: Float? = null, lineMult: Float? = null) {
+        beginCoalescedEdit("textSpacing")
+        val index = activeTextIndex()
+        if (index < 0) return
+        val cur = textElements[index]
+        textElements[index] = cur.copy(
+            letterSpacingEm = (letterEm ?: cur.letterSpacingEm).coerceIn(TextSpacingRange.MIN_LETTER, TextSpacingRange.MAX_LETTER),
+            lineSpacing = (lineMult ?: cur.lineSpacing).coerceIn(TextSpacingRange.MIN_LINE, TextSpacingRange.MAX_LINE)
+        )
     }
 
     fun selectedTextSpreadColorArgb(): Long? {
