@@ -70,6 +70,7 @@ import com.pdfcraft.studio.ui.common.AppIcons
 import com.pdfcraft.studio.ui.editor.packEditorPages
 import com.pdfcraft.studio.ui.editor.packPageSource
 import com.pdfcraft.studio.ui.editor.currentMenuDesign
+import com.pdfcraft.studio.ui.editor.dropdownBorderAnim
 import com.pdfcraft.studio.ui.common.DocumentScrollBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -3337,7 +3338,7 @@ private fun PageCard(
         com.pdfcraft.studio.ui.editor.EditorViewModel.PageNumberPosition.NONE,
     content: @Composable () -> Unit
 ) {
-    val energyPhase = rememberPageEnergyPhase()
+    com.pdfcraft.studio.ui.editor.DropdownBorderAnim.ensureLoaded(androidx.compose.ui.platform.LocalContext.current) // fix45
     val frame = currentMenuDesign() // fix36: on-screen page frame only (PDF output unchanged)
     Box(
         modifier = Modifier
@@ -3345,10 +3346,8 @@ private fun PageCard(
             .aspectRatio(aspectRatio)
             .clip(RoundedCornerShape(0.dp)) // fix43: no page shadow
             .border(1.dp, frame.pageBorder)
-            .drawWithContent {
-                drawContent()
-                drawPageEnergyBorder(energyPhase.floatValue, frame.pageLine, frame.glow, frame.glow2)
-            }
+            // fix45: page border = dropdown animation 27 (or the selected one when the switch is on)
+            .dropdownBorderAnim(com.pdfcraft.studio.ui.editor.DropdownBorderAnim.pageChoice(), 0.dp)
             .then(
                 if (backgroundBrush != null) Modifier.background(backgroundBrush)
                 else Modifier.background(Color(backgroundColor))

@@ -91,7 +91,7 @@ object HomeTopImageFit {
     const val CUSTOM_FILE = "home_top_image_custom.jpg"
     /** fix43: border design 1..30 around the top image (0 = no border) */
     const val BORDER = 1
-    const val BORDER_COUNT = 30
+    const val BORDER_COUNT = 250 // fix45
 }
 
 /** fix41: saved Home top image size and position (SharedPreferences "home_top_image"). */

@@ -809,6 +809,12 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         DesignedDropdownMenu(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false },
+                            // fix45: not focusable, so a tap on Page / Image / Text Tools closes this
+                            // list and reaches the tool button in the same tap
+                            properties = androidx.compose.ui.window.PopupProperties(
+                                focusable = false,
+                                dismissOnClickOutside = true
+                            ),
                             menuId = DropdownPlacement.DOTS // fix44
                         ) {
                             MenuItemFrame(

@@ -61,9 +61,13 @@ internal object DropdownPlacement {
     const val MOVE_STEP = 4
     private const val PREFS = "dropdown_placement"
     private var loaded = false
-    private val xs = List(5) { mutableStateOf(0) }
-    private val ys = List(5) { mutableStateOf(0) }
-    private val ss = List(5) { mutableStateOf(1f) }
+    /** fix45 defaults: page 0,4 | image -4,4 | text 4,4 | dots -16,-12, all scale 1.05 */
+    private val DEF_X = intArrayOf(0, 0, -4, 4, -16)
+    private val DEF_Y = intArrayOf(0, 4, 4, 4, -12)
+    private const val DEF_S = 1.05f
+    private val xs = List(5) { mutableStateOf(DEF_X[it]) }
+    private val ys = List(5) { mutableStateOf(DEF_Y[it]) }
+    private val ss = List(5) { mutableStateOf(if (it == 0) 1f else DEF_S) }
 
     fun x(id: Int): Int = if (id in 1..4) xs[id].value else 0
     fun y(id: Int): Int = if (id in 1..4) ys[id].value else 0
@@ -73,10 +77,14 @@ internal object DropdownPlacement {
         if (loaded) return
         loaded = true
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!p.getBoolean("fix45_defaults", false)) {
+            // fix45: start once from the new default placements
+            p.edit().clear().putBoolean("fix45_defaults", true).apply()
+        }
         for (id in 1..4) {
-            xs[id].value = p.getInt("m" + id + "_x", 0).coerceIn(-400, 400)
-            ys[id].value = p.getInt("m" + id + "_y", 0).coerceIn(-600, 600)
-            ss[id].value = p.getFloat("m" + id + "_s", 1f).coerceIn(MIN_SCALE, MAX_SCALE)
+            xs[id].value = p.getInt("m" + id + "_x", DEF_X[id]).coerceIn(-400, 400)
+            ys[id].value = p.getInt("m" + id + "_y", DEF_Y[id]).coerceIn(-600, 600)
+            ss[id].value = p.getFloat("m" + id + "_s", DEF_S).coerceIn(MIN_SCALE, MAX_SCALE)
         }
     }
 
@@ -103,9 +111,9 @@ internal object DropdownPlacement {
 
     fun reset(context: Context, id: Int) {
         if (id !in 1..4) return
-        xs[id].value = 0
-        ys[id].value = 0
-        ss[id].value = 1f
+        xs[id].value = DEF_X[id]
+        ys[id].value = DEF_Y[id]
+        ss[id].value = DEF_S
         save(context, id)
     }
 

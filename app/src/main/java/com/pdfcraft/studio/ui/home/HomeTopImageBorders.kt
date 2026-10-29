@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -41,6 +46,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.pdfcraft.studio.R
 import com.pdfcraft.studio.ui.common.DraggableFab
+import android.content.Context
+import java.util.Locale
+import kotlin.math.roundToInt
 
 /** fix43: 30 border designs for the Home top image = 10 colour sets x 3 line styles. */
 private val BORDER_PALETTES: List<List<Color>> = listOf(
@@ -56,23 +64,58 @@ private val BORDER_PALETTES: List<List<Color>> = listOf(
     listOf(Color(0xFFFF0000), Color(0xFFFFFF00), Color(0xFF00FF00), Color(0xFF00FFFF), Color(0xFF0000FF), Color(0xFFFF00FF))
 )
 
-/** style 0 = gradient line, 1 = double line, 2 = dashed line */
+/** fix45: border line thickness (0.4x .. 4.0x), prefs "home_top_border". */
+internal object HomeTopBorderThickness {
+    const val MIN = 0.4f
+    const val MAX = 4.0f
+    private var loaded = false
+    var value by mutableStateOf(1f)
+        private set
+
+    fun ensureLoaded(context: Context) {
+        if (loaded) return
+        loaded = true
+        value = context.applicationContext.getSharedPreferences("home_top_border", Context.MODE_PRIVATE)
+            .getFloat("thickness", 1f).coerceIn(MIN, MAX)
+    }
+
+    fun set(context: Context, v: Float) {
+        value = v.coerceIn(MIN, MAX)
+        context.applicationContext.getSharedPreferences("home_top_border", Context.MODE_PRIVATE)
+            .edit().putFloat("thickness", value).apply()
+    }
+}
+
+/** 1..30 = fix43 (style 0 gradient, 1 double, 2 dashed); 31..250 = fix45 styles 3..12 with generated colours. */
+private fun borderColors(n: Int): List<Color> {
+    if (n <= 30) return BORDER_PALETTES[(n - 1) % 10]
+    val k = n - 31
+    val p = k / 10
+    val h = ((p * 37 + (k % 10) * 23) % 360).toFloat()
+    val sat = if (p % 4 == 3) 0.45f else 0.85f
+    val v = if (p % 5 == 4) 0.6f else 1f
+    return listOf(Color.hsv(h, sat, v), Color.hsv((h + 50f) % 360f, sat, v), Color.hsv((h + 180f) % 360f, sat * 0.7f, 1f))
+}
+
+private fun borderStyle(n: Int): Int = if (n <= 30) (n - 1) / 10 else 3 + (n - 31) % 10
+
 internal fun Modifier.homeTopImageBorder(n: Int, shape: RoundedCornerShape): Modifier {
     if (n < 1 || n > HomeTopImageFit.BORDER_COUNT) return this
-    val colors = BORDER_PALETTES[(n - 1) % 10]
-    val style = (n - 1) / 10
+    val colors = borderColors(n)
+    val style = borderStyle(n)
     return this.drawWithContent {
         drawContent()
         val brush = Brush.linearGradient(colors, Offset.Zero, Offset(size.width, size.height))
-        val w = 3.dp.toPx()
+        val w = 3.dp.toPx() * HomeTopBorderThickness.value
         val r = shape.topStart.toPx(size, this).coerceAtLeast(0f)
-        fun line(inset: Float, width: Float, effect: PathEffect?) {
+        fun line(inset: Float, width: Float, effect: PathEffect?, b: Brush = brush, alpha: Float = 1f, cap: StrokeCap = StrokeCap.Butt) {
             drawRoundRect(
-                brush = brush,
+                brush = b,
                 topLeft = Offset(inset, inset),
                 size = Size(size.width - inset * 2, size.height - inset * 2),
                 cornerRadius = CornerRadius((r - inset).coerceAtLeast(0f)),
-                style = Stroke(width = width, pathEffect = effect)
+                alpha = alpha,
+                style = Stroke(width = width, cap = cap, pathEffect = effect)
             )
         }
         when (style) {
@@ -81,7 +124,36 @@ internal fun Modifier.homeTopImageBorder(n: Int, shape: RoundedCornerShape): Mod
                 line(w / 3, w / 1.5f, null)
                 line(w * 1.9f, w / 1.5f, null)
             }
-            else -> line(w / 2, w, PathEffect.dashPathEffect(floatArrayOf(w * 4, w * 2.5f), 0f))
+            2 -> line(w / 2, w, PathEffect.dashPathEffect(floatArrayOf(w * 4, w * 2.5f), 0f))
+            3 -> line(w / 2, w, PathEffect.dashPathEffect(floatArrayOf(0.01f, w * 2.2f), 0f), cap = StrokeCap.Round) // dots
+            4 -> { // triple thin
+                line(w / 6, w / 3, null)
+                line(w, w / 3, null)
+                line(w * 1.8f, w / 3, null)
+            }
+            5 -> { // thick inner + thin outer
+                line(w / 6, w / 3, null)
+                line(w * 1.3f, w * 1.2f, null)
+            }
+            6 -> line(w / 2, w, PathEffect.dashPathEffect(floatArrayOf(w * 9, w * 3), 0f)) // long dashes
+            7 -> line(w / 2, w, PathEffect.dashPathEffect(floatArrayOf(w * 5, w * 1.5f, 0.01f, w * 1.5f), 0f), cap = StrokeCap.Round) // dash-dot
+            8 -> { // glow
+                line(w * 1.2f, w * 2.4f, null, alpha = 0.3f)
+                line(w / 2, w * 0.7f, null)
+            }
+            9 -> { // two-colour double
+                line(w / 3, w / 1.5f, null, Brush.linearGradient(listOf(colors[0], colors[0]), Offset.Zero, Offset(size.width, size.height)))
+                line(w * 1.4f, w / 1.5f, null, Brush.linearGradient(listOf(colors[2], colors[2]), Offset.Zero, Offset(size.width, size.height)))
+            }
+            10 -> { // solid + dashed inside
+                line(w / 2, w, null)
+                line(w * 1.9f, w / 2, PathEffect.dashPathEffect(floatArrayOf(w * 2, w * 2), 0f))
+            }
+            11 -> line(w / 2, w * 1.6f, null) // bold
+            else -> { // hairline pair
+                line(w / 4, w / 2, null)
+                line(w * 1.1f, w / 4, null, alpha = 0.7f)
+            }
         }
     }
 }
@@ -90,6 +162,7 @@ internal fun Modifier.homeTopImageBorder(n: Int, shape: RoundedCornerShape): Mod
 @Composable
 internal fun HomeTopImageBorderButton(fabColor: Color, fabFg: Color) {
     var open by remember { mutableStateOf(false) }
+    HomeTopBorderThickness.ensureLoaded(LocalContext.current) // fix45
     DraggableFab(
         key = "home_top_border",
         defaultX = 1f,
@@ -125,33 +198,46 @@ private fun HomeTopImageBorderDialog(onDismiss: () -> Unit) {
                 color = Color(0xFF616161),
                 modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
             )
-            Column(
-                Modifier
-                    .heightIn(max = 460.dp)
-                    .verticalScroll(rememberScrollState()),
+            // fix45: border thickness
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.border_thickness), fontSize = 13.sp, color = Color(0xFF424242))
+                Spacer(Modifier.weight(1f))
+                Text(
+                    String.format(Locale.US, "%.1fx", HomeTopBorderThickness.value),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1976D2)
+                )
+            }
+            Slider(
+                value = HomeTopBorderThickness.value,
+                onValueChange = { HomeTopBorderThickness.set(ctx, (it * 10f).roundToInt() / 10f) },
+                valueRange = HomeTopBorderThickness.MIN..HomeTopBorderThickness.MAX,
+                steps = 35
+            )
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(5),
+                modifier = Modifier.heightIn(max = 400.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                for (row in 0 until 6) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        for (col in 0 until 5) {
-                            val n = row * 5 + col + 1
-                            val shape = RoundedCornerShape(10.dp)
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp)
-                                    .background(Color(0xFF9E9E9E), shape)
-                                    .homeTopImageBorder(n, shape)
-                                    .then(
-                                        if (n == current) Modifier.border(2.dp, Color(0xFF1976D2), RoundedCornerShape(12.dp))
-                                        else Modifier
-                                    )
-                                    .clickable { HomeTopImageState.changeBorder(ctx, n) }
-                            ) {
-                                Text(n.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            }
-                        }
+                items(HomeTopImageFit.BORDER_COUNT) { i ->
+                    val n = i + 1
+                    val shape = RoundedCornerShape(10.dp)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .background(Color(0xFF9E9E9E), shape)
+                            .homeTopImageBorder(n, shape)
+                            .then(
+                                if (n == current) Modifier.border(2.dp, Color(0xFF1976D2), RoundedCornerShape(12.dp))
+                                else Modifier
+                            )
+                            .clickable { HomeTopImageState.changeBorder(ctx, n) }
+                    ) {
+                        Text(n.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
                 }
             }
