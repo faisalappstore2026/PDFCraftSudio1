@@ -37,7 +37,7 @@ internal fun drawSpacedCursor(scope: DrawScope, lay: TextLayoutResult, offset: I
     val off = offset.coerceIn(0, len)
     val line = lay.getLineForOffset(off)
     val x = lay.getHorizontalPosition(off, true)
-    val base = lay.getLineBaseline(line)
+    val base = lay.getLineBottom(line) - fontPx * 0.30f // fix44b
     val top = base - fontPx * 0.95f
     val bottom = base + fontPx * 0.25f
     val w = 2f * scope.density
