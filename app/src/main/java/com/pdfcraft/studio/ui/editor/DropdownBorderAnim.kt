@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +54,8 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.roundToInt
+import java.util.Locale
 
 /**
  * fix43: animated border for the Page / Image / Text Tools and the menu dropdowns.
@@ -65,12 +69,25 @@ internal object DropdownBorderAnim {
 
     var choice by mutableStateOf(DEFAULT)
         private set
+    /** fix44: border line thickness multiplier (thin 0.4 .. thick 4.0) */
+    const val MIN_THICK = 0.4f
+    const val MAX_THICK = 4.0f
+    var thickness by mutableStateOf(1f)
+        private set
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
         choice = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getInt("choice", DEFAULT).coerceIn(0, COUNT)
+        thickness = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getFloat("thickness", 1f).coerceIn(MIN_THICK, MAX_THICK)
+    }
+
+    fun setThickness(context: Context, v: Float) {
+        thickness = v.coerceIn(MIN_THICK, MAX_THICK)
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putFloat("thickness", thickness).apply()
     }
 
     fun select(context: Context, n: Int) {
@@ -108,7 +125,7 @@ internal fun Modifier.dropdownBorderAnim(n: Int, corner: Dp): Modifier {
     )
     return this.drawWithContent {
         drawContent()
-        val base = 2.5.dp.toPx()
+        val base = 2.5.dp.toPx() * DropdownBorderAnim.thickness // fix44
         val r = corner.toPx()
         val w = size.width
         val h = size.height
@@ -214,11 +231,28 @@ private fun DropdownBorderAnimDialog(onDismiss: () -> Unit) {
                 else stringResource(R.string.selected_number, current),
                 fontSize = 13.sp,
                 color = Color(0xFF616161),
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+            )
+            // fix44: border line thickness
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.border_thickness), fontSize = 13.sp, color = Color(0xFF424242))
+                Spacer(Modifier.weight(1f))
+                Text(
+                    String.format(Locale.US, "%.1fx", DropdownBorderAnim.thickness),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1976D2)
+                )
+            }
+            Slider(
+                value = DropdownBorderAnim.thickness,
+                onValueChange = { DropdownBorderAnim.setThickness(ctx, (it * 10f).roundToInt() / 10f) },
+                valueRange = DropdownBorderAnim.MIN_THICK..DropdownBorderAnim.MAX_THICK,
+                steps = 35
             )
             Column(
                 Modifier
-                    .heightIn(max = 480.dp)
+                    .heightIn(max = 440.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {

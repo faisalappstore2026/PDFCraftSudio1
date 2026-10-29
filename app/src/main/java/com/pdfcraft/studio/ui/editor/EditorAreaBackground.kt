@@ -35,6 +35,8 @@ internal object EditorAreaBg {
     const val TOP_BAR = 2
     /** fix43: Color Picker 3 = undo/redo number badge */
     const val BADGE = 3
+    /** fix44: Color Picker 4 = colour of the numbers in the undo / redo badges */
+    const val NUMBER = 4
     private const val PREFS = "editor_area_bg"
     private var loaded = false
 
@@ -49,6 +51,7 @@ internal object EditorAreaBg {
     private var pagesLook by mutableStateOf<AreaLook?>(null)
     private var topBarLook by mutableStateOf<AreaLook?>(null)
     private var badgeLook by mutableStateOf<AreaLook?>(null)
+    private var numberLook by mutableStateOf<AreaLook?>(null)
 
     /** fix43: defaults when nothing is saved (Color Templates row 1 col 4 / row 4 col 8) */
     private val DEFAULT_PAGES = AreaLook(PageBgKind.SOLID, 0xFFEEEEEEL, 0xFFEEEEEEL, floatArrayOf(0f, 0f, 1f, 1f), null)
@@ -57,12 +60,14 @@ internal object EditorAreaBg {
     private fun get(area: Int): AreaLook? = when (area) {
         PAGES -> pagesLook ?: DEFAULT_PAGES
         TOP_BAR -> topBarLook ?: DEFAULT_TOP_BAR
+        NUMBER -> numberLook
         else -> badgeLook
     }
     private fun put(area: Int, look: AreaLook?) {
         when (area) {
             PAGES -> pagesLook = look
             TOP_BAR -> topBarLook = look
+            NUMBER -> numberLook = look
             else -> badgeLook = look
         }
     }
@@ -70,6 +75,13 @@ internal object EditorAreaBg {
     private fun imageFile(context: Context, area: Int) = File(context.filesDir, "editor_area_bg_" + area + ".png")
 
     fun isSet(area: Int): Boolean = get(area) != null
+
+    /** fix44: plain colour of an area (gradient = its first colour, photo or nothing = [fallback]). */
+    fun colorOr(area: Int, fallback: Color): Color {
+        val l = get(area) ?: return fallback
+        if (l.kind == PageBgKind.IMAGE) return fallback
+        return Color(l.color)
+    }
 
     /** Starting values for the picker window (an image starts on the color tabs). */
     fun spec(area: Int): PageBackgroundSpec {
@@ -89,7 +101,7 @@ internal object EditorAreaBg {
         if (loaded) return
         loaded = true
         val app = context.applicationContext
-        for (area in listOf(PAGES, TOP_BAR, BADGE)) {
+        for (area in listOf(PAGES, TOP_BAR, BADGE, NUMBER)) {
             val look = withContext(Dispatchers.IO) { readLook(app, area) }
             put(area, look)
         }

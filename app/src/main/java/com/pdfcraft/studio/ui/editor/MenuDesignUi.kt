@@ -102,9 +102,11 @@ internal fun DesignedDropdownMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
     properties: PopupProperties = PopupProperties(focusable = true),
+    menuId: Int = 0, // fix44: DropdownPlacement id (0 = not moved / scaled)
     content: @Composable ColumnScope.() -> Unit
 ) {
     val d = currentDropdownDesign()
+    DropdownPlacement.ensureLoaded(androidx.compose.ui.platform.LocalContext.current) // fix44
     DropdownBorderAnim.ensureLoaded(androidx.compose.ui.platform.LocalContext.current) // fix43
     val scheme = MaterialTheme.colorScheme.copy(surface = d.container, surfaceTint = d.container)
     val shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(d.corner))
@@ -118,8 +120,9 @@ internal fun DesignedDropdownMenu(
                 .then(if (brush != null) Modifier.background(brush) else Modifier)
                 .then(if (outline != null) Modifier.border(d.outlineWidth, outline, RoundedCornerShape(d.corner)) else Modifier)
                 .dropdownBorderAnim(DropdownBorderAnim.choice, d.corner), // fix43
+            offset = dropdownOffset(menuId), // fix44
             properties = properties,
-            content = content
+            content = { DropdownScaledContent(menuId, content) }
         )
     }
 }

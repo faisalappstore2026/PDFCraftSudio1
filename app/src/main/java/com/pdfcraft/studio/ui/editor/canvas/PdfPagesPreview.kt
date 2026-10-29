@@ -1853,6 +1853,9 @@ private fun PageTextOverlay(
                             }
                         )
                 ) {
+                // fix44: font-height cursor when line spacing is changed
+                val spacedCursor = com.pdfcraft.studio.ui.editor.usesSpacedCursor(textElement)
+                val spacedCursorOn = com.pdfcraft.studio.ui.editor.spacedCursorBlinkOn(spacedCursor && editFocused)
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { newValue ->
@@ -1889,7 +1892,7 @@ private fun PageTextOverlay(
                             )
                         } else null
                     ),
-                    cursorBrush = SolidColor(Color.Black),
+                    cursorBrush = SolidColor(if (spacedCursor) Color.Transparent else Color.Black), // fix44
                     onTextLayout = { res ->
                         val prev = textLayout
                         if (prev == null || prev.layoutInput != res.layoutInput || prev.size != res.size) textLayout = res
@@ -1931,6 +1934,20 @@ private fun PageTextOverlay(
                                 drawContext.canvas.restore()
                             } else {
                                 drawContent()
+                            }
+                        }
+                        .drawWithContent {
+                            drawContent()
+                            // fix44: own cursor (normal font height, not the spaced line height)
+                            val cLay = textLayout
+                            if (spacedCursorOn && cLay != null && fieldValue.selection.collapsed) {
+                                runCatching {
+                                    val tOff = visualTx.filter(fieldValue.annotatedString).offsetMapping
+                                        .originalToTransformed(fieldValue.selection.start)
+                                    com.pdfcraft.studio.ui.editor.drawSpacedCursor(
+                                        this, cLay, tOff, textElement.fontSizeSp.sp.toPx(), Color.Black
+                                    )
+                                }
                             }
                         }
                         .focusRequester(focusRequester)

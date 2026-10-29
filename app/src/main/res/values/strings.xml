@@ -506,6 +506,16 @@
     <string name="none_label">None</string>
     <string name="close_label">Close</string>
     <string name="color_picker_3">Color Picker 3</string>
+    <!-- fix44 -->
+    <string name="color_picker_4">Color Picker 4</string>
+    <string name="border_thickness">Border thickness</string>
+    <string name="dropdown_placement_title">Dropdown Position and Size</string>
+    <string name="dropdown_page_tools">Page Tools</string>
+    <string name="dropdown_image_tools">Image Tools</string>
+    <string name="dropdown_text_tools">Text Tools</string>
+    <string name="dropdown_dots_menu">3 Dots Menu</string>
+    <string name="dropdown_size">Size</string>
+    <string name="copied_label">Copied</string>
     <string name="border_animations">Border Animations</string>
     <string name="border_animation_off">Animation Off</string>
     <string name="text_spacing">Spacing</string>

@@ -657,7 +657,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
             title = when (area) {
                 EditorAreaBg.PAGES -> stringResource(R.string.color_picker_1)
                 EditorAreaBg.TOP_BAR -> stringResource(R.string.color_picker_2)
-                else -> stringResource(R.string.color_picker_3) // fix43
+                EditorAreaBg.BADGE -> stringResource(R.string.color_picker_3) // fix43
+                else -> stringResource(R.string.color_picker_4) // fix44
             },
             onPickImage = {
                 backgroundImagePickerLauncher.launch(
@@ -807,7 +808,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         // fix40: three dots list drawn with the chosen Menu Design (dropdown look)
                         DesignedDropdownMenu(
                             expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
+                            onDismissRequest = { menuExpanded = false },
+                            menuId = DropdownPlacement.DOTS // fix44
                         ) {
                             MenuItemFrame(
                                 enabled = !projectSaving,
@@ -901,6 +903,15 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                 areaBgPicker = EditorAreaBg.BADGE
                             }) {
                                 MenuItemText(stringResource(R.string.color_picker_3))
+                            }
+                            MenuDesignDivider()
+                            // fix44: colour of the numbers in the undo / redo badges
+                            MenuItemFrame(onClick = {
+                                menuExpanded = false
+                                areaBgPending = null
+                                areaBgPicker = EditorAreaBg.NUMBER
+                            }) {
+                                MenuItemText(stringResource(R.string.color_picker_4))
                             }
                         }
                         if (menuDesignPickerOpen) {
@@ -2706,6 +2717,8 @@ Column(
                 }
                 // fix43: draggable button with the 60 dropdown border animations
                 DropdownBorderAnimButton(color = currentMenuDesign().badge, fg = Color.White)
+                // fix44: draggable button to move / resize the four dropdown lists
+                DropdownPlacementButton(color = currentMenuDesign().badge, fg = Color.White)
             }
             }
         }
@@ -3382,7 +3395,7 @@ private fun HistoryActionButton(
             ) {
                 Text(
                     text = if (count > 99) "99+" else count.toString(),
-                    color = Color.White,
+                    color = EditorAreaBg.colorOr(EditorAreaBg.NUMBER, Color.White), // fix44: Color Picker 4
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     lineHeight = 9.sp,

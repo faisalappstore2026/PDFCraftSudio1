@@ -817,6 +817,7 @@ private fun ImageToolsMenu(
 
         DesignedDropdownMenu(
             expanded = menuExpanded,
+            menuId = DropdownPlacement.IMAGE, // fix44
             onDismissRequest = onMenuDismiss,
             properties = PopupProperties(
                 focusable = false,
@@ -930,6 +931,7 @@ private fun PageToolsMenu(
 
         DesignedDropdownMenu(
             expanded = menuExpanded,
+            menuId = DropdownPlacement.PAGE, // fix44
             onDismissRequest = {
                 onMenuDismiss()
                 orientationSub = false
@@ -1079,6 +1081,7 @@ private fun TextToolsMenu(
 
         DesignedDropdownMenu(
             expanded = menuExpanded,
+            menuId = DropdownPlacement.TEXT, // fix44
             onDismissRequest = onMenuDismiss,
             properties = PopupProperties(
                 focusable = false,
