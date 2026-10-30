@@ -492,6 +492,7 @@
     <string name="home_top_image_copy">Copy Details</string>
     <string name="home_top_image_copied">Details copied</string>
     <string name="home_top_image_copy_move">Copy Move Details</string>
+    <string name="title_size">Title Size</string>
     <string name="home_top_anim_title">Top Image Border Animations</string>
     <!-- fix42: Home top image crop, corners, import -->
     <string name="home_top_image_crop_x">Crop left and right</string>
@@ -500,16 +501,16 @@
     <string name="home_top_image_import">Import Image</string>
     <string name="home_top_image_import_failed">Could not import the image</string>
     <!-- fix41: editor three dots menu -->
-    <string name="color_picker_1">Color Picker 1</string>
-    <string name="color_picker_2">Color Picker 2</string>
+    <!-- fix52: color_picker_1 removed -->
+    <!-- fix52: color_picker_2 removed -->
     <!-- fix43_home -->
     <string name="home_top_image_borders">Top Image Borders</string>
     <string name="selected_number">Selected: %1$d</string>
     <string name="none_label">None</string>
     <string name="close_label">Close</string>
-    <string name="color_picker_3">Color Picker 3</string>
+    <!-- fix52: color_picker_3 removed -->
     <!-- fix44 -->
-    <string name="color_picker_4">Color Picker 4</string>
+    <!-- fix52: color_picker_4 removed -->
     <string name="border_thickness">Border thickness</string>
     <string name="dropdown_placement_title">Dropdown Position and Size</string>
     <string name="dropdown_page_tools">Page Tools</string>

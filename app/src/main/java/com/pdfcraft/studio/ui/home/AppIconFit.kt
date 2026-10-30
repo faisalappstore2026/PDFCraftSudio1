@@ -17,9 +17,9 @@ import com.pdfcraft.studio.R
  * the same meaning as the Icon Center preview.
  */
 object AppIconFit {
-    const val OFFSET_X = -0.01f // fix49: Grok4.png
+    const val OFFSET_X = -0.03f // fix52: Grok6.png
     const val OFFSET_Y = 0.02f
-    const val SCALE = 0.86f
+    const val SCALE = 0.58f
     const val CANVAS_PER_CIRCLE = 1.5f
 }
 

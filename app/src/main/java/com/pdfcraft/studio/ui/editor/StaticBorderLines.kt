@@ -63,18 +63,21 @@ internal object StaticBorder {
     const val MAX_THICK = 4.0f
     private const val PREFS = "static_border_lines"
     private var loaded = false
-    var dropdown by mutableStateOf(0)
+    var dropdown by mutableStateOf(282) // fix52
         private set
     var page by mutableStateOf(0)
         private set
-    var thickness by mutableStateOf(1f)
+    var thickness by mutableStateOf(0.8f) // fix52
         private set
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        dropdown = p.getInt("dropdown", 0).coerceIn(0, COUNT)
+        if (!p.getBoolean("fix52_defaults", false)) { // fix52: tool lists = static 282 at 0.8x once
+            p.edit().putInt("dropdown", 282).putFloat("thickness", 0.8f).putBoolean("fix52_defaults", true).apply()
+        }
+        dropdown = p.getInt("dropdown", 282).coerceIn(0, COUNT)
         page = p.getInt("page", 0).coerceIn(0, COUNT)
         thickness = p.getFloat("thickness", 1f).coerceIn(MIN_THICK, MAX_THICK)
     }
@@ -105,13 +108,13 @@ internal object ToolArrowSize {
     const val MIN = 0.5f
     const val MAX = 3.0f
     private var loaded = false
-    var scale by mutableStateOf(2.5f) // fix51
+    var scale by mutableStateOf(1.5f) // fix52
         private set
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
-        scale = 2.5f // fix51: fixed 2.5x, old saved value ignored
+        scale = 1.5f // fix52: fixed 1.5x, old saved value ignored
     }
 
     fun set(context: Context, v: Float) {

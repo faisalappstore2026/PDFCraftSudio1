@@ -531,9 +531,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
             }
         }
 
-    var areaBgPicker by remember { mutableStateOf(0) } // fix41: 1 = Color Picker 1, 2 = Color Picker 2
-    var areaBgPending by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    LaunchedEffect(Unit) { EditorAreaBg.load(context) }
+    // fix52: Color Picker 1..4 removed
     var pendingBgBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var showMatchPageSizeDialog by remember { mutableStateOf(false) }
     val backgroundImagePickerLauncher =
@@ -541,9 +539,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
             contract = ActivityResultContracts.PickVisualMedia()
         ) { uri ->
             if (uri != null) {
-                if (areaBgPicker != 0) {
-                    viewModel.decodeBackgroundPreview(uri) { bmp -> areaBgPending = bmp } // fix41
-                } else if (showAdvancedBgEditor) {
+                if (showAdvancedBgEditor) {
                     viewModel.decodeBackgroundPreview(uri) { bmp ->
                         pendingBgBitmap = bmp
                         if (viewModel.pageBgColorSelection.isNotEmpty()) {
@@ -647,44 +643,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         )
     }
 
-    // fix41: Color Picker 1 (pages area) / Color Picker 2 (top bar), same window as Page Background
-    if (areaBgPicker != 0) {
-        val area = areaBgPicker
-        PageBackgroundEditorDialog(
-            initial = EditorAreaBg.spec(area),
-            initialBitmap = null,
-            pendingBitmap = areaBgPending,
-            title = when (area) {
-                EditorAreaBg.PAGES -> stringResource(R.string.color_picker_1)
-                EditorAreaBg.TOP_BAR -> stringResource(R.string.color_picker_2)
-                EditorAreaBg.BADGE -> stringResource(R.string.color_picker_3) // fix43
-                else -> stringResource(R.string.color_picker_4) // fix44
-            },
-            onPickImage = {
-                backgroundImagePickerLauncher.launch(
-                    androidx.activity.result.PickVisualMediaRequest(
-                        ActivityResultContracts.PickVisualMedia.ImageOnly
-                    )
-                )
-            },
-            onCancel = {
-                areaBgPicker = 0
-                areaBgPending = null
-            },
-            onOk = { spec, bmp ->
-                val appCtx = context.applicationContext
-                coroutineScope.launch { EditorAreaBg.apply(appCtx, area, spec, bmp) }
-                areaBgPicker = 0
-                areaBgPending = null
-            },
-            // "None" = back to the editor design colors (default)
-            onNone = {
-                EditorAreaBg.reset(context, area)
-                areaBgPicker = 0
-                areaBgPending = null
-            }
-        )
-    }
+    // fix52: Color Picker 1..4 window removed
 
     if (showMatchPageSizeDialog) {
         AlertDialog(
@@ -726,7 +685,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         fontWeight = FontWeight.SemiBold,
                         color = editorDesign.topBarFg, // fix36
                         maxLines = 1,
-                        fontSize = 18.sp, // fix51: a bit smaller, gap before undo / redo
+                        fontSize = editorTitleSp().sp, // fix51, fix52: size from three dots > Title Size
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.padding(end = 10.dp)
                     )
@@ -808,6 +767,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         var projectSaving by remember { mutableStateOf(false) }
                         var menuDesignPickerOpen by remember { mutableStateOf(false) } // fix35
                         var favoriteDesignPickerOpen by remember { mutableStateOf(false) } // fix36
+                        var titleSizeOpen by remember { mutableStateOf(false) } // fix52
                         // fix40: three dots list drawn with the chosen Menu Design (dropdown look)
                         DesignedDropdownMenu(
                             expanded = menuExpanded,
@@ -887,45 +847,18 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                                 MenuItemText(stringResource(R.string.favorite_design_option))
                             }
                             MenuDesignDivider()
-                            // fix41: background of the pages area
+                            // fix52: editor title text size
                             MenuItemFrame(onClick = {
                                 menuExpanded = false
-                                areaBgPending = null
-                                areaBgPicker = EditorAreaBg.PAGES
+                                titleSizeOpen = true
                             }) {
-                                MenuItemText(stringResource(R.string.color_picker_1))
-                            }
-                            MenuDesignDivider()
-                            // fix41: background of the top bar
-                            MenuItemFrame(onClick = {
-                                menuExpanded = false
-                                areaBgPending = null
-                                areaBgPicker = EditorAreaBg.TOP_BAR
-                            }) {
-                                MenuItemText(stringResource(R.string.color_picker_2))
-                            }
-                            MenuDesignDivider()
-                            // fix43: colour of the undo / redo number badge
-                            MenuItemFrame(onClick = {
-                                menuExpanded = false
-                                areaBgPending = null
-                                areaBgPicker = EditorAreaBg.BADGE
-                            }) {
-                                MenuItemText(stringResource(R.string.color_picker_3))
-                            }
-                            MenuDesignDivider()
-                            // fix44: colour of the numbers in the undo / redo badges
-                            MenuItemFrame(onClick = {
-                                menuExpanded = false
-                                areaBgPending = null
-                                areaBgPicker = EditorAreaBg.NUMBER
-                            }) {
-                                MenuItemText(stringResource(R.string.color_picker_4))
+                                MenuItemText(stringResource(R.string.title_size))
                             }
                         }
                         if (menuDesignPickerOpen) {
                             MenuDesignPickerDialog(onDismiss = { menuDesignPickerOpen = false })
                         }
+                        if (titleSizeOpen) EditorTitleSizeDialog(onDismiss = { titleSizeOpen = false }) // fix52
                         if (favoriteDesignPickerOpen) {
                             FavoriteDesignPickerDialog(onDismiss = { favoriteDesignPickerOpen = false })
                         }
