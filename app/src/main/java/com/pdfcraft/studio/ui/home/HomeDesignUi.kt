@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -330,6 +331,16 @@ private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Fl
     }
 }
 
+/** fix53: full width "Other Useful Tools" button below Icon Center, Icon Center style, no action yet. */
+@Composable
+private fun OtherToolsButton(d: HomeDesign) {
+    RowCard(
+        d, 3,
+        HomeEntry(stringResource(R.string.other_useful_tools), stringResource(R.string.home_sub_other_tools), Icons.Filled.Build, {}),
+        Modifier.fillMaxWidth()
+    )
+}
+
 @Composable
 private fun HomeBody(d: HomeDesign, entries: List<HomeEntry>, logoSize: Float, onLogoSizeChange: (Float) -> Unit) {
     val gap = d.spacing
@@ -351,6 +362,7 @@ private fun HomeBody(d: HomeDesign, entries: List<HomeEntry>, logoSize: Float, o
                     .background(d.cardSub.copy(alpha = 0.4f))
             )
             entries.forEachIndexed { i, e -> RowCard(d, i, e, Modifier.fillMaxWidth()) }
+            OtherToolsButton(d) // fix53
             LogoSizeSlider(d, logoSize, onLogoSizeChange, d.cardSub)
         }
         HomeLayout.DOCK -> Column(
@@ -389,6 +401,7 @@ private fun HomeBody(d: HomeDesign, entries: List<HomeEntry>, logoSize: Float, o
                     }
                 }
             }
+            OtherToolsButton(d) // fix53
         }
         else -> Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -396,6 +409,7 @@ private fun HomeBody(d: HomeDesign, entries: List<HomeEntry>, logoSize: Float, o
             modifier = Modifier.fillMaxWidth()
         ) {
             HomeOptions(d, entries, logoSize)
+            OtherToolsButton(d) // fix53
             Spacer(modifier = Modifier.height(4.dp))
             LogoSizeSlider(d, logoSize, onLogoSizeChange, d.sub)
         }

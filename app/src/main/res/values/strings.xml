@@ -493,6 +493,8 @@
     <string name="home_top_image_copied">Details copied</string>
     <string name="home_top_image_copy_move">Copy Move Details</string>
     <string name="title_size">Title Size</string>
+    <string name="other_useful_tools">Other Useful Tools</string>
+    <string name="home_sub_other_tools">More tools coming soon</string>
     <string name="home_top_anim_title">Top Image Border Animations</string>
     <!-- fix42: Home top image crop, corners, import -->
     <string name="home_top_image_crop_x">Crop left and right</string>

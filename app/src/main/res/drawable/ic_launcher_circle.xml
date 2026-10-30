@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- fix52 ICON_FIT offsetX=-0.03 offsetY=0.02 scale=0.58 (Grok6.png 1408x1408) -->
+<!-- fix53 ICON_FIT offsetX=-0.01 offsetY=0.02 scale=0.93 (Grok7.jpg 1408x1408) -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/app_circle_icon"
-    android:insetLeft="19.0000%"
-    android:insetTop="22.3333%"
-    android:insetRight="23.0000%"
-    android:insetBottom="19.6667%" />
+    android:insetLeft="2.8333%"
+    android:insetTop="4.8333%"
+    android:insetRight="4.1667%"
+    android:insetBottom="2.1667%" />

@@ -63,7 +63,7 @@ internal object StaticBorder {
     const val MAX_THICK = 4.0f
     private const val PREFS = "static_border_lines"
     private var loaded = false
-    var dropdown by mutableStateOf(282) // fix52
+    var dropdown by mutableStateOf(0) // fix52, fix53: none, Border Animation shows
         private set
     var page by mutableStateOf(0)
         private set
@@ -77,7 +77,10 @@ internal object StaticBorder {
         if (!p.getBoolean("fix52_defaults", false)) { // fix52: tool lists = static 282 at 0.8x once
             p.edit().putInt("dropdown", 282).putFloat("thickness", 0.8f).putBoolean("fix52_defaults", true).apply()
         }
-        dropdown = p.getInt("dropdown", 282).coerceIn(0, COUNT)
+        if (!p.getBoolean("fix53_defaults", false)) { // fix53: tool lists back to Border Animation once
+            p.edit().putInt("dropdown", 0).putBoolean("fix53_defaults", true).apply()
+        }
+        dropdown = p.getInt("dropdown", 0).coerceIn(0, COUNT)
         page = p.getInt("page", 0).coerceIn(0, COUNT)
         thickness = p.getFloat("thickness", 1f).coerceIn(MIN_THICK, MAX_THICK)
     }

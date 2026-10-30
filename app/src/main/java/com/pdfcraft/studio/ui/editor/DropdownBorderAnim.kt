@@ -67,7 +67,7 @@ import java.util.Locale
  */
 internal object DropdownBorderAnim {
     const val COUNT = 250 // fix45: 61..250 added
-    const val DEFAULT = 29 // fix45, fix50
+    const val DEFAULT = 25 // fix45, fix50, fix53
     /** fix45: page border design when the pages switch is off */
     const val PAGE_DEFAULT = 27
     private const val PREFS = "dropdown_border_anim"
@@ -76,7 +76,7 @@ internal object DropdownBorderAnim {
     var choice by mutableStateOf(DEFAULT)
         private set
     /** fix51: the three dots menu has its own design (default 28, same thickness) */
-    var dotsChoice by mutableStateOf(28)
+    var dotsChoice by mutableStateOf(25) // fix53
         private set
     /** fix44: border line thickness multiplier (thin 0.4 .. thick 4.0) */
     const val MIN_THICK = 0.4f
@@ -116,7 +116,12 @@ internal object DropdownBorderAnim {
             p.edit().putInt("dots_choice", 28).putFloat("thickness", MIN_THICK).putBoolean("fix51_defaults", true).apply()
             thickness = MIN_THICK
         }
-        dotsChoice = p.getInt("dots_choice", 28).coerceIn(0, COUNT)
+        if (!p.getBoolean("fix53_defaults", false)) { // fix53: tool lists + dots menu = design 25 at 0.4x once
+            p.edit().putInt("choice", 25).putInt("dots_choice", 25).putFloat("thickness", MIN_THICK).putBoolean("fix53_defaults", true).apply()
+            choice = 25
+            thickness = MIN_THICK
+        }
+        dotsChoice = p.getInt("dots_choice", 25).coerceIn(0, COUNT)
     }
 
     fun setPagesFollow(context: Context, on: Boolean) {
