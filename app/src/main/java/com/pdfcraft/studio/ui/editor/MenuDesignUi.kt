@@ -35,6 +35,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -238,7 +240,12 @@ internal fun MenuDesignHeader(text: String, expanded: Boolean, onClick: () -> Un
             text = if (expanded) " ▴" else " ▾",
             color = fg,
             style = MaterialTheme.typography.labelSmall,
-            fontSize = MaterialTheme.typography.labelSmall.fontSize * ToolArrowSize.scale, // fix48
+            // fix49: drawn bigger / smaller only, the button size and layout stay the same
+            modifier = Modifier.graphicsLayer {
+                scaleX = ToolArrowSize.scale
+                scaleY = ToolArrowSize.scale
+                transformOrigin = TransformOrigin(0f, 0.5f)
+            },
             fontWeight = d.headerWeight
         )
     }

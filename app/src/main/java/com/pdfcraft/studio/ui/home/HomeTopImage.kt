@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.imageResource
@@ -261,6 +262,10 @@ internal object HomeTopImageState {
             "HOME_TOP_IMAGE scale=%.2f offsetX=%d offsetY=%d cropX=%d cropY=%d corner=%d border=%d custom=%s",
             scale, offsetX, offsetY, cropX, cropY, corner, border, if (customImage != null) "yes" else "no"
         )
+
+    /** fix49: Up / Down / Left / Right settings (dp, offsetX positive = right, offsetY positive = down). */
+    fun moveDetails(): String =
+        String.format(Locale.US, "HOME_TOP_IMAGE_MOVE offsetX=%d offsetY=%d step=%d", offsetX, offsetY, HomeTopImageFit.MOVE_STEP)
 }
 
 /** fix41: the Home top image with the saved size and position. */
@@ -287,7 +292,12 @@ internal fun HomeTopImage(modifier: Modifier = Modifier) {
         )
     }
     val cornerShape = RoundedCornerShape(HomeTopImageState.corner.dp)
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    // fix49: offsetY moves the image in the layout, so the content below follows it
+    Box(modifier = modifier.fillMaxWidth().layout { m, c ->
+        val p = m.measure(c)
+        val dy = oy.dp.roundToPx()
+        layout(p.width, (p.height + dy).coerceAtLeast(0)) { p.place(0, dy) }
+    }, contentAlignment = Alignment.Center) {
         Image(
             painter = painter,
             contentDescription = null,
@@ -299,7 +309,7 @@ internal fun HomeTopImage(modifier: Modifier = Modifier) {
                     scaleX = extra
                     scaleY = extra
                     translationX = ox.dp.toPx()
-                    translationY = oy.dp.toPx()
+                    // fix49: offsetY is applied by the layout above
                     // fix46: no layer clip here, so the border outside the image is not cut
                 }
                 .homeTopImageBorder(HomeTopImageState.border, cornerShape) // fix43, fix46: outside the image
@@ -327,6 +337,20 @@ private fun TopImageButton(text: String, accent: Color, label: Color, modifier: 
 /** fix48: the Up / Down / Left / Right row (also shown alone on Home). */
 @Composable
 private fun TopImageMoveRow(context: Context, step: Int, accent: Color, label: Color) {
+    val clipboard = LocalClipboardManager.current
+    val copiedMsg = stringResource(R.string.home_top_image_copied)
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TopImageMoveButtons(context, step, accent, label)
+        // fix49: Copy Details for the move settings, under the four buttons
+        TopImageButton(stringResource(R.string.home_top_image_copy_move), accent, label, Modifier.fillMaxWidth()) {
+            clipboard.setText(AnnotatedString(HomeTopImageState.moveDetails()))
+            Toast.makeText(context, copiedMsg, Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+@Composable
+private fun TopImageMoveButtons(context: Context, step: Int, accent: Color, label: Color) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TopImageButton(stringResource(R.string.home_top_image_up), accent, label, Modifier.weight(1f)) {
             HomeTopImageState.move(context, 0, -step)

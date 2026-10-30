@@ -491,6 +491,7 @@
     <string name="home_top_image_right">Right</string>
     <string name="home_top_image_copy">Copy Details</string>
     <string name="home_top_image_copied">Details copied</string>
+    <string name="home_top_image_copy_move">Copy Move Details</string>
     <!-- fix42: Home top image crop, corners, import -->
     <string name="home_top_image_crop_x">Crop left and right</string>
     <string name="home_top_image_crop_y">Crop top and bottom</string>

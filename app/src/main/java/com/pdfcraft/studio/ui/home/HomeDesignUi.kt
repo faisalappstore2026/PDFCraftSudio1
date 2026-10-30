@@ -306,7 +306,7 @@ internal fun TileCard(d: HomeDesign, i: Int, e: HomeEntry, modifier: Modifier, b
 }
 
 /** fix47: false = hide everything below Icon Center (top image rows, sliders, buttons) and the Home floating buttons. */
-private const val HOME_SHOW_EXTRAS = false
+private const val HOME_SHOW_EXTRAS = true // fix49: everything below Icon Center visible again
 
 @Composable
 private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Float) -> Unit, label: Color) {
