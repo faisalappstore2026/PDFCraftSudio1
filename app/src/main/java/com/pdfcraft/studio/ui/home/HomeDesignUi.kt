@@ -137,8 +137,10 @@ internal fun HomeDesignedScreen(
             }
         }
         Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
-            HomeDesignFloatingButton(fabColor = d.fab, fabFg = d.fabFg)
-            HomeTopImageBorderButton(fabColor = d.fab, fabFg = d.fabFg) // fix43
+            if (HOME_SHOW_EXTRAS) { // fix47: both Home floating buttons hidden
+                HomeDesignFloatingButton(fabColor = d.fab, fabFg = d.fabFg)
+                HomeTopImageBorderButton(fabColor = d.fab, fabFg = d.fabFg) // fix43
+            }
         }
     }
 }
@@ -303,8 +305,12 @@ internal fun TileCard(d: HomeDesign, i: Int, e: HomeEntry, modifier: Modifier, b
     }
 }
 
+/** fix47: false = hide everything below Icon Center (top image rows, sliders, buttons) and the Home floating buttons. */
+private const val HOME_SHOW_EXTRAS = false
+
 @Composable
 private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Float) -> Unit, label: Color) {
+    if (!HOME_SHOW_EXTRAS) return // fix47
     Column(modifier = Modifier.fillMaxWidth()) {
         // fix43: icon size slider removed, top image controls stay
         HomeTopImageControls(accent = d.accent, label = label) // fix41

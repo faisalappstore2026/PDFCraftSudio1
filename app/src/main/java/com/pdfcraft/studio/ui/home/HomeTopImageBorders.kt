@@ -69,14 +69,18 @@ internal object HomeTopBorderThickness {
     const val MIN = 0.4f
     const val MAX = 4.0f
     private var loaded = false
-    var value by mutableStateOf(1f)
+    var value by mutableStateOf(0.6f) // fix47: 0.6x by default
         private set
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
-        value = context.applicationContext.getSharedPreferences("home_top_border", Context.MODE_PRIVATE)
-            .getFloat("thickness", 1f).coerceIn(MIN, MAX)
+        val tp = context.applicationContext.getSharedPreferences("home_top_border", Context.MODE_PRIVATE)
+        if (!tp.getBoolean("fix47_defaults", false)) {
+            // fix47: start once from the new 0.6x thickness
+            tp.edit().putFloat("thickness", 0.6f).putBoolean("fix47_defaults", true).apply()
+        }
+        value = tp.getFloat("thickness", 0.6f).coerceIn(MIN, MAX)
     }
 
     fun set(context: Context, v: Float) {

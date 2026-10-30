@@ -55,7 +55,7 @@ internal object EditorAreaBg {
 
     /** fix43: defaults when nothing is saved (Color Templates row 1 col 4 / row 4 col 8) */
     private val DEFAULT_PAGES = AreaLook(PageBgKind.SOLID, 0xFFEEEEEEL, 0xFFEEEEEEL, floatArrayOf(0f, 0f, 1f, 1f), null)
-    private val DEFAULT_TOP_BAR = AreaLook(PageBgKind.SOLID, 0xFFC62828L, 0xFFC62828L, floatArrayOf(0f, 0f, 1f, 1f), null)
+    private val DEFAULT_TOP_BAR = AreaLook(PageBgKind.SOLID, 0xFFFFFFFFL, 0xFFFFFFFFL, floatArrayOf(0f, 0f, 1f, 1f), null)
 
     private fun get(area: Int): AreaLook? = when (area) {
         PAGES -> pagesLook ?: DEFAULT_PAGES
@@ -101,6 +101,11 @@ internal object EditorAreaBg {
         if (loaded) return
         loaded = true
         val app = context.applicationContext
+        val pr47 = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!pr47.getBoolean("fix47_defaults", false)) {
+            reset(app, TOP_BAR) // fix47: Color Picker 2 back to the white default once
+            pr47.edit().putBoolean("fix47_defaults", true).apply()
+        }
         for (area in listOf(PAGES, TOP_BAR, BADGE, NUMBER)) {
             val look = withContext(Dispatchers.IO) { readLook(app, area) }
             put(area, look)

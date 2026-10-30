@@ -712,7 +712,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         )
     }
 
-    val editorDesign = currentMenuDesign() // fix36: active full editor design
+    val editorDesign = editorTopBarDesign(currentMenuDesign()) // fix36, fix47: black top-bar items on a light top area
     EditorStatusBarIcons(editorDesign)
     Scaffold(
         topBar = {
@@ -3378,7 +3378,7 @@ private fun HistoryActionButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDesc,
-            tint = currentMenuDesign().topBarFg.let { if (enabled) it else it.copy(alpha = 0.35f) }, // fix36
+            tint = editorTopBarDesign(currentMenuDesign()).topBarFg.let { if (enabled) it else it.copy(alpha = 0.35f) }, // fix36
             modifier = Modifier
                 .size(22.dp)
                 .pointerInput(enabled, count) {

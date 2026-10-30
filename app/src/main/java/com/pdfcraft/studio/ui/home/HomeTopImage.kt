@@ -91,7 +91,7 @@ object HomeTopImageFit {
     const val IMPORT_MAX_SIDE = 1600
     const val CUSTOM_FILE = "home_top_image_custom.jpg"
     /** fix43: border design 1..30 around the top image (0 = no border) */
-    const val BORDER = 1
+    const val BORDER = 248 // fix47: design 248 by default
     const val BORDER_COUNT = 250 // fix45
 }
 
@@ -128,6 +128,11 @@ internal object HomeTopImageState {
             // fix43: Grok2.jpg is the bundled image now, start once from the new defaults
             runCatching { customFile(context).delete() }
             p.edit().clear().putBoolean("fix43_defaults", true).apply()
+        }
+        if (!p.getBoolean("fix47_defaults", false)) {
+            // fix47: Grok3.jpg is the bundled image now, start once from the new defaults (border 248)
+            runCatching { customFile(context).delete() }
+            p.edit().clear().putBoolean("fix43_defaults", true).putBoolean("fix47_defaults", true).apply()
         }
         scale = p.getFloat("scale", HomeTopImageFit.SCALE)
             .coerceIn(HomeTopImageFit.MIN_SCALE, HomeTopImageFit.MAX_SCALE)
