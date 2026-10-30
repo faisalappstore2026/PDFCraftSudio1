@@ -84,8 +84,15 @@ internal object DropdownBorderAnim {
     var pagesFollow by mutableStateOf(false)
         private set
 
-    /** fix45: design drawn on the pages (0 = none). */
-    fun pageChoice(): Int = if (pagesFollow) choice else PAGE_DEFAULT
+    /** fix46: own page design, used only while the switch is ON (default 27, 0 = none). */
+    var pageSel by mutableStateOf(PAGE_DEFAULT)
+        private set
+
+    /** fix45/fix46: design drawn on the pages: switch OFF = 27, ON = the separately saved page choice. */
+    fun pageChoice(): Int = if (pagesFollow) pageSel else PAGE_DEFAULT
+
+    /** fix46: number shown / highlighted in the panel. */
+    fun panelChoice(): Int = if (pagesFollow) pageSel else choice
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
@@ -98,6 +105,7 @@ internal object DropdownBorderAnim {
         choice = p.getInt("choice", DEFAULT).coerceIn(0, COUNT)
         thickness = p.getFloat("thickness", MIN_THICK).coerceIn(MIN_THICK, MAX_THICK)
         pagesFollow = p.getBoolean("pages", false)
+        pageSel = p.getInt("page_choice", PAGE_DEFAULT).coerceIn(0, COUNT) // fix46
     }
 
     fun setPagesFollow(context: Context, on: Boolean) {
@@ -116,6 +124,17 @@ internal object DropdownBorderAnim {
         choice = n.coerceIn(0, COUNT)
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putInt("choice", choice).apply()
+    }
+
+    /** fix46: panel tap: switch ON = pages only, OFF = dropdowns only. */
+    fun selectFromPanel(context: Context, n: Int) {
+        if (!pagesFollow) {
+            select(context, n)
+            return
+        }
+        pageSel = n.coerceIn(0, COUNT)
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putInt("page_choice", pageSel).apply()
     }
 }
 
@@ -331,7 +350,7 @@ internal fun DropdownBorderAnimButton(color: Color, fg: Color) {
 @Composable
 private fun DropdownBorderAnimDialog(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
-    val current = DropdownBorderAnim.choice
+    val current = DropdownBorderAnim.panelChoice() // fix46
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
@@ -400,14 +419,14 @@ private fun DropdownBorderAnimDialog(onDismiss: () -> Unit) {
                                 else Modifier
                             )
                             .dropdownBorderAnim(n, 10.dp)
-                            .clickable { DropdownBorderAnim.select(ctx, n) }
+                            .clickable { DropdownBorderAnim.selectFromPanel(ctx, n) } // fix46
                     ) {
                         Text(n.toString(), color = Color(0xFF212121), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
                 }
             }
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { DropdownBorderAnim.select(ctx, 0) }) {
+                TextButton(onClick = { DropdownBorderAnim.selectFromPanel(ctx, 0) }) { // fix46
                     Text(stringResource(R.string.border_animation_off))
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.close_label)) }

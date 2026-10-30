@@ -99,15 +99,26 @@ private fun borderColors(n: Int): List<Color> {
 
 private fun borderStyle(n: Int): Int = if (n <= 30) (n - 1) / 10 else 3 + (n - 31) % 10
 
+/** fix46: how far each style reaches from the outer edge, in units of the line width w. */
+private val BORDER_EXTENT = floatArrayOf(1f, 2.23f, 1f, 1f, 1.97f, 1.9f, 1f, 1f, 2.4f, 1.73f, 2.15f, 1.6f, 1.23f)
+
+/**
+ * fix46: the border is drawn OUTSIDE the content: this pads the content by the border extent and
+ * draws the lines in that ring, so no image pixel is covered. Outer radius = image radius + extent.
+ * Put a clip for the image AFTER this modifier.
+ */
 internal fun Modifier.homeTopImageBorder(n: Int, shape: RoundedCornerShape): Modifier {
     if (n < 1 || n > HomeTopImageFit.BORDER_COUNT) return this
     val colors = borderColors(n)
     val style = borderStyle(n)
+    val extentDp = (3f * HomeTopBorderThickness.value * BORDER_EXTENT[style.coerceIn(0, BORDER_EXTENT.size - 1)]).dp
     return this.drawWithContent {
         drawContent()
         val brush = Brush.linearGradient(colors, Offset.Zero, Offset(size.width, size.height))
         val w = 3.dp.toPx() * HomeTopBorderThickness.value
-        val r = shape.topStart.toPx(size, this).coerceAtLeast(0f)
+        val ext = extentDp.toPx()
+        val inner = Size((size.width - 2 * ext).coerceAtLeast(1f), (size.height - 2 * ext).coerceAtLeast(1f))
+        val r = shape.topStart.toPx(inner, this).coerceAtLeast(0f) + ext
         fun line(inset: Float, width: Float, effect: PathEffect?, b: Brush = brush, alpha: Float = 1f, cap: StrokeCap = StrokeCap.Butt) {
             drawRoundRect(
                 brush = b,
@@ -149,13 +160,13 @@ internal fun Modifier.homeTopImageBorder(n: Int, shape: RoundedCornerShape): Mod
                 line(w / 2, w, null)
                 line(w * 1.9f, w / 2, PathEffect.dashPathEffect(floatArrayOf(w * 2, w * 2), 0f))
             }
-            11 -> line(w / 2, w * 1.6f, null) // bold
+            11 -> line(w * 0.8f, w * 1.6f, null) // bold
             else -> { // hairline pair
                 line(w / 4, w / 2, null)
                 line(w * 1.1f, w / 4, null, alpha = 0.7f)
             }
         }
-    }
+    }.padding(extentDp)
 }
 
 /** fix43: second floating button on Home, opens the 30 border designs. */

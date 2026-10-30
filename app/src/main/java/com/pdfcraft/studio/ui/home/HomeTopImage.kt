@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -294,10 +295,10 @@ internal fun HomeTopImage(modifier: Modifier = Modifier) {
                     scaleY = extra
                     translationX = ox.dp.toPx()
                     translationY = oy.dp.toPx()
-                    shape = cornerShape // fix42: round corners
-                    clip = true
+                    // fix46: no layer clip here, so the border outside the image is not cut
                 }
-                .homeTopImageBorder(HomeTopImageState.border, cornerShape) // fix43
+                .homeTopImageBorder(HomeTopImageState.border, cornerShape) // fix43, fix46: outside the image
+                .clip(cornerShape) // fix42: round corners (image only)
         )
     }
 }
