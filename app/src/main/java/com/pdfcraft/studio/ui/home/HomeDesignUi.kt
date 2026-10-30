@@ -96,9 +96,10 @@ internal fun HomeDesignedScreen(
     val d = design
     val entries = listOf(
         HomeEntry(stringResource(R.string.create_pdf), stringResource(R.string.home_sub_create), Icons.Filled.Add, onCreatePdfClick),
-        HomeEntry(stringResource(R.string.view_pdf), stringResource(R.string.home_sub_view), AppIcons.Visibility, onViewPdf),
+        HomeEntry(stringResource(R.string.view_documents), stringResource(R.string.home_sub_view), AppIcons.Visibility, onViewPdf),
         HomeEntry(stringResource(R.string.my_projects), stringResource(R.string.home_sub_projects), AppIcons.FileDocument, onMyProjectsClick),
-        HomeEntry(stringResource(R.string.icon_center), stringResource(R.string.home_sub_icon), Icons.Filled.Settings, onIconCenterClick)
+        HomeEntry(stringResource(R.string.icon_center), stringResource(R.string.home_sub_icon), Icons.Filled.Settings, onIconCenterClick),
+        HomeEntry(stringResource(R.string.other_useful_tools), stringResource(R.string.home_sub_other_tools), Icons.Filled.Build, {}) // fix54: same design as the others
     )
     HomeStatusBarIcons(darkIcons = d.title.luminance() < 0.5f)
     val edgeless = d.layout == HomeLayout.SHEET || d.layout == HomeLayout.DOCK
@@ -331,15 +332,7 @@ private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Fl
     }
 }
 
-/** fix53: full width "Other Useful Tools" button below Icon Center, Icon Center style, no action yet. */
-@Composable
-private fun OtherToolsButton(d: HomeDesign) {
-    RowCard(
-        d, 3,
-        HomeEntry(stringResource(R.string.other_useful_tools), stringResource(R.string.home_sub_other_tools), Icons.Filled.Build, {}),
-        Modifier.fillMaxWidth()
-    )
-}
+/** fix54: Other Useful Tools is the 5th Home option, drawn by each layout like the others. */
 
 @Composable
 private fun HomeBody(d: HomeDesign, entries: List<HomeEntry>, logoSize: Float, onLogoSizeChange: (Float) -> Unit) {
@@ -361,8 +354,7 @@ private fun HomeBody(d: HomeDesign, entries: List<HomeEntry>, logoSize: Float, o
                     .clip(CircleShape)
                     .background(d.cardSub.copy(alpha = 0.4f))
             )
-            entries.forEachIndexed { i, e -> RowCard(d, i, e, Modifier.fillMaxWidth()) }
-            OtherToolsButton(d) // fix53
+            entries.forEachIndexed { i, e -> RowCard(d, i, e, Modifier.fillMaxWidth()) } // fix54: 5 options
             LogoSizeSlider(d, logoSize, onLogoSizeChange, d.cardSub)
         }
         HomeLayout.DOCK -> Column(
@@ -400,16 +392,14 @@ private fun HomeBody(d: HomeDesign, entries: List<HomeEntry>, logoSize: Float, o
                         )
                     }
                 }
-            }
-            OtherToolsButton(d) // fix53
+            } // fix54: dock row has 5 options
         }
         else -> Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(gap),
             modifier = Modifier.fillMaxWidth()
         ) {
-            HomeOptions(d, entries, logoSize)
-            OtherToolsButton(d) // fix53
+            HomeOptions(d, entries, logoSize) // fix54: 5 options
             Spacer(modifier = Modifier.height(4.dp))
             LogoSizeSlider(d, logoSize, onLogoSizeChange, d.sub)
         }

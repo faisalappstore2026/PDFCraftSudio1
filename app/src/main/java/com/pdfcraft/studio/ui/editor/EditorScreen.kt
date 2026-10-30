@@ -685,7 +685,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         fontWeight = FontWeight.SemiBold,
                         color = editorDesign.topBarFg, // fix36
                         maxLines = 1,
-                        fontSize = editorTitleSp().sp, // fix51, fix52: size from three dots > Title Size
+                        fontSize = 20.sp, // fix54: fixed 20sp
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.padding(end = 10.dp)
                     )
@@ -767,7 +767,7 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                         var projectSaving by remember { mutableStateOf(false) }
                         var menuDesignPickerOpen by remember { mutableStateOf(false) } // fix35
                         var favoriteDesignPickerOpen by remember { mutableStateOf(false) } // fix36
-                        var titleSizeOpen by remember { mutableStateOf(false) } // fix52
+                        // fix54: Title Size removed
                         // fix40: three dots list drawn with the chosen Menu Design (dropdown look)
                         DesignedDropdownMenu(
                             expanded = menuExpanded,
@@ -846,19 +846,12 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                             }) {
                                 MenuItemText(stringResource(R.string.favorite_design_option))
                             }
-                            MenuDesignDivider()
-                            // fix52: editor title text size
-                            MenuItemFrame(onClick = {
-                                menuExpanded = false
-                                titleSizeOpen = true
-                            }) {
-                                MenuItemText(stringResource(R.string.title_size))
-                            }
+                            // fix54: Title Size option removed
                         }
                         if (menuDesignPickerOpen) {
                             MenuDesignPickerDialog(onDismiss = { menuDesignPickerOpen = false })
                         }
-                        if (titleSizeOpen) EditorTitleSizeDialog(onDismiss = { titleSizeOpen = false }) // fix52
+                        // fix54: Title Size window removed
                         if (favoriteDesignPickerOpen) {
                             FavoriteDesignPickerDialog(onDismiss = { favoriteDesignPickerOpen = false })
                         }

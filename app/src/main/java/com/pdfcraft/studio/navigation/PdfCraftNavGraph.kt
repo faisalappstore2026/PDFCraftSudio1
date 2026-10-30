@@ -143,8 +143,7 @@ fun PdfCraftNavGraph(
                     navController.navigate(Screen.Editor.routeOpen(path))
                 },
                 onViewPdf = {
-                    SessionStore.setScreen(context, SessionStore.LIBRARY)
-                    navController.navigate(Screen.PdfLibrary.route)
+                    navController.navigate(Screen.Documents.route) { launchSingleTop = true } // fix54
                 },
                 onIconCenterClick = {
                     navController.navigate(Screen.IconCenter.route)
@@ -163,6 +162,16 @@ fun PdfCraftNavGraph(
                     SessionStore.clearEditorUi(context)
                     SessionStore.setEditor(context, "pdf|" + uri)
                     navController.navigate(Screen.Editor.routeOpen("pdf|" + uri))
+                }
+            )
+        }
+        composable(Screen.Documents.route) { // fix54: PDF + Word + Excel + PPT + Text
+            androidx.activity.compose.BackHandler { leaveToHome(Screen.Documents.route) }
+            com.pdfcraft.studio.ui.viewer.DocumentsScreen(
+                onBackClick = { leaveToHome(Screen.Documents.route) },
+                onOpenPdf = { uri ->
+                    SessionStore.setViewer(context, uri)
+                    navController.navigate(Screen.PdfViewer.routeWithUri(uri))
                 }
             )
         }

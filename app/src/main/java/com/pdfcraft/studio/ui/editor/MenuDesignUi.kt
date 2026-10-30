@@ -108,6 +108,7 @@ internal fun DesignedDropdownMenu(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val d = currentDropdownDesign()
+    androidx.activity.compose.BackHandler(enabled = expanded) { onDismissRequest() } // fix54: Back closes the list first
     DropdownPlacement.ensureLoaded(androidx.compose.ui.platform.LocalContext.current) // fix44
     DropdownBorderAnim.ensureLoaded(androidx.compose.ui.platform.LocalContext.current) // fix43
     val scheme = MaterialTheme.colorScheme.copy(surface = d.container, surfaceTint = d.container)
@@ -121,11 +122,7 @@ internal fun DesignedDropdownMenu(
             modifier = Modifier
                 .then(if (brush != null) Modifier.background(brush) else Modifier)
                 .then(if (outline != null) Modifier.border(d.outlineWidth, outline, RoundedCornerShape(d.corner)) else Modifier)
-                .then(
-                    // fix52: dots menu = its own animation only, static lines only on the three tool lists
-                    if (menuId == DropdownPlacement.DOTS) Modifier.dropdownBorderAnim(DropdownBorderAnim.dotsChoice, d.corner)
-                    else Modifier.editorBorderLine(DropdownBorderAnim.choice, d.corner, page = false)
-                ), // fix43, fix48, fix51
+                .editorBorderLine(if (menuId == DropdownPlacement.DOTS) DropdownBorderAnim.dotsChoice else DropdownBorderAnim.choice, d.corner, page = false), // fix54: static line wins on all four lists
             offset = dropdownOffset(menuId), // fix44
             properties = properties,
             content = { DropdownScaledContent(menuId, content) }

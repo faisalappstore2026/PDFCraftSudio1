@@ -167,6 +167,7 @@ internal fun HomeCircleOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize
                 CircleItem(d, 2, entries[2], c)
             }
             CircleItem(d, 3, entries[3], c)
+            for (i in 4 until entries.size) CircleItem(d, i, entries[i], c) // fix54
         }
         HomeLayout.CIRCLE_STAGGER -> Row(
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -175,6 +176,7 @@ internal fun HomeCircleOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize
             Column(verticalArrangement = Arrangement.spacedBy(d.spacing)) {
                 CircleItem(d, 0, entries[0], c)
                 CircleItem(d, 2, entries[2], c)
+                if (entries.size > 4) CircleItem(d, 4, entries[4], c) // fix54
             }
             Column(
                 verticalArrangement = Arrangement.spacedBy(d.spacing),
@@ -207,6 +209,7 @@ internal fun HomeCircleOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize
                 CircleItem(d, 2, entries[2], c, Modifier.width(c + 28.dp), labelSize = 12)
             }
             CircleItem(d, 3, entries[3], c, Modifier.width(c + 28.dp), labelSize = 12)
+            for (i in 4 until entries.size) CircleItem(d, i, entries[i], c, Modifier.width(c + 28.dp), labelSize = 12) // fix54
         }
         HomeLayout.CIRCLE_BUBBLES -> {
             Row(
@@ -225,6 +228,7 @@ internal fun HomeCircleOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize
                 CircleItem(d, 2, entries[2], c * 0.85f)
                 CircleItem(d, 3, entries[3], c * 1.2f)
             }
+            for (i in 4 until entries.size) CircleItem(d, i, entries[i], c * 0.85f) // fix54
         }
         HomeLayout.CIRCLE_PANEL -> Column(
             verticalArrangement = Arrangement.spacedBy(d.spacing),

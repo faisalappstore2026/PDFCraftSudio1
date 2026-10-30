@@ -11,6 +11,9 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- fix54: All files access for the Documents screen (PDF, Word, Excel, PPT, Text) -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
     <!-- Intentionally no READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE here.
          Image import uses the system Photo Picker (see EditorScreen),
          which grants temporary read access to just the files the user

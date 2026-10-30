@@ -10,6 +10,7 @@ sealed class Screen(val route: String) {
     data object MyProjects : Screen("my_projects")
     data object IconCenter : Screen("icon_center")
     data object PdfLibrary : Screen("pdf_library")
+    data object Documents : Screen("documents") // fix54
     data object Editor : Screen("editor?project={project}") {
         fun routeNew(): String = "editor?project="
         fun routeOpen(path: String): String {

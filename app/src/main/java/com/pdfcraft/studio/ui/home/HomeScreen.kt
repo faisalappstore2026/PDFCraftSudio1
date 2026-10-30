@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -141,7 +142,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 PrimaryActionButton(
-                    text = stringResource(R.string.view_pdf),
+                    text = stringResource(R.string.view_documents), // fix54
                     icon = AppIcons.Visibility,
                     onClick = onViewPdf,
                     modifier = Modifier
@@ -166,6 +167,17 @@ fun HomeScreen(
                     text = stringResource(R.string.icon_center),
                     icon = Icons.Filled.Settings,
                     onClick = onIconCenterClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 420.dp)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                PrimaryActionButton( // fix54: Other Useful Tools, no action yet
+                    text = stringResource(R.string.other_useful_tools),
+                    icon = Icons.Filled.Build,
+                    onClick = {},
                     modifier = Modifier
                         .fillMaxWidth()
                         .widthIn(max = 420.dp)

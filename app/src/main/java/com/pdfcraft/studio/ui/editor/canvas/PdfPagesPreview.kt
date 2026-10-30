@@ -2859,6 +2859,7 @@ private fun ImageCell(
         var showDeleteModeDialog by remember(image.id) { mutableStateOf(false) }
         if (showMenu && !reorderMode) {
             var savedToGallery by remember(image.id) { mutableStateOf(false) }
+            androidx.activity.compose.BackHandler { onClick() } // fix54
             DropdownMenu(
                 expanded = true,
                 onDismissRequest = onClick
@@ -3211,6 +3212,7 @@ private fun SingleImageActionsMenu(
     onSave: () -> Unit,
     onShare: () -> Unit
 ) {
+    androidx.activity.compose.BackHandler(enabled = expanded) { onDismiss() } // fix54
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss

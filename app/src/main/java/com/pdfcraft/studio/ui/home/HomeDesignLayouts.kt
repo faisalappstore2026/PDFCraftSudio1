@@ -62,6 +62,7 @@ internal fun HomeOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize: Floa
                 pair.forEachIndexed { c, e ->
                     TileCard(d, r * 2 + c, e, Modifier.weight(1f).aspectRatio(1f))
                 }
+                if (pair.size == 1) Spacer(modifier = Modifier.weight(1f)) // fix54: same tile size
             }
         }
         HomeLayout.HERO -> {
@@ -159,6 +160,7 @@ internal fun HomeOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize: Floa
                 }
             }
             RowCard(d, 3, entries[3], Modifier.fillMaxWidth())
+            for (i in 4 until entries.size) RowCard(d, i, entries[i], Modifier.fillMaxWidth()) // fix54
         }
         HomeLayout.ZIGZAG -> entries.forEachIndexed { i, e ->
             val left = i % 2 == 0
@@ -226,6 +228,7 @@ internal fun HomeOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize: Floa
                         )
                     }
                 }
+                if (pair.size == 1) Spacer(modifier = Modifier.weight(1f)) // fix54: same chip size
             }
         }
         HomeLayout.ORBIT -> {
@@ -240,6 +243,7 @@ internal fun HomeOptions(d: HomeDesign, entries: List<HomeEntry>, logoSize: Floa
                 OrbitTile(d, 2, entries[2], tile)
             }
             OrbitTile(d, 3, entries[3], tile)
+            for (i in 4 until entries.size) OrbitTile(d, i, entries[i], tile) // fix54
         }
         // SHEET and DOCK are drawn in HomeBody
         else -> entries.forEachIndexed { i, e -> RowCard(d, i, e, Modifier.fillMaxWidth()) }
