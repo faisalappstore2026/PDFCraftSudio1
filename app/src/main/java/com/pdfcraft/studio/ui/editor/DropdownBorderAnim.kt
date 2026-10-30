@@ -75,6 +75,9 @@ internal object DropdownBorderAnim {
 
     var choice by mutableStateOf(DEFAULT)
         private set
+    /** fix51: the three dots menu has its own design (default 28, same thickness) */
+    var dotsChoice by mutableStateOf(28)
+        private set
     /** fix44: border line thickness multiplier (thin 0.4 .. thick 4.0) */
     const val MIN_THICK = 0.4f
     const val MAX_THICK = 4.0f
@@ -109,6 +112,11 @@ internal object DropdownBorderAnim {
         thickness = p.getFloat("thickness", MIN_THICK).coerceIn(MIN_THICK, MAX_THICK)
         pagesFollow = p.getBoolean("pages", false)
         pageSel = p.getInt("page_choice", PAGE_DEFAULT).coerceIn(0, COUNT) // fix46
+        if (!p.getBoolean("fix51_defaults", false)) { // fix51: dots menu 28 at 0.4x once
+            p.edit().putInt("dots_choice", 28).putFloat("thickness", MIN_THICK).putBoolean("fix51_defaults", true).apply()
+            thickness = MIN_THICK
+        }
+        dotsChoice = p.getInt("dots_choice", 28).coerceIn(0, COUNT)
     }
 
     fun setPagesFollow(context: Context, on: Boolean) {

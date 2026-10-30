@@ -49,17 +49,20 @@ internal object HomeTopAnim {
     const val MIN_THICK = 0.4f
     const val MAX_THICK = 4.0f
     private var loaded = false
-    var choice by mutableStateOf(0)
+    var choice by mutableStateOf(247) // fix51
         private set
-    var thickness by mutableStateOf(1f)
+    var thickness by mutableStateOf(0.8f) // fix51
         private set
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
         val p = context.applicationContext.getSharedPreferences("home_top_anim", Context.MODE_PRIVATE)
-        choice = p.getInt("choice", 0).coerceIn(0, DropdownBorderAnim.COUNT)
-        thickness = p.getFloat("thickness", 1f).coerceIn(MIN_THICK, MAX_THICK)
+        if (!p.getBoolean("fix51_defaults", false)) { // fix51: animation 247 at 0.8x once
+            p.edit().putInt("choice", 247).putFloat("thickness", 0.8f).putBoolean("fix51_defaults", true).apply()
+        }
+        choice = p.getInt("choice", 247).coerceIn(0, DropdownBorderAnim.COUNT)
+        thickness = p.getFloat("thickness", 0.8f).coerceIn(MIN_THICK, MAX_THICK)
     }
 
     fun select(context: Context, n: Int) {
@@ -81,7 +84,10 @@ internal fun Modifier.homeTopBorderOrAnim(n: Int, shape: RoundedCornerShape, cor
     HomeTopAnim.ensureLoaded(LocalContext.current)
     val a = HomeTopAnim.choice
     if (a < 1) return this.homeTopImageBorder(n, shape)
-    val ring = (2.5f * 3f * HomeTopAnim.thickness).dp
+    HomeTopBorderThickness.ensureLoaded(LocalContext.current)
+    // fix51: same ring as the static design, so the image and the Home layout do not move
+    val st = homeTopBorderExtentDp(n)
+    val ring = (if (st > 0f) st else 2.5f * 3f * HomeTopAnim.thickness).dp
     return this.dropdownBorderAnim(a, cornerDp.dp + ring, HomeTopAnim.thickness).padding(ring)
 }
 

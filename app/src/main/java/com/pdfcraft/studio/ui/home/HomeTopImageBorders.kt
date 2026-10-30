@@ -101,6 +101,11 @@ private fun borderColors(n: Int): List<Color> {
     return listOf(Color.hsv(h, sat, v), Color.hsv((h + 50f) % 360f, sat, v), Color.hsv((h + 180f) % 360f, sat * 0.7f, 1f))
 }
 
+/** fix51: ring width (dp) the static design [n] adds around the image (0 = none). */
+internal fun homeTopBorderExtentDp(n: Int): Float =
+    if (n < 1 || n > HomeTopImageFit.BORDER_COUNT) 0f
+    else 3f * HomeTopBorderThickness.value * BORDER_EXTENT[borderStyle(n).coerceIn(0, BORDER_EXTENT.size - 1)]
+
 private fun borderStyle(n: Int): Int = if (n <= 30) (n - 1) / 10 else 3 + (n - 31) % 10
 
 /** fix46: how far each style reaches from the outer edge, in units of the line width w. */

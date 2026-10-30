@@ -105,14 +105,13 @@ internal object ToolArrowSize {
     const val MIN = 0.5f
     const val MAX = 3.0f
     private var loaded = false
-    var scale by mutableStateOf(1f)
+    var scale by mutableStateOf(2.5f) // fix51
         private set
 
     fun ensureLoaded(context: Context) {
         if (loaded) return
         loaded = true
-        scale = context.applicationContext.getSharedPreferences("tool_arrow_size", Context.MODE_PRIVATE)
-            .getFloat("scale", 1f).coerceIn(MIN, MAX)
+        scale = 2.5f // fix51: fixed 2.5x, old saved value ignored
     }
 
     fun set(context: Context, v: Float) {

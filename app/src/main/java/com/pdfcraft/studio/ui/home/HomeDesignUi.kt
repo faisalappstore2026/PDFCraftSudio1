@@ -35,6 +35,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -307,12 +309,19 @@ internal fun TileCard(d: HomeDesign, i: Int, e: HomeEntry, modifier: Modifier, b
 }
 
 /** fix47: false = hide everything below Icon Center (top image rows, sliders, buttons) and the Home floating buttons. */
-private const val HOME_SHOW_EXTRAS = true // fix49: everything below Icon Center visible again
+private const val HOME_SHOW_EXTRAS = false // fix51: hidden again (kept in place, invisible) + all three Home floating buttons
 
 @Composable
 private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Float) -> Unit, label: Color) {
-    if (!HOME_SHOW_EXTRAS) { // fix47, fix48: only the Up / Down / Left / Right buttons stay visible
-        HomeTopImageControls(accent = d.accent, label = label, onlyMove = true)
+    if (!HOME_SHOW_EXTRAS) { // fix51: same size as before (nothing on Home moves), invisible and no touches
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().alpha(0f)) {
+                HomeTopImageControls(accent = d.accent, label = label)
+            }
+            Box(modifier = Modifier.matchParentSize().pointerInput(Unit) {
+                awaitPointerEventScope { while (true) { awaitPointerEvent().changes.forEach { it.consume() } } }
+            })
+        }
         return
     }
     Column(modifier = Modifier.fillMaxWidth()) {

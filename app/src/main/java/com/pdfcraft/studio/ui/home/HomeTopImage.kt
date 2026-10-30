@@ -138,6 +138,10 @@ internal object HomeTopImageState {
         if (!p.getBoolean("fix50_defaults", false)) { // fix50: border design 67 once
             p.edit().putInt("border", HomeTopImageFit.BORDER).putBoolean("fix50_defaults", true).apply()
         }
+        if (!p.getBoolean("fix51_defaults", false)) { // fix51: Grok5.jpg bundled, drop an old imported image once
+            runCatching { customFile(context).delete() }
+            p.edit().putBoolean("fix51_defaults", true).apply()
+        }
         scale = p.getFloat("scale", HomeTopImageFit.SCALE)
             .coerceIn(HomeTopImageFit.MIN_SCALE, HomeTopImageFit.MAX_SCALE)
         offsetX = p.getInt("offset_x", HomeTopImageFit.OFFSET_X)

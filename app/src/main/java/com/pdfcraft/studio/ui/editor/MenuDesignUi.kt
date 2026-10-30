@@ -121,7 +121,7 @@ internal fun DesignedDropdownMenu(
             modifier = Modifier
                 .then(if (brush != null) Modifier.background(brush) else Modifier)
                 .then(if (outline != null) Modifier.border(d.outlineWidth, outline, RoundedCornerShape(d.corner)) else Modifier)
-                .editorBorderLine(DropdownBorderAnim.choice, d.corner, page = false), // fix43, fix48: static line wins
+                .editorBorderLine(if (menuId == DropdownPlacement.DOTS) DropdownBorderAnim.dotsChoice else DropdownBorderAnim.choice, d.corner, page = false), // fix43, fix48, fix51: dots menu own design
             offset = dropdownOffset(menuId), // fix44
             properties = properties,
             content = { DropdownScaledContent(menuId, content) }
@@ -236,7 +236,7 @@ internal fun MenuDesignHeader(text: String, expanded: Boolean, onClick: () -> Un
             fontWeight = d.headerWeight,
             maxLines = 1
         )
-        Box(modifier = Modifier.width(14.dp), contentAlignment = Alignment.Center) { // fix50: fixed spot
+        Box(modifier = Modifier.width(18.dp), contentAlignment = Alignment.Center) { // fix50, fix51: fixed spot for 2.5x
             Text(
                 text = if (expanded) "▴" else "▾",
                 color = fg,

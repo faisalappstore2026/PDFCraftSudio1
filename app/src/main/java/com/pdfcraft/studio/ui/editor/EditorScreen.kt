@@ -725,7 +725,10 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
                             ?: stringResource(R.string.editor_title),
                         fontWeight = FontWeight.SemiBold,
                         color = editorDesign.topBarFg, // fix36
-                        maxLines = 1
+                        maxLines = 1,
+                        fontSize = 18.sp, // fix51: a bit smaller, gap before undo / redo
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(end = 10.dp)
                     )
                 },
                 navigationIcon = {
@@ -2727,7 +2730,7 @@ Column(
                 DropdownPlacementButton(color = currentMenuDesign().badge, fg = Color.White)
                 // fix48: 300 static border lines + bottom arrow size slider
                 StaticBorderButton(color = currentMenuDesign().badge, fg = Color.White)
-                ToolArrowSizeBar()
+                // fix51: arrow size slider removed, arrows fixed at 2.5x
             }
             }
         }

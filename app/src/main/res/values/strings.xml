@@ -53,7 +53,7 @@
     <string name="pdf_library_added_count">Added %1$d PDF(s).</string>
     <string name="open_pdf_failed">Unable to open this PDF. The file may be invalid or damaged.</string>
     <string name="open_pdf_empty">This PDF has no pages.</string>
-    <string name="editor_title">New Document</string>
+    <string name="editor_title">Create New PDF</string>
     <string name="editor_empty_state">Add images or text to start building your PDF.</string>
     <string name="editor_empty_state_hint">Use Image Tools or Text Tools to begin.</string>
     <string name="content_desc_app_icon">PDFCraft Studio icon</string>
