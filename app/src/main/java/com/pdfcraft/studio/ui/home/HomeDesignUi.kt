@@ -140,6 +140,7 @@ internal fun HomeDesignedScreen(
             if (HOME_SHOW_EXTRAS) { // fix47: both Home floating buttons hidden
                 HomeDesignFloatingButton(fabColor = d.fab, fabFg = d.fabFg)
                 HomeTopImageBorderButton(fabColor = d.fab, fabFg = d.fabFg) // fix43
+                HomeTopImageAnimButton(fabColor = d.fab, fabFg = d.fabFg) // fix50
             }
         }
     }

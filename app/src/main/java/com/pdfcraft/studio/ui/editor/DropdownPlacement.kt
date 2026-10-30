@@ -62,7 +62,7 @@ internal object DropdownPlacement {
     private const val PREFS = "dropdown_placement"
     private var loaded = false
     /** fix45 defaults: page 0,4 | image -4,4 | text 4,4 | dots -16,-12, all scale 1.05 */
-    private val DEF_X = intArrayOf(0, 0, -4, 4, -16)
+    private val DEF_X = intArrayOf(0, 8, -4, -8, -16) // fix50: page 8,4 | image -4,4 | text -8,4 | dots -16,-12
     private val DEF_Y = intArrayOf(0, 4, 4, 4, -12)
     private const val DEF_S = 1.05f
     private val xs = List(5) { mutableStateOf(DEF_X[it]) }
@@ -80,6 +80,9 @@ internal object DropdownPlacement {
         if (!p.getBoolean("fix45_defaults", false)) {
             // fix45: start once from the new default placements
             p.edit().clear().putBoolean("fix45_defaults", true).apply()
+        }
+        if (!p.getBoolean("fix50_defaults", false)) { // fix50: new default placements once
+            p.edit().clear().putBoolean("fix45_defaults", true).putBoolean("fix50_defaults", true).apply()
         }
         for (id in 1..4) {
             xs[id].value = p.getInt("m" + id + "_x", DEF_X[id]).coerceIn(-400, 400)

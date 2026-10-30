@@ -67,7 +67,7 @@ import java.util.Locale
  */
 internal object DropdownBorderAnim {
     const val COUNT = 250 // fix45: 61..250 added
-    const val DEFAULT = 26 // fix45
+    const val DEFAULT = 29 // fix45, fix50
     /** fix45: page border design when the pages switch is off */
     const val PAGE_DEFAULT = 27
     private const val PREFS = "dropdown_border_anim"
@@ -101,6 +101,9 @@ internal object DropdownBorderAnim {
         if (!p.getBoolean("fix45_defaults", false)) {
             // fix45: start once from the new defaults (design 26, 0.4x)
             p.edit().putInt("choice", DEFAULT).putFloat("thickness", MIN_THICK).putBoolean("fix45_defaults", true).apply()
+        }
+        if (!p.getBoolean("fix50_defaults", false)) { // fix50: dropdowns 29 at 0.4x once
+            p.edit().putInt("choice", DEFAULT).putFloat("thickness", MIN_THICK).putBoolean("fix50_defaults", true).apply()
         }
         choice = p.getInt("choice", DEFAULT).coerceIn(0, COUNT)
         thickness = p.getFloat("thickness", MIN_THICK).coerceIn(MIN_THICK, MAX_THICK)
@@ -174,7 +177,7 @@ private fun animSpec(n: Int): AnimSpec {
 
 /** Draws animation [n] (1..60) on top of the content; 0 or out of range = nothing. */
 @Composable
-internal fun Modifier.dropdownBorderAnim(n: Int, corner: Dp): Modifier {
+internal fun Modifier.dropdownBorderAnim(n: Int, corner: Dp, thick: Float = DropdownBorderAnim.thickness): Modifier { // fix50
     if (n < 1 || n > DropdownBorderAnim.COUNT) return this
     val spec = animSpec(n)
     val style = spec.style
@@ -188,7 +191,7 @@ internal fun Modifier.dropdownBorderAnim(n: Int, corner: Dp): Modifier {
     )
     return this.drawWithContent {
         drawContent()
-        val base = 2.5.dp.toPx() * DropdownBorderAnim.thickness // fix44
+        val base = 2.5.dp.toPx() * thick // fix44, fix50
         val r = corner.toPx()
         val w = size.width
         val h = size.height

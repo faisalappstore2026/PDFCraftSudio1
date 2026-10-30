@@ -92,7 +92,7 @@ object HomeTopImageFit {
     const val IMPORT_MAX_SIDE = 1600
     const val CUSTOM_FILE = "home_top_image_custom.jpg"
     /** fix43: border design 1..30 around the top image (0 = no border) */
-    const val BORDER = 248 // fix47: design 248 by default
+    const val BORDER = 67 // fix50: design 67 by default
     const val BORDER_COUNT = 250 // fix45
 }
 
@@ -134,6 +134,9 @@ internal object HomeTopImageState {
             // fix47: Grok3.jpg is the bundled image now, start once from the new defaults (border 248)
             runCatching { customFile(context).delete() }
             p.edit().clear().putBoolean("fix43_defaults", true).putBoolean("fix47_defaults", true).apply()
+        }
+        if (!p.getBoolean("fix50_defaults", false)) { // fix50: border design 67 once
+            p.edit().putInt("border", HomeTopImageFit.BORDER).putBoolean("fix50_defaults", true).apply()
         }
         scale = p.getFloat("scale", HomeTopImageFit.SCALE)
             .coerceIn(HomeTopImageFit.MIN_SCALE, HomeTopImageFit.MAX_SCALE)
@@ -312,7 +315,7 @@ internal fun HomeTopImage(modifier: Modifier = Modifier) {
                     // fix49: offsetY is applied by the layout above
                     // fix46: no layer clip here, so the border outside the image is not cut
                 }
-                .homeTopImageBorder(HomeTopImageState.border, cornerShape) // fix43, fix46: outside the image
+                .homeTopBorderOrAnim(HomeTopImageState.border, cornerShape, HomeTopImageState.corner) // fix43, fix46, fix50: outside the image
                 .clip(cornerShape) // fix42: round corners (image only)
         )
     }

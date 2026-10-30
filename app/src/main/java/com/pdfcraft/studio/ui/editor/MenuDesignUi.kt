@@ -236,18 +236,22 @@ internal fun MenuDesignHeader(text: String, expanded: Boolean, onClick: () -> Un
             fontWeight = d.headerWeight,
             maxLines = 1
         )
-        Text(
-            text = if (expanded) " ▴" else " ▾",
-            color = fg,
-            style = MaterialTheme.typography.labelSmall,
-            // fix49: drawn bigger / smaller only, the button size and layout stay the same
-            modifier = Modifier.graphicsLayer {
-                scaleX = ToolArrowSize.scale
-                scaleY = ToolArrowSize.scale
-                transformOrigin = TransformOrigin(0f, 0.5f)
-            },
-            fontWeight = d.headerWeight
-        )
+        Box(modifier = Modifier.width(14.dp), contentAlignment = Alignment.Center) { // fix50: fixed spot
+            Text(
+                text = if (expanded) "▴" else "▾",
+                color = fg,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                softWrap = false,
+                // fix49, fix50: scaled around its own center, size and layout unchanged
+                modifier = Modifier.graphicsLayer {
+                    scaleX = ToolArrowSize.scale
+                    scaleY = ToolArrowSize.scale
+                    transformOrigin = TransformOrigin.Center
+                },
+                fontWeight = d.headerWeight
+            )
+        }
     }
 }
 
