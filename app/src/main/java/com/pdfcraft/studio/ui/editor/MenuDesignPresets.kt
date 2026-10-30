@@ -101,3 +101,6 @@ val DEFAULT_EDITOR_DESIGN: MenuDesign =
     designTheme("Slate Blue", 0xFFFFFFFF, 0xFF1E293B, 0xFF6366F1, 0xFF334155, 0xFFFFFFFF,
         0xFFF1F5F9, 0xFFE2E8F0, 0xFF1E293B, 0xFFCBD5E1, 0xFF94A3B8, style = 0, corner = 12,
         chipCorner = 10, shadow = 4, glow2 = 0xFFA5B4FC, label = 0xFF334155)
+        // fix48: Favorite 1 border line on the three tool buttons, white buttons and white row
+        .copy(headerBg = Color.White, headerOutline = Color(0xFFDADCE0), headerOutlineOpen = Color(0xFF6366F1),
+            toolbarBg = Color.White, toolbarBrush = null)

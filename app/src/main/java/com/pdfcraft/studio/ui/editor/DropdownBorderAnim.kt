@@ -128,6 +128,7 @@ internal object DropdownBorderAnim {
 
     /** fix46: panel tap: switch ON = pages only, OFF = dropdowns only. */
     fun selectFromPanel(context: Context, n: Int) {
+        StaticBorder.clearFor(context, pagesFollow) // fix48: an animation choice brings the animated border back
         if (!pagesFollow) {
             select(context, n)
             return

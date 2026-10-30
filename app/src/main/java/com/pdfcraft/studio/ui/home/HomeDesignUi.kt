@@ -310,7 +310,10 @@ private const val HOME_SHOW_EXTRAS = false
 
 @Composable
 private fun LogoSizeSlider(d: HomeDesign, logoSize: Float, onLogoSizeChange: (Float) -> Unit, label: Color) {
-    if (!HOME_SHOW_EXTRAS) return // fix47
+    if (!HOME_SHOW_EXTRAS) { // fix47, fix48: only the Up / Down / Left / Right buttons stay visible
+        HomeTopImageControls(accent = d.accent, label = label, onlyMove = true)
+        return
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         // fix43: icon size slider removed, top image controls stay
         HomeTopImageControls(accent = d.accent, label = label) // fix41

@@ -71,6 +71,7 @@ import com.pdfcraft.studio.ui.editor.packEditorPages
 import com.pdfcraft.studio.ui.editor.packPageSource
 import com.pdfcraft.studio.ui.editor.currentMenuDesign
 import com.pdfcraft.studio.ui.editor.dropdownBorderAnim
+import com.pdfcraft.studio.ui.editor.editorBorderLine
 import com.pdfcraft.studio.ui.common.DocumentScrollBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -3347,7 +3348,7 @@ private fun PageCard(
             .clip(RoundedCornerShape(0.dp)) // fix43: no page shadow
             .border(1.dp, frame.pageBorder)
             // fix45: page border = dropdown animation 27 (or the selected one when the switch is on)
-            .dropdownBorderAnim(com.pdfcraft.studio.ui.editor.DropdownBorderAnim.pageChoice(), 0.dp)
+            .editorBorderLine(com.pdfcraft.studio.ui.editor.DropdownBorderAnim.pageChoice(), 0.dp, page = true) // fix48
             .then(
                 if (backgroundBrush != null) Modifier.background(backgroundBrush)
                 else Modifier.background(Color(backgroundColor))

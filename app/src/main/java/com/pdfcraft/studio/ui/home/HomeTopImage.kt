@@ -324,9 +324,28 @@ private fun TopImageButton(text: String, accent: Color, label: Color, modifier: 
     }
 }
 
+/** fix48: the Up / Down / Left / Right row (also shown alone on Home). */
+@Composable
+private fun TopImageMoveRow(context: Context, step: Int, accent: Color, label: Color) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TopImageButton(stringResource(R.string.home_top_image_up), accent, label, Modifier.weight(1f)) {
+            HomeTopImageState.move(context, 0, -step)
+        }
+        TopImageButton(stringResource(R.string.home_top_image_down), accent, label, Modifier.weight(1f)) {
+            HomeTopImageState.move(context, 0, step)
+        }
+        TopImageButton(stringResource(R.string.home_top_image_left), accent, label, Modifier.weight(1f)) {
+            HomeTopImageState.move(context, -step, 0)
+        }
+        TopImageButton(stringResource(R.string.home_top_image_right), accent, label, Modifier.weight(1f)) {
+            HomeTopImageState.move(context, step, 0)
+        }
+    }
+}
+
 /** fix41: top image size slider, Up / Down / Left / Right buttons and Copy Details (below the icon size slider). */
 @Composable
-internal fun HomeTopImageControls(accent: Color, label: Color) {
+internal fun HomeTopImageControls(accent: Color, label: Color, onlyMove: Boolean = false) { // fix48
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     HomeTopImageState.ensureLoaded(context)
@@ -350,6 +369,10 @@ internal fun HomeTopImageControls(accent: Color, label: Color) {
         activeTickColor = if (accent.luminance() > 0.6f) Color(0xAA000000) else Color(0xCCFFFFFF),
         inactiveTickColor = accent.copy(alpha = 0.85f)
     )
+    if (onlyMove) { // fix48: only Up / Down / Left / Right
+        TopImageMoveRow(context, step, accent, label)
+        return
+    }
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text = stringResource(R.string.home_top_image_size), color = label, fontSize = 13.sp)
         Slider(
@@ -366,20 +389,7 @@ internal fun HomeTopImageControls(accent: Color, label: Color) {
             ),
             modifier = Modifier.fillMaxWidth()
         )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TopImageButton(stringResource(R.string.home_top_image_up), accent, label, Modifier.weight(1f)) {
-                HomeTopImageState.move(context, 0, -step)
-            }
-            TopImageButton(stringResource(R.string.home_top_image_down), accent, label, Modifier.weight(1f)) {
-                HomeTopImageState.move(context, 0, step)
-            }
-            TopImageButton(stringResource(R.string.home_top_image_left), accent, label, Modifier.weight(1f)) {
-                HomeTopImageState.move(context, -step, 0)
-            }
-            TopImageButton(stringResource(R.string.home_top_image_right), accent, label, Modifier.weight(1f)) {
-                HomeTopImageState.move(context, step, 0)
-            }
-        }
+        TopImageMoveRow(context, step, accent, label) // fix48: shared row
         TopImageButton(stringResource(R.string.home_top_image_copy), accent, label, Modifier.fillMaxWidth()) {
             clipboard.setText(AnnotatedString(HomeTopImageState.details()))
             Toast.makeText(context, copiedMsg, Toast.LENGTH_SHORT).show()

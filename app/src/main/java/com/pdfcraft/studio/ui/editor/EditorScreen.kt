@@ -2725,6 +2725,9 @@ Column(
                 DropdownBorderAnimButton(color = currentMenuDesign().badge, fg = Color.White)
                 // fix44: draggable button to move / resize the four dropdown lists
                 DropdownPlacementButton(color = currentMenuDesign().badge, fg = Color.White)
+                // fix48: 300 static border lines + bottom arrow size slider
+                StaticBorderButton(color = currentMenuDesign().badge, fg = Color.White)
+                ToolArrowSizeBar()
             }
             }
         }

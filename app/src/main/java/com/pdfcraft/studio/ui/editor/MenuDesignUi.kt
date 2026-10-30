@@ -119,7 +119,7 @@ internal fun DesignedDropdownMenu(
             modifier = Modifier
                 .then(if (brush != null) Modifier.background(brush) else Modifier)
                 .then(if (outline != null) Modifier.border(d.outlineWidth, outline, RoundedCornerShape(d.corner)) else Modifier)
-                .dropdownBorderAnim(DropdownBorderAnim.choice, d.corner), // fix43
+                .editorBorderLine(DropdownBorderAnim.choice, d.corner, page = false), // fix43, fix48: static line wins
             offset = dropdownOffset(menuId), // fix44
             properties = properties,
             content = { DropdownScaledContent(menuId, content) }
@@ -209,6 +209,7 @@ internal fun MenuDesignDivider() {
 @Composable
 internal fun MenuDesignHeader(text: String, expanded: Boolean, onClick: () -> Unit) {
     val d = currentMenuDesign()
+    ToolArrowSize.ensureLoaded(LocalContext.current) // fix48
     val shape = RoundedCornerShape(d.headerCorner)
     val openBrush = d.headerBrushOpen
     val bgMod = if (expanded && openBrush != null) Modifier.background(openBrush, shape)
@@ -237,6 +238,7 @@ internal fun MenuDesignHeader(text: String, expanded: Boolean, onClick: () -> Un
             text = if (expanded) " ▴" else " ▾",
             color = fg,
             style = MaterialTheme.typography.labelSmall,
+            fontSize = MaterialTheme.typography.labelSmall.fontSize * ToolArrowSize.scale, // fix48
             fontWeight = d.headerWeight
         )
     }

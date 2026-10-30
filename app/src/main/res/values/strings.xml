@@ -518,6 +518,11 @@
     <string name="copied_label">Copied</string>
     <!-- fix45 -->
     <string name="border_on_pages">Also on page borders</string>
+    <string name="static_border_lines">Border Lines (no animation)</string>
+    <string name="static_target_lists">Dropdown lists</string>
+    <string name="static_target_pages">Pages</string>
+    <string name="static_border_none">None (use animation)</string>
+    <string name="tool_arrow_size">Arrow size</string>
     <string name="border_animations">Border Animations</string>
     <string name="border_animation_off">Animation Off</string>
     <string name="text_spacing">Spacing</string>
