@@ -346,6 +346,10 @@ object PdfGenerator {
                         paint = paint,
                         cornerPercent = img.cornerRadiusPercent
                     )
+                    if (drawn != null) com.pdfcraft.studio.ui.editor.drawElementFrameOnCanvas( // fix55: Add Border Line
+                        context, canvas, img.id, drawn.left, drawn.top, drawn.right, drawn.bottom, pageWidth / 360f,
+                        minOf(drawn.width(), drawn.height()) * (img.cornerRadiusPercent.coerceIn(0, 100) / 100f) * 0.5f
+                    )
                     if (drawn != null && img.numberLabel != null) {
                         drawNumberBadge(
                             canvas = canvas,
@@ -827,6 +831,9 @@ object PdfGenerator {
                 )
                 textOps.forEach { op -> op() }
                 canvas.restore()
+                com.pdfcraft.studio.ui.editor.drawElementFrameOnCanvas( // fix55: Add Border Line
+                    context, canvas, te.id, gradL - 4f * scale, gradT - 4f * scale, gradL + gradW + 4f * scale, gradT + gradH + 4f * scale, scale
+                )
 
                 if (kotlin.math.abs(rotDeg) > 0.05f) canvas.restore()
 

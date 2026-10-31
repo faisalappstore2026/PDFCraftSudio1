@@ -830,6 +830,11 @@ private fun ImageToolsMenu(
                 onImportImagesClick()
             }
             MenuDesignDivider()
+            ToolMenuItem(stringResource(R.string.bl_title)) { // fix55
+                onMenuDismiss()
+                BorderLineTool.mode = 1
+            }
+            MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.resize_images_tool)) {
                 onMenuDismiss()
                 onResizeImagesClick()
@@ -1094,6 +1099,11 @@ private fun TextToolsMenu(
             ToolMenuItem(stringResource(R.string.text_tool_enter_text)) {
                 onMenuDismiss()
                 onEnterTextClick()
+            }
+            MenuDesignDivider()
+            ToolMenuItem(stringResource(R.string.bl_title)) { // fix55
+                onMenuDismiss()
+                BorderLineTool.mode = 2
             }
             MenuDesignDivider()
             ToolMenuItem(stringResource(R.string.text_tool_font)) {

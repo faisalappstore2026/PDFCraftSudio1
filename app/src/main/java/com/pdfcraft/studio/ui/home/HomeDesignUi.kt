@@ -96,8 +96,8 @@ internal fun HomeDesignedScreen(
     val d = design
     val entries = listOf(
         HomeEntry(stringResource(R.string.create_pdf), stringResource(R.string.home_sub_create), Icons.Filled.Add, onCreatePdfClick),
-        HomeEntry(stringResource(R.string.view_documents), stringResource(R.string.home_sub_view), AppIcons.Visibility, onViewPdf),
         HomeEntry(stringResource(R.string.my_projects), stringResource(R.string.home_sub_projects), AppIcons.FileDocument, onMyProjectsClick),
+        HomeEntry(stringResource(R.string.view_documents), stringResource(R.string.home_sub_view), AppIcons.Visibility, onViewPdf), // fix55: below My Projects
         HomeEntry(stringResource(R.string.icon_center), stringResource(R.string.home_sub_icon), Icons.Filled.Settings, onIconCenterClick),
         HomeEntry(stringResource(R.string.other_useful_tools), stringResource(R.string.home_sub_other_tools), Icons.Filled.Build, {}) // fix54: same design as the others
     )
@@ -270,7 +270,8 @@ internal fun EntryTexts(d: HomeDesign, e: HomeEntry, center: Boolean, titleSize:
             fontSize = 12.sp,
             lineHeight = 16.sp,
             textAlign = if (center) TextAlign.Center else TextAlign.Start,
-            maxLines = 2,
+            maxLines = 1, // fix55: subtitle on one line
+            softWrap = false,
             overflow = TextOverflow.Ellipsis
         )
     }

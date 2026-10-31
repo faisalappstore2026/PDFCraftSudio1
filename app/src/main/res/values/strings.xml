@@ -418,7 +418,7 @@
     <string name="save_project_failed">Could not save project. Please try again.</string>
     <string name="save_project_default_name">Untitled Project</string>
     <string name="my_projects">My Projects</string>
-    <string name="no_saved_projects">No saved projects yet.</string>
+    <string name="no_saved_projects">No Saved Projects</string>
     <string name="no_saved_projects_hint">Save a project from the editor, then it will appear here.</string>
     <string name="project_page_count">%d Page</string>
     <string name="project_pages_count">%d Pages</string>
@@ -467,7 +467,7 @@
     <string name="home_design_hint">Tap a number to change the whole Home screen: colors, cards and layout</string>
     <string name="home_design_original">Default</string>
     <string name="home_sub_create">Start a new PDF document</string>
-    <string name="home_sub_view">Open and read your PDFs</string>
+    <string name="home_sub_view">Included👉PDF+Word+Excel+PPT+Text</string>
     <string name="home_sub_projects">Continue your saved work</string>
     <string name="home_sub_icon">Customize the app icon</string>
     <string name="icon_center_import_image">Import image</string>
@@ -492,7 +492,7 @@
     <string name="home_top_image_copy">Copy Details</string>
     <string name="home_top_image_copied">Details copied</string>
     <string name="home_top_image_copy_move">Copy Move Details</string>
-    <string name="view_documents">View PDF+Word+Excel+PPT+Text</string>
+    <string name="view_documents">View All Documents</string>
     <string name="other_useful_tools">Other Useful Tools</string>
     <string name="home_sub_other_tools">More tools coming soon</string>
     <string name="home_top_anim_title">Top Image Border Animations</string>
@@ -535,5 +535,38 @@
     <string name="line_spacing">Line spacing</string>
     <string name="reset_label">Reset</string>
     <string name="done_label">Done</string>
+    <!-- fix55: Add Border Line -->
+    <string name="bl_title">Add Border Line</string>
+    <string name="bl_ok">OK</string>
+    <string name="bl_select_pages">Select Pages</string>
+    <string name="bl_select_images">Select Images</string>
+    <string name="bl_select_texts">Select Text Boxes</string>
+    <string name="bl_add_images">Add Images</string>
+    <string name="bl_add_texts">Add Text Boxes</string>
+    <string name="bl_change">Change</string>
+    <string name="bl_thickness">Thickness</string>
+    <string name="bl_inset">Position</string>
+    <string name="bl_inset_hint">- outside, + inside</string>
+    <string name="bl_reset">Reset</string>
+    <string name="bl_none">No Border</string>
+    <string name="bl_select_all">Select All</string>
+    <string name="bl_clear">Clear</string>
+    <string name="bl_page">Page</string>
+    <string name="bl_images">images</string>
+    <string name="bl_texts">text boxes</string>
+    <string name="bl_next">Next</string>
+    <string name="bl_done">Done</string>
+    <string name="bl_no_images">No images on the selected pages.</string>
+    <string name="bl_no_texts">No text boxes on the selected pages.</string>
+    <string name="bl_cat_solid">Solid</string>
+    <string name="bl_cat_double">Double</string>
+    <string name="bl_cat_dashed">Dashed</string>
+    <string name="bl_cat_dotted">Dotted</string>
+    <string name="bl_cat_dash_dot">Dash Dot</string>
+    <string name="bl_cat_gradient">Gradient</string>
+    <string name="bl_cat_rainbow">Rainbow</string>
+    <string name="bl_cat_thick_thin">Thick + Thin</string>
+    <string name="bl_cat_long_dash">Long Dash</string>
+    <string name="bl_cat_glow">Glow</string>
 </resources>
 

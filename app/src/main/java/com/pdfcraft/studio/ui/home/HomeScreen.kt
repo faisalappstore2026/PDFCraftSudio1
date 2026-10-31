@@ -142,9 +142,9 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 PrimaryActionButton(
-                    text = stringResource(R.string.view_documents), // fix54
-                    icon = AppIcons.Visibility,
-                    onClick = onViewPdf,
+                    text = stringResource(R.string.my_projects),
+                    icon = AppIcons.FileDocument,
+                    onClick = onMyProjectsClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .widthIn(max = 420.dp)
@@ -153,9 +153,9 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 PrimaryActionButton(
-                    text = stringResource(R.string.my_projects),
-                    icon = AppIcons.FileDocument,
-                    onClick = onMyProjectsClick,
+                    text = stringResource(R.string.view_documents), // fix54, fix55: below My Projects
+                    icon = AppIcons.Visibility,
+                    onClick = onViewPdf,
                     modifier = Modifier
                         .fillMaxWidth()
                         .widthIn(max = 420.dp)

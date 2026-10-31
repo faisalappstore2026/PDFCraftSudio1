@@ -242,6 +242,8 @@ fun EditorScreen(projectPath: String? = null, onBackClick: () -> Unit, onViewPdf
         )
     }
 
+    AddBorderLineHost(viewModel) // fix55
+
     if (showImagePositionDialog && imagePositionTargetId != null) {
         val srcId = imagePositionTargetId ?: ""
         androidx.compose.material3.AlertDialog(

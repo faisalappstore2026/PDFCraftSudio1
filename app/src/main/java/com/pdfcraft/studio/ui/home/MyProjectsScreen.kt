@@ -122,13 +122,7 @@ fun MyProjectsScreen(
                     color = Color.Black,
                     textAlign = TextAlign.Center
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.no_saved_projects_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF8A8A8A),
-                    textAlign = TextAlign.Center
-                )
+                // fix55: hint text removed
             }
         } else {
             LazyColumn(

@@ -68,6 +68,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import com.pdfcraft.studio.ui.common.AppIcons
 import com.pdfcraft.studio.ui.editor.packEditorPages
+import com.pdfcraft.studio.ui.editor.elementFrame
 import com.pdfcraft.studio.ui.editor.packPageSource
 import com.pdfcraft.studio.ui.editor.currentMenuDesign
 import com.pdfcraft.studio.ui.editor.dropdownBorderAnim
@@ -1689,6 +1690,7 @@ private fun PageTextOverlay(
                         rowMeasured = it
                         posRowSize.value = it
                     }
+                    .elementFrame(textElement.id, 0.dp) // fix55
                     .then(
                         if (selected && !hideSelectionChrome) {
                             Modifier.drawWithContent {
@@ -2764,6 +2766,7 @@ private fun ImageCell(
                     contentDescription = null,
                     modifier = Modifier
                         .size(drawW, drawH)
+                        .elementFrame(image.id, cornerR) // fix55
                         .clip(RoundedCornerShape(cornerR)),
                     contentScale = ContentScale.FillBounds
                 )
