@@ -227,7 +227,7 @@ internal object DocParse {
     fun csv(f: File): DocSheet {
         val t = readText(f)
         val first = t.lineSequence().firstOrNull() ?: ""
-        val sep = listOf(',', ';', '\t').maxByOrNull { c -> { first.count { it == c } } ?: ',' }
+        val sep: Char = listOf(',', ';', '\t').maxByOrNull { c -> first.count { it == c } } ?: ','
         val rows = ArrayList<List<String>>()
         var row = ArrayList<String>()
         val cell = StringBuilder()
