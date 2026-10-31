@@ -112,7 +112,7 @@ internal fun DetailLine(k: String, v: String) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun DocRow(
-    d: DocFile, fav: Boolean, selecting: Boolean, checked: Boolean,
+    d: DocFile, fav: Boolean, selecting: Boolean, checked: Boolean, scale: Float = 1f, // fix56: list size
     onClick: () -> Unit, onLongClick: () -> Unit, onStar: () -> Unit, onAction: (Int) -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -121,20 +121,20 @@ internal fun DocRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().background(if (checked) Color(0xFFFFEBEE) else Color.White)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(start = 12.dp, end = 2.dp, top = 10.dp, bottom = 10.dp)
+            .padding(start = 12.dp, end = 2.dp, top = (10f * scale * scale).dp, bottom = (10f * scale * scale).dp)
     ) {
         if (selecting) Checkbox(checked = checked, onCheckedChange = { onClick() })
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(kindColor(k))
+            modifier = Modifier.size((46f * scale).dp).clip(RoundedCornerShape((10f * scale).dp)).background(kindColor(k))
         ) {
-            Text(d.ext.uppercase().take(4), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(d.ext.uppercase().take(4), color = Color.White, fontWeight = FontWeight.Bold, fontSize = (12f * scale).sp)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(d.name, color = DocInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(d.name, color = DocInk, fontSize = (15f * (0.5f + scale / 2f)).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
-            Text(DocFiles.sizeText(d.size) + "  \u2022  " + DocFiles.dateText(d.modified), color = DocSub, fontSize = 12.sp, maxLines = 1)
+            Text(DocFiles.sizeText(d.size) + "  \u2022  " + DocFiles.dateText(d.modified), color = DocSub, fontSize = (12f * (0.5f + scale / 2f)).sp, maxLines = 1)
         }
         if (!selecting) {
             IconButton(onClick = onStar) {

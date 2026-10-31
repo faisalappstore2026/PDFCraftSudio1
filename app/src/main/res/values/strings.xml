@@ -467,7 +467,7 @@
     <string name="home_design_hint">Tap a number to change the whole Home screen: colors, cards and layout</string>
     <string name="home_design_original">Default</string>
     <string name="home_sub_create">Start a new PDF document</string>
-    <string name="home_sub_view">Included👉PDF+Word+Excel+PPT+Text</string>
+    <string name="home_sub_view">📄 PDF · Word · Excel · PPT · Text</string>
     <string name="home_sub_projects">Continue your saved work</string>
     <string name="home_sub_icon">Customize the app icon</string>
     <string name="icon_center_import_image">Import image</string>

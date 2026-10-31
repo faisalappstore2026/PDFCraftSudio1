@@ -109,6 +109,10 @@ fun DocumentsScreen(onBackClick: () -> Unit, onOpenPdf: (String) -> Unit) {
     var renameDoc by remember { mutableStateOf<DocFile?>(null) }
     var detailsDoc by remember { mutableStateOf<DocFile?>(null) }
     var moveDoc by remember { mutableStateOf<DocFile?>(null) }
+    var viewing by remember { mutableStateOf<DocFile?>(null) } // fix56: in-app viewer
+    var layoutOpen by remember { mutableStateOf(false) } // fix56: Layout panel
+    var tabGap by remember { mutableStateOf(DocLayout.gap(ctx)) }
+    var listScale by remember { mutableStateOf(DocLayout.scale(ctx)) }
 
     fun reload() {
         access = DocFiles.hasAccess(ctx)
@@ -151,11 +155,12 @@ fun DocumentsScreen(onBackClick: () -> Unit, onOpenPdf: (String) -> Unit) {
         DocFiles.setFavorites(ctx, favs)
     }
     fun openDoc(d: DocFile) {
-        if (d.ext == "pdf") onOpenPdf(Uri.fromFile(d.file).toString()) else DocFiles.open(ctx, d)
+        if (d.ext == "pdf") onOpenPdf(Uri.fromFile(d.file).toString()) else viewing = d // fix56: Text/Word/Excel/PPT open inside the app
     }
 
-    BackHandler(enabled = selecting || searching || favOnly || sheet) {
+    BackHandler(enabled = selecting || searching || favOnly || sheet || layoutOpen) {
         when {
+            layoutOpen -> { layoutOpen = false } // fix56
             selecting -> { selecting = false; selected = emptySet() }
             searching -> { searching = false; query = "" }
             sheet -> { sheet = false }
@@ -179,17 +184,7 @@ fun DocumentsScreen(onBackClick: () -> Unit, onOpenPdf: (String) -> Unit) {
                         }) { Icon(if (selecting || searching) Icons.Filled.Close else Icons.Filled.ArrowBack, contentDescription = "Back", tint = DocInk) }
                     },
                     title = {
-                        if (searching) {
-                            TextField(
-                                value = query, onValueChange = { query = it }, singleLine = true,
-                                placeholder = { Text("Search files") },
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = DocRed
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
+                        run { // fix56: search is a full-screen page now
                             Text(
                                 when {
                                     selecting -> selDocs.size.toString() + " selected"
@@ -212,29 +207,20 @@ fun DocumentsScreen(onBackClick: () -> Unit, onOpenPdf: (String) -> Unit) {
                             if (!searching) IconButton(onClick = { searching = true }) { Icon(Icons.Filled.Search, contentDescription = "Search", tint = DocInk) }
                             Box {
                                 IconButton(onClick = { topMenu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = DocInk) }
-                                DropdownMenu(expanded = topMenu, onDismissRequest = { topMenu = false }) {
-                                    DropdownMenuItem(text = { Text("Select") }, onClick = { topMenu = false; selecting = true; selected = emptySet() })
-                                    DropdownMenuItem(text = { Text("Select All") }, onClick = { topMenu = false; selecting = true; selected = shown.map { it.path }.toSet() })
-                                    DropdownMenuItem(text = { Text("Sort by") }, onClick = { topMenu = false; sortDialog = true })
-                                    DropdownMenuItem(
-                                        text = { Text(if (favOnly) "Show all files" else "Favourite") },
-                                        leadingIcon = { Icon(Icons.Filled.Star, contentDescription = null, tint = DocStar) },
-                                        onClick = { topMenu = false; favOnly = !favOnly }
-                                    )
-                                }
+                                DocTopMenu( // fix56: new menu design
+                                    expanded = topMenu, favOnly = favOnly, onDismiss = { topMenu = false },
+                                    onSelect = { selecting = true; selected = emptySet() },
+                                    onSelectAll = { selecting = true; selected = shown.map { it.path }.toSet() },
+                                    onSort = { sortDialog = true },
+                                    onFav = { favOnly = !favOnly },
+                                    onLayout = { layoutOpen = true },
+                                    onRefresh = { reload() }
+                                )
                             }
                         }
                     }
                 )
-                ScrollableTabRow(selectedTabIndex = tab.ordinal, containerColor = Color.White, contentColor = DocRed, edgePadding = 8.dp) {
-                    DocKind.values().forEach { k ->
-                        Tab(
-                            selected = tab == k, onClick = { tab = k },
-                            text = { Text(k.label, fontWeight = if (tab == k) FontWeight.Bold else FontWeight.Normal) },
-                            selectedContentColor = DocRed, unselectedContentColor = DocSub
-                        )
-                    }
-                }
+                DocTabsRow(tab, tabGap) { tab = it } // fix56: tab spacing from Layout
             }
         }
     ) { pad ->
@@ -260,7 +246,7 @@ fun DocumentsScreen(onBackClick: () -> Unit, onOpenPdf: (String) -> Unit) {
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(shown, key = { it.path }) { d ->
                             DocRow(
-                                d = d, fav = favs.contains(d.path), selecting = selecting, checked = selected.contains(d.path),
+                                d = d, fav = favs.contains(d.path), selecting = selecting, checked = selected.contains(d.path), scale = listScale, // fix56
                                 onClick = {
                                     if (selecting) { selected = if (selected.contains(d.path)) selected - d.path else selected + d.path }
                                     else { openDoc(d) }
@@ -285,8 +271,19 @@ fun DocumentsScreen(onBackClick: () -> Unit, onOpenPdf: (String) -> Unit) {
                 }
             }
             if (sheet && !access) AccessSheet(onEnable = enable, onClose = { sheet = false })
+            if (layoutOpen) DocLayoutPanel( // fix56
+                gap = tabGap, scale = listScale,
+                onGap = { tabGap = it; DocLayout.save(ctx, tabGap, listScale) },
+                onScale = { listScale = it; DocLayout.save(ctx, tabGap, listScale) },
+                onReset = { tabGap = 6f; listScale = 1f; DocLayout.save(ctx, tabGap, listScale) },
+                onClose = { layoutOpen = false },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
+
+    if (searching) DocSearchPage(all, query, { query = it }, onBack = { searching = false; query = "" }, onOpen = { d -> openDoc(d) }) // fix56
+    viewing?.let { d -> DocViewerScreen(d) { viewing = null } } // fix56
 
     if (sortDialog) AlertDialog(
         onDismissRequest = { sortDialog = false },
