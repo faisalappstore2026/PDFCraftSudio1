@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.FullPaste" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/ink</item>
+        <item name="android:windowBackground">#F3EFE6</item>
+    </style>
+</resources>
